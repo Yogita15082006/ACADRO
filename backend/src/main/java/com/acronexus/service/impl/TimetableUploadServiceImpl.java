@@ -12,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import com.acronexus.service.AiService;
+import com.acronexus.dto.ai.AiAnalyticsRequest;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,27 +37,72 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     private final TimetableRepository timetableRepository;
     private final FileStorageRepository fileStorageRepository;
     private final UserRepository userRepository;
+    private final DegreeProgramRepository degreeProgramRepository;
+    private final TimetableSlotRepository timetableSlotRepository;
+    private final AiService aiService;
 
     private static final String UPLOAD_DIR = "uploads/timetables/";
 
     @Override
     @Transactional
-    public ApiResponse<?> uploadTimetable(MultipartFile file, UUID departmentId, UUID academicYearId, UUID semesterId, UUID classId, UUID uploadedBy) {
-        // Validate Inputs
-        Department department = departmentRepository.findById(departmentId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid Department ID"));
-        AcademicYear academicYear = academicYearRepository.findById(academicYearId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid Academic Year ID"));
-        Semester semester = semesterRepository.findById(semesterId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid Semester ID"));
-        AcroClass acroClass = acroClassRepository.findById(classId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid Class ID"));
+    public ApiResponse<?> uploadTimetable(MultipartFile file, String departmentName, String academicYearStr, String semesterName, String className, String batchName, UUID uploadedBy) {
         User user = userRepository.findById(uploadedBy)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        if (!acroClass.getDepartment().getId().equals(department.getId())) {
-            throw new IllegalArgumentException("Class does not belong to the selected department.");
-        }
+        // Validate Inputs
+        Department department = departmentRepository.findAll().stream()
+                .filter(d -> d.getName().equalsIgnoreCase(departmentName))
+                .findFirst()
+                .orElseGet(() -> {
+                    Department d = new Department();
+                    d.setName(departmentName);
+                    return departmentRepository.save(d);
+                });
+
+        AcademicYear academicYear = academicYearRepository.findByYear(academicYearStr)
+                .orElseGet(() -> {
+                    AcademicYear a = new AcademicYear();
+                    a.setYear(academicYearStr);
+                    a.setStartDate(java.time.LocalDate.now());
+                    a.setEndDate(java.time.LocalDate.now().plusYears(1));
+                    a.setIsActive(true);
+                    return academicYearRepository.save(a);
+                });
+
+        int semNum = 1;
+        try { semNum = Integer.parseInt(semesterName.replace("Semester ", "").trim()); } catch (Exception ignored) {}
+        final int fSemNum = semNum;
+        Semester semester = semesterRepository.findBySemesterNumberAndAcademicYearId(semNum, academicYear.getId())
+                .orElseGet(() -> {
+                    Semester s = new Semester();
+                    s.setSemesterNumber(fSemNum);
+                    s.setAcademicYear(academicYear);
+                    s.setStartDate(java.time.LocalDate.now());
+                    s.setEndDate(java.time.LocalDate.now().plusMonths(6));
+                    s.setIsActive(true);
+                    return semesterRepository.save(s);
+                });
+
+        AcroClass acroClass = acroClassRepository.findAll().stream()
+                .filter(c -> c.getName().equalsIgnoreCase(className))
+                .findFirst()
+                .orElseGet(() -> {
+                    AcroClass c = new AcroClass();
+                    c.setName(className);
+                    c.setDepartment(department);
+                    
+                    com.acronexus.entity.DegreeProgram dp = degreeProgramRepository.findAll().stream()
+                            .findFirst()
+                            .orElseGet(() -> {
+                                com.acronexus.entity.DegreeProgram newDp = new com.acronexus.entity.DegreeProgram();
+                                newDp.setName("B.Tech");
+                                newDp.setDurationYears(4);
+                                newDp.setIsActive(true);
+                                return degreeProgramRepository.save(newDp);
+                            });
+                    c.setDegreeProgram(dp);
+                    return acroClassRepository.save(c);
+                });
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File cannot be empty");
@@ -92,21 +140,25 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
         newVersion.setAcroClass(acroClass);
         newVersion.setAcademicYear(academicYear);
         newVersion.setSemester(semester);
+        newVersion.setBatch(batchName);
         newVersion.setVersionNumber(nextVersion);
         newVersion.setFile(fileStorage);
         newVersion.setIsActive(true);
         newVersion.setUploadedBy(user);
-        
-        // TODO (Future Enhancement)
-        // Parse timetable PDF.
-        // Extract lectures.
-        // Detect faculty conflicts.
-        // Detect classroom conflicts.
-        // Route extracted data through the existing validation pipeline.
 
         timetableRepository.save(newVersion);
 
-        return ApiResponse.success("Timetable uploaded successfully as Version " + nextVersion, null);
+        TimetableVersionDto dto = mapToDto(newVersion);
+
+        return ApiResponse.success("Timetable uploaded successfully as Version " + nextVersion, dto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<?> getAllTimetables() {
+        List<Timetable> timetables = timetableRepository.findByIsActiveTrueOrderByUploadedAtDesc();
+        List<TimetableVersionDto> dtoList = timetables.stream().map(this::mapToDto).collect(Collectors.toList());
+        return ApiResponse.success("Timetables retrieved successfully", dtoList);
     }
 
     @Override
@@ -116,24 +168,46 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
                 .findByAcroClassIdAndAcademicYearIdAndSemesterIdOrderByVersionNumberDesc(
                         classId, academicYearId, semesterId);
 
-        List<TimetableVersionDto> dtoList = versions.stream().map(v -> {
-            TimetableVersionDto dto = new TimetableVersionDto();
-            dto.setId(v.getId());
-            dto.setVersionNumber(v.getVersionNumber());
-            dto.setIsActive(v.getIsActive());
-            if (v.getFile() != null) {
-                dto.setFileName(v.getFile().getFileName());
-                dto.setFileType(v.getFile().getFileType());
-                dto.setUploadedAt(v.getFile().getUploadedAt());
-                dto.setIsDeleted(v.getFile().getIsDeleted());
-                if (v.getFile().getUploadedBy() != null) {
-                    dto.setUploadedBy(v.getFile().getUploadedBy().getFirstName() + " " + v.getFile().getUploadedBy().getLastName());
-                }
-            }
-            return dto;
-        }).collect(Collectors.toList());
+        List<TimetableVersionDto> dtoList = versions.stream().map(this::mapToDto).collect(Collectors.toList());
 
         return ApiResponse.success("Version history retrieved", dtoList);
+    }
+
+    private TimetableVersionDto mapToDto(Timetable v) {
+        TimetableVersionDto dto = new TimetableVersionDto();
+        dto.setId(v.getId());
+        dto.setVersionNumber(v.getVersionNumber());
+        dto.setIsActive(v.getIsActive());
+        if (v.getFile() != null) {
+            dto.setFileName(v.getFile().getFileName());
+            dto.setFileType(v.getFile().getFileType());
+            dto.setUploadedAt(v.getFile().getUploadedAt());
+            dto.setIsDeleted(v.getFile().getIsDeleted());
+            if (v.getFile().getUploadedBy() != null) {
+                dto.setUploadedBy(v.getFile().getUploadedBy().getFirstName() + " " + v.getFile().getUploadedBy().getLastName());
+            }
+        }
+        if (v.getAcroClass() != null) {
+            dto.setClassName(v.getAcroClass().getName());
+            if (v.getAcroClass().getDepartment() != null) {
+                dto.setDepartment(v.getAcroClass().getDepartment().getName());
+            }
+            if (v.getAcroClass().getDegreeProgram() != null) {
+                dto.setDegree(v.getAcroClass().getDegreeProgram().getName());
+            }
+        }
+        if (v.getAcademicYear() != null) {
+            dto.setAcademicYear(v.getAcademicYear().getYear());
+        }
+        if (v.getSemester() != null) {
+            dto.setSemester("Semester " + v.getSemester().getSemesterNumber());
+        }
+        if (v.getBatch() != null && !v.getBatch().isBlank()) {
+            dto.setBatch(v.getBatch());
+        } else {
+            dto.setBatch(v.getAcroClass() != null ? v.getAcroClass().getName() : "-");
+        }
+        return dto;
     }
 
     @Override
@@ -198,16 +272,15 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
         Timetable version = timetableRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
 
-        if (Boolean.TRUE.equals(version.getIsActive())) {
-            throw new IllegalArgumentException("Cannot delete the active version. Please set another version as active first.");
-        }
-
+        // Hard delete slots and timetable
+        timetableSlotRepository.findByTimetableId(version.getId()).forEach(timetableSlotRepository::delete);
+        timetableRepository.delete(version);
+        
         if (version.getFile() != null) {
-            version.getFile().setIsDeleted(true);
-            fileStorageRepository.save(version.getFile());
+            fileStorageRepository.delete(version.getFile());
         }
 
-        return ApiResponse.success("Version deleted successfully", null);
+        return ApiResponse.success("Timetable hard deleted successfully", null);
     }
 
     private FileStorage saveFile(MultipartFile file, User user) {

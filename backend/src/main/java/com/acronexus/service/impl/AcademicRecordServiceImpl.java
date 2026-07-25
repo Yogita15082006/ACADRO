@@ -15,17 +15,27 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.acronexus.repository.StudentRepository;
+import com.acronexus.security.UserDetailsImpl;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @Service
 @RequiredArgsConstructor
 public class AcademicRecordServiceImpl implements AcademicRecordService {
 
     private final AcademicRecordRepository repository;
     private final AcademicRecordMapper mapper;
+    private final StudentRepository studentRepository;
 
     @Override
     @Transactional
     public AcademicRecordResponseDto create(AcademicRecordRequestDto requestDto) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        com.acronexus.entity.Student student = studentRepository.findByUser_Id(userDetails.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found for current user"));
+        
         AcademicRecord entity = mapper.toEntity(requestDto);
+        entity.setStudent(student);
         return mapper.toDto(repository.save(entity));
     }
 
@@ -38,7 +48,8 @@ public class AcademicRecordServiceImpl implements AcademicRecordService {
 
     @Override
     public List<AcademicRecordResponseDto> getAll() {
-        return repository.findAll().stream()
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return repository.findByStudentId(userDetails.getId()).stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -48,7 +59,13 @@ public class AcademicRecordServiceImpl implements AcademicRecordService {
     public AcademicRecordResponseDto update(UUID id, AcademicRecordRequestDto requestDto) {
         AcademicRecord entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("AcademicRecord not found with id: " + id));
-        // Update fields based on requestDto
+        
+        entity.setEducationLevel(requestDto.getEducationLevel());
+        entity.setInstitutionName(requestDto.getInstitutionName());
+        entity.setPassingYear(requestDto.getPassingYear());
+        entity.setPercentage(requestDto.getPercentage());
+        entity.setDocumentUrl(requestDto.getDocumentUrl());
+        
         return mapper.toDto(repository.save(entity));
     }
 

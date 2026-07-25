@@ -37,7 +37,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, readOnly, onUpdate }) 
         techStack: newItem.techStack.split(',').map(t => t.trim()).filter(t => t)
       }];
       setProjects(updated);
-      onUpdate({ projects: updated });
+      onUpdate(updated);
       setNewItem({ title: '', description: '', techStack: '', githubLink: '', liveLink: '' });
     }
   };
@@ -45,7 +45,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, readOnly, onUpdate }) 
   const handleDelete = (id: number) => {
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
-    onUpdate({ projects: updated });
+    onUpdate(updated);
   };
 
   return (

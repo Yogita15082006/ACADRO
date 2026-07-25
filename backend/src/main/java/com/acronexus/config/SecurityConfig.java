@@ -68,7 +68,14 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/auth/login").permitAll()
                             .requestMatchers("/api/auth/forgot-password").permitAll()
                             .requestMatchers("/api/auth/reset-password").permitAll()
+                            .requestMatchers("/api/auth/verify-account").permitAll()
+                            .requestMatchers("/api/auth/activate-account").permitAll()
                             .requestMatchers("/api/public/**").permitAll()
+                            .requestMatchers("/api/v1/bulk-upload/**").permitAll()
+                            .requestMatchers("/api/v1/metadata/**").permitAll()
+                            .requestMatchers("/api/v1/users/admin-setup").permitAll()
+                            .requestMatchers("/api/v1/temp-fix").permitAll()
+                            .requestMatchers("/api/v1/timetables/*/test-ai-match").permitAll()
                             .anyRequest().authenticated()
                 );
 

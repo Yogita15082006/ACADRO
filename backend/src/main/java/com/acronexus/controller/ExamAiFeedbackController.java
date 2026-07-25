@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class ExamAiFeedbackController {
     private final ExamAiFeedbackService service;
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
     public ResponseEntity<ApiResponse<ExamAiFeedbackResponseDto>> create(@Valid @RequestBody ExamAiFeedbackRequestDto requestDto) {
         ExamAiFeedbackResponseDto created = service.create(requestDto);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -28,24 +30,28 @@ public class ExamAiFeedbackController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<ExamAiFeedbackResponseDto>> getById(@PathVariable UUID id) {
         ExamAiFeedbackResponseDto responseDto = service.getById(id);
         return ResponseEntity.ok(ApiResponse.success("ExamAiFeedback fetched successfully", responseDto));
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<List<ExamAiFeedbackResponseDto>>> getAll() {
         List<ExamAiFeedbackResponseDto> list = service.getAll();
         return ResponseEntity.ok(ApiResponse.success("ExamAiFeedbacks fetched successfully", list));
     }
     
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
     public ResponseEntity<ApiResponse<ExamAiFeedbackResponseDto>> update(@PathVariable UUID id, @Valid @RequestBody ExamAiFeedbackRequestDto requestDto) {
         ExamAiFeedbackResponseDto updated = service.update(id, requestDto);
         return ResponseEntity.ok(ApiResponse.success("ExamAiFeedback updated successfully", updated));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("ExamAiFeedback deleted successfully", null));

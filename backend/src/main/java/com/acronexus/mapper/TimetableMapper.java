@@ -26,8 +26,21 @@ public class TimetableMapper {
         dto.setIsActive(entity.getIsActive());
 
         if (entity.getAcroClass() != null) {
-            dto.setClassName(entity.getAcroClass().getName() + " " + entity.getAcroClass().getSection());
-            dto.setTitle(entity.getAcroClass().getName() + " " + entity.getAcroClass().getSection() + " Timetable V" + entity.getVersionNumber());
+            dto.setClassName(entity.getAcroClass().getName() + (entity.getAcroClass().getSection() != null ? " " + entity.getAcroClass().getSection() : ""));
+            dto.setTitle(entity.getAcroClass().getName() + (entity.getAcroClass().getSection() != null ? " " + entity.getAcroClass().getSection() : "") + " Timetable V" + entity.getVersionNumber());
+            
+            if (entity.getBatch() != null && !entity.getBatch().isBlank()) {
+                dto.setBatch(entity.getBatch());
+            } else {
+                dto.setBatch(entity.getAcroClass().getName());
+            }
+            
+            if (entity.getAcroClass().getDepartment() != null) {
+                dto.setDepartment(entity.getAcroClass().getDepartment().getName());
+            }
+            if (entity.getAcroClass().getDegreeProgram() != null) {
+                dto.setDegree(entity.getAcroClass().getDegreeProgram().getName());
+            }
         }
 
         if (entity.getSemester() != null) {
@@ -36,17 +49,25 @@ public class TimetableMapper {
 
         if (entity.getUploadedBy() != null) {
             dto.setUploader(entity.getUploadedBy().getFirstName() + " " + entity.getUploadedBy().getLastName());
+            dto.setUploadedBy(entity.getUploadedBy().getFirstName() + " " + entity.getUploadedBy().getLastName());
         }
 
         if (entity.getUploadedAt() != null) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
-            dto.setUpdated(entity.getUploadedAt().atZone(ZoneId.systemDefault()).format(formatter));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault());
+            dto.setUpdated(formatter.format(entity.getUploadedAt()));
+            dto.setUploadedAt(entity.getUploadedAt().toString());
         }
 
         if (entity.getFile() != null) {
             dto.setSize("PDF Document");
+            dto.setFileName(entity.getFile().getFileName());
         } else {
             dto.setSize("Unknown");
+            dto.setFileName("timetable.pdf");
+        }
+
+        if (entity.getAcademicYear() != null) {
+            dto.setAcademicYear(entity.getAcademicYear().getYear());
         }
 
         return dto;

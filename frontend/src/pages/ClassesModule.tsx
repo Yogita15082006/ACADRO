@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
@@ -17,37 +18,20 @@ import { SubjectAnalyticsPanel } from './SubjectAnalyticsPanel';
 export const ClassesModule = () => {
   const { user, role } = useAuth();
 
-  const generateMockWorkspaces = () => {
-    const ws: any[] = [];
-    mockData.classes.forEach(cls => {
-      // Create 3 subject workspaces per class
-      const clsSubjects = mockData.subjects.slice(0, 3);
-      clsSubjects.forEach((sub, idx) => {
-        const faculty = mockData.admins.find(a => a.subjects?.includes(sub.id) && a.classes?.includes(cls.id));
-        const coordinator = mockData.admins.find(a => a.role === 'coordinator') || mockData.admins.find(a => a.role === 'hod');
-        ws.push({
-          id: `${cls.id}_${sub.id}`,
-          classId: cls.id,
-          className: cls.name,
-          year: cls.year === 'Second Year' ? '2nd Year' : cls.year === 'Third Year' ? '3rd Year' : '4th Year',
-          semester: cls.year === 'Second Year' ? 'Semester 3' : cls.year === 'Third Year' ? 'Semester 5' : 'Semester 7',
-          subjectId: sub.id,
-          subjectName: sub.name,
-          subjectCode: `CS${300 + idx}`,
-          facultyName: faculty?.name || 'Unassigned',
-          coordinatorName: coordinator?.name || 'Unassigned',
-          generationType: 'auto'
-        });
-      });
-    });
-    return ws;
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+
+  const fetchWorkspaces = async () => {
+    try {
+      const res = await api.get('/v1/class-subjects/my-subjects');
+      setWorkspaces(res.data?.data || []);
+    } catch (e) {
+      console.error('Failed to fetch subjects', e);
+    }
   };
 
-  const [workspaces, setWorkspaces] = useState(() => {
-    // If HOD, start empty to demonstrate automatic generation workflow
-    if (role === 'hod') return [];
-    return generateMockWorkspaces();
-  });
+  useEffect(() => {
+    fetchWorkspaces();
+  }, []);
 
   const [activeWorkspace, setActiveWorkspace] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'materials' | 'assignments' | 'quizzes' | 'attendance' | 'analytics'>('overview');
@@ -66,11 +50,6 @@ export const ClassesModule = () => {
   
   const [isPostAnnouncementOpen, setIsPostAnnouncementOpen] = useState(false);
   const [isUploadMaterialOpen, setIsUploadMaterialOpen] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGenerationSuccessOpen, setIsGenerationSuccessOpen] = useState(false);
-  const [generatedSummary, setGeneratedSummary] = useState({ count: 0, newCount: 0 });
-
-  // Filter workspaces based on user role
   const visibleWorkspaces = workspaces.filter(ws => {
     if (role === 'faculty') return ws.facultyName === user.name;
     if (role === 'coordinator') return ws.coordinatorName === user.name;
@@ -78,6 +57,17 @@ export const ClassesModule = () => {
     if (role === 'student') return ws.className === user?.className;
     return true;
   });
+
+  
+  const handleDeleteWorkspace = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.delete(`/v1/class-subjects/${id}`);
+      fetchWorkspaces();
+    } catch (e) {
+      console.error('Failed to delete workspace', e);
+    }
+  };
 
   const handleCreateWorkspace = () => {
     if (!newWorkspace.subjectName || !newWorkspace.year || !newWorkspace.semester || !newWorkspace.className) return;
@@ -99,22 +89,6 @@ export const ClassesModule = () => {
     setWorkspaces([...workspaces, newWs]);
     setIsCreateModalOpen(false);
     setNewWorkspace({ subjectName: '', year: '', semester: '', className: '', facultyName: '', coordinatorName: '', subjectCode: '', color: '' });
-  };
-
-  const handleGenerateWorkspaces = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      const generated = generateMockWorkspaces();
-      
-      // Prevent duplicating auto-generated workspaces if already exists
-      const newWorkspaces = generated.filter(gw => !workspaces.some(w => w.id === gw.id));
-      
-      setWorkspaces([...workspaces, ...newWorkspaces]);
-      setGeneratedSummary({ count: generated.length, newCount: newWorkspaces.length });
-      
-      setIsGenerating(false);
-      setIsGenerationSuccessOpen(true);
-    }, 2000);
   };
 
   if (activeWorkspace) {
@@ -429,22 +403,7 @@ export const ClassesModule = () => {
             <Button variant="outline" onClick={() => setIsCreateModalOpen(true)} className="shadow-sm border-border/50 hover:bg-muted/50">
               <Plus className="w-4 h-4 mr-2" /> Create Subject Workspace
             </Button>
-            <Button 
-              onClick={handleGenerateWorkspaces} 
-              disabled={isGenerating}
-              className="shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-indigo-500/20"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" /> Generate Subject Workspaces
-                </>
-              )}
-            </Button>
+            
           </div>
         )}
       </div>
@@ -499,10 +458,15 @@ export const ClassesModule = () => {
                 </div>
               </CardContent>
               
-              <CardFooter className="px-4 py-4 border-t border-border/50 bg-muted/5">
+              <CardFooter className="px-4 py-4 border-t border-border/50 bg-muted/5 flex gap-2">
                 <Button className="w-full shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-colors flex items-center justify-center gap-2" variant="outline" onClick={() => { setActiveWorkspace(ws.id); setActiveTab('overview'); }}>
                   <Eye className="w-4 h-4" /> View Workspace
                 </Button>
+                {role === 'hod' && (
+                  <Button variant="ghost" className="text-destructive hover:bg-destructive/10 px-3" onClick={(e) => handleDeleteWorkspace(ws.id, e)}>
+                    Delete
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           );
@@ -521,41 +485,7 @@ export const ClassesModule = () => {
         </div>
       )}
 
-      {/* Generation Success Dialog */}
-      <Dialog open={isGenerationSuccessOpen} onOpenChange={setIsGenerationSuccessOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              Workspaces Generated
-            </DialogTitle>
-            <DialogDescription className="pt-2">
-              Successfully generated workspaces based on current faculty assignments.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="bg-muted/40 rounded-lg p-4 space-y-3">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Total Workspaces Parsed:</span>
-                <span className="font-semibold text-foreground">{generatedSummary.count}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">New Workspaces Created:</span>
-                <span className="font-semibold text-emerald-600">{generatedSummary.newCount}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Duplicates Skipped:</span>
-                <span className="font-semibold text-foreground">{generatedSummary.count - generatedSummary.newCount}</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setIsGenerationSuccessOpen(false)} className="w-full">Continue</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Create Workspace Modal (HOD only) */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>

@@ -89,4 +89,24 @@ public class NoticeController {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
         return ResponseEntity.ok(noticeService.searchNotices(filter, userId));
     }
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> summarizeNotice(@PathVariable UUID id,
+                                                                             @RequestHeader("Authorization") String token) {
+        UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(noticeService.summarizeNotice(id, userId));
+    }
+
+    @GetMapping("/student/highlights")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> getImportantNoticeHighlights(@RequestHeader("Authorization") String token) {
+        UUID studentId = jwtUtils.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(noticeService.getImportantNoticeHighlights(studentId));
+    }
+
+    @GetMapping("/student/recommendations")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> getPersonalizedRecommendations(@RequestHeader("Authorization") String token) {
+        UUID studentId = jwtUtils.getUserIdFromToken(token.substring(7));
+        return ResponseEntity.ok(noticeService.getPersonalizedRecommendations(studentId));
+    }
 }

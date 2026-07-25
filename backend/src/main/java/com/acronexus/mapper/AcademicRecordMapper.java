@@ -11,7 +11,11 @@ public class AcademicRecordMapper {
     public AcademicRecord toEntity(AcademicRecordRequestDto dto) {
         if (dto == null) return null;
         AcademicRecord entity = new AcademicRecord();
-        // Map fields
+        entity.setEducationLevel(dto.getEducationLevel());
+        entity.setInstitutionName(dto.getInstitutionName());
+        entity.setPassingYear(dto.getPassingYear());
+        entity.setPercentage(dto.getPercentage());
+        entity.setDocumentUrl(dto.getDocumentUrl());
         return entity;
     }
 
@@ -21,7 +25,11 @@ public class AcademicRecordMapper {
         if(entity.getId() != null) {
             dto.setId(entity.getId());
         }
-        // Map fields
+        dto.setEducationLevel(entity.getEducationLevel());
+        dto.setInstitutionName(entity.getInstitutionName());
+        dto.setPassingYear(entity.getPassingYear());
+        dto.setPercentage(entity.getPercentage());
+        dto.setDocumentUrl(entity.getDocumentUrl());
         return dto;
     }
 }

@@ -1,2 +1,2 @@
 package com.acronexus.entity;
-public enum DegreeType { BACHELOR, MASTER, PHD, DIPLOMA }
+public enum DegreeType { BACHELOR, MASTER, PHD, DIPLOMA, UG, PG }

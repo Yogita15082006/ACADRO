@@ -15,4 +15,13 @@ public class TimetableResponseDto {
     private String size;
     private Integer versionNumber;
     private Boolean isActive;
+    
+    // UI Metadata fields
+    private String fileName;
+    private String department;
+    private String degree;
+    private String academicYear;
+    private String batch;
+    private String uploadedAt;
+    private String uploadedBy;
 }

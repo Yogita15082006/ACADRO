@@ -34,8 +34,27 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Validation failed: " + message));
     }
 
+    @ExceptionHandler(com.acronexus.exception.AiIntegrationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAiIntegrationException(com.acronexus.exception.AiIntegrationException ex) {
+        String msg = ex.getMessage();
+        if (msg != null && msg.contains("429")) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(ApiResponse.error("AI rate limit exceeded. Please try again in a few minutes."));
+        }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("AI Service error: " + ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(Exception ex) {
+        ex.printStackTrace();
+        try {
+            java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter("C:\\A\\Development\\AcroNexus\\backend\\error_log.txt", true));
+            pw.println("----- " + new java.util.Date() + " -----");
+            ex.printStackTrace(pw);
+            pw.close();
+        } catch (Exception ignored) {}
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred: " + ex.getMessage()));
     }

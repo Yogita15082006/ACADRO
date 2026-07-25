@@ -28,4 +28,68 @@ public class ClassSubject extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+
+    public AcroClass getAcroClass() {
+        return this.acroClass;
+    }
+    public void setAcroClass(AcroClass acroClass) {
+        this.acroClass = acroClass;
+    }
+
+    public Subject getSubject() {
+        return this.subject;
+    }
+    public void setSubject(Subject subject) {
+        this.subject = subject;
+    }
+
+    public Faculty getFaculty() {
+        return this.faculty;
+    }
+    public void setFaculty(Faculty faculty) {
+        this.faculty = faculty;
+    }
+
+    public AcademicYear getAcademicYear() {
+        return this.academicYear;
+    }
+    public void setAcademicYear(AcademicYear academicYear) {
+        this.academicYear = academicYear;
+    }
+
+    public Semester getSemester() {
+        return this.semester;
+    }
+    public void setSemester(Semester semester) {
+        this.semester = semester;
+    }
+
+    public LocalDate getEffectiveFrom() {
+        return this.effectiveFrom;
+    }
+    public void setEffectiveFrom(LocalDate effectiveFrom) {
+        this.effectiveFrom = effectiveFrom;
+    }
+
+    public LocalDate getEffectiveTo() {
+        return this.effectiveTo;
+    }
+    public void setEffectiveTo(LocalDate effectiveTo) {
+        this.effectiveTo = effectiveTo;
+    }
+
+    public Boolean getIsActive() {
+        return this.isActive;
+    }
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public User getCreatedBy() {
+        return this.createdBy;
+    }
+    public void setCreatedBy(User createdBy) {
+        this.createdBy = createdBy;
+    }
 }

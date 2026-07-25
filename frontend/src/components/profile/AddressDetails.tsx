@@ -13,14 +13,14 @@ interface AddressDetailsProps {
 export const AddressDetails: React.FC<AddressDetailsProps> = ({ data, readOnly, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    localAddress: data.localAddress || '',
-    localCity: data.localCity || '',
-    localState: data.localState || '',
-    localPincode: data.localPincode || '',
-    permanentAddress: data.permanentAddress || '',
-    permanentCity: data.permanentCity || '',
-    permanentState: data.permanentState || '',
-    permanentPincode: data.permanentPincode || '',
+    localAddress: data.addressDetails?.localAddress || '',
+    localCity: data.addressDetails?.localCity || '',
+    localState: data.addressDetails?.localState || '',
+    localPincode: data.addressDetails?.localPincode || '',
+    permanentAddress: data.addressDetails?.permanentAddress || '',
+    permanentCity: data.addressDetails?.permanentCity || '',
+    permanentState: data.addressDetails?.permanentState || '',
+    permanentPincode: data.addressDetails?.permanentPincode || '',
   });
 
   const handleSave = () => {

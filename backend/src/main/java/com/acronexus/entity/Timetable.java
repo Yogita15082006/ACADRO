@@ -27,6 +27,8 @@ public class Timetable {
 
     private Integer versionNumber = 1;
 
+    private String batch;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "file_id")
     private FileStorage file;

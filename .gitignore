@@ -1,3 +1,17 @@
+# Java
+backend/target/
+
+# Uploaded files
+backend/uploads/
+
+# Frontend
+frontend/dist/
+frontend/node_modules/
+
+# Python
+ai-services/__pycache__/
+*.pyc
+
 # Logs
 logs
 *.log

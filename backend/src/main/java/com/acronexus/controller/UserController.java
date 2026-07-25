@@ -38,4 +38,16 @@ public class UserController {
         List<UserResponseDto> users = userService.getAllUsers();
         return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", users));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID id) {
+        userService.deleteUser(id);
+        return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
+    }
+
+    @DeleteMapping("/faculty/all")
+    public ResponseEntity<ApiResponse<Void>> deleteAllFaculty() {
+        userService.deleteAllFaculty();
+        return ResponseEntity.ok(ApiResponse.success("All faculty records deleted successfully", null));
+    }
 }

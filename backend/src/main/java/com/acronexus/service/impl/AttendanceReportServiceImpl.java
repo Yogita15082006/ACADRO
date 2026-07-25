@@ -24,6 +24,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final FacultyActivityRepository facultyActivityRepository;
     private final DepartmentRepository departmentRepository;
     private final AttendanceDashboardService dashboardService;
+    private final com.acronexus.service.AiService aiService;
 
     // Helper for eligibility calculation
     private EligibilityReportDto calculateEligibility(UUID studentId, String firstName, String lastName, String enrollmentNo, int totalClasses, int presentClasses, double threshold) {
@@ -54,9 +55,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
 
     @Override
     public List<EligibilityReportDto> getClassEligibilityReport(UUID classId, Double threshold) {
-        // TODO (Future Groq Integration)
-        // Predict attendance shortage based on historical patterns.
-        
         List<Object[]> summary = studentAttendanceRepository.getClassStudentAttendanceSummary(classId);
         List<EligibilityReportDto> report = new ArrayList<>();
         
@@ -76,9 +74,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
 
     @Override
     public FacultyReportDto getFacultyReport(UUID facultyId, LocalDate startDate, LocalDate endDate) {
-        // TODO (Future AI)
-        // Attendance anomaly detection for faculty sessions.
-
         List<FacultyActivity> activities = facultyActivityRepository.findByFacultyIdOrderByDateDesc(facultyId).stream()
                 .filter(fa -> fa.getReason() != null && fa.getReason().startsWith("SESSION:"))
                 .filter(fa -> (startDate == null || !fa.getDate().isBefore(startDate)) && 
@@ -140,9 +135,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
 
     @Override
     public StudentReportDto getStudentReport(UUID studentId, UUID academicYearId, UUID semesterId) {
-        // TODO (Future AI)
-        // Parent notification suggestions.
-
         com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = dashboardService.getStudentOverallAttendance(studentId);
         List<com.acronexus.dto.AttendanceDashboardDto.SubjectAttendanceDto> subjectWise = dashboardService.getStudentSubjectWiseAttendance(studentId);
         List<com.acronexus.dto.AttendanceDashboardDto.MonthlyAttendanceDto> monthly = dashboardService.getStudentMonthlyAttendance(studentId, academicYearId, semesterId);
@@ -166,9 +158,6 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
 
     @Override
     public AdminDepartmentReportDto getAdminDepartmentReport(UUID departmentId, UUID academicYearId, UUID semesterId) {
-        // TODO (Future AI)
-        // Automatic warning generation.
-        
         String deptName = departmentRepository.findById(departmentId).map(d -> d.getName()).orElse("Unknown Department");
 
         List<Object[]> classSummary = studentAttendanceRepository.getDepartmentClassAttendanceSummary(departmentId, academicYearId, semesterId);
@@ -211,6 +200,79 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
                 .classComparisons(classComparisons)
                 .studentsBelowThreshold(new ArrayList<>()) // Can be populated if needed
                 .build();
+    }
+
+    @Override
+    public com.acronexus.dto.ai.AiInsightDto predictAttendanceShortage(UUID classId) {
+        List<Object[]> summary = studentAttendanceRepository.getClassStudentAttendanceSummary(classId);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ATTENDANCE_PREDICTION")
+                .contextType("attendance-shortage-prediction")
+                .contextId(classId.toString())
+                .data(java.util.Map.of(
+                        "students", summary.stream().map(row -> java.util.Map.of(
+                                "id", row[0],
+                                "totalClasses", row[4],
+                                "presentClasses", row[5]
+                        )).collect(Collectors.toList())
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    public com.acronexus.dto.ai.AiInsightDto detectFacultyAnomalies(UUID facultyId, LocalDate startDate, LocalDate endDate) {
+        FacultyReportDto report = getFacultyReport(facultyId, startDate, endDate);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ATTENDANCE_ANOMALY")
+                .contextType("faculty-attendance-anomalies")
+                .contextId(facultyId.toString())
+                .data(java.util.Map.of(
+                        "totalSessions", report.getTotalSessions(),
+                        "averageAttendancePercentage", report.getAverageAttendancePercentage(),
+                        "totalAbsentees", report.getTotalAbsentees()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    public com.acronexus.dto.ai.AiInsightDto generateParentNotificationSuggestions(UUID studentId, UUID academicYearId, UUID semesterId) {
+        StudentReportDto report = getStudentReport(studentId, academicYearId, semesterId);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ATTENDANCE_PARENT_NOTIFICATION")
+                .contextType("parent-notification-suggestions")
+                .contextId(studentId.toString())
+                .data(java.util.Map.of(
+                        "overallAttendancePercentage", report.getOverallAttendancePercentage(),
+                        "isEligible", report.getIsEligible(),
+                        "requiredClassesToBecomeEligible", report.getRequiredClassesToBecomeEligible()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    public com.acronexus.dto.ai.AiInsightDto generateAutomaticWarnings(UUID departmentId, UUID academicYearId, UUID semesterId) {
+        AdminDepartmentReportDto report = getAdminDepartmentReport(departmentId, academicYearId, semesterId);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ATTENDANCE_AUTOMATIC_WARNINGS")
+                .contextType("automatic-warnings")
+                .contextId(departmentId.toString())
+                .data(java.util.Map.of(
+                        "overallAttendancePercentage", report.getOverallAttendancePercentage(),
+                        "classComparisons", report.getClassComparisons()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
     }
 
 }

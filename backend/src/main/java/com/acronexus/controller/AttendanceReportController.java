@@ -48,9 +48,6 @@ public class AttendanceReportController {
             @PathVariable UUID classId,
             @RequestParam(defaultValue = "75.0") Double threshold) {
         
-        // TODO (Future AI)
-        // Parent notification suggestions based on the eligibility list.
-
         return ResponseEntity.ok(ApiResponse.success(
                 "Class eligibility report generated successfully",
                 attendanceReportService.getClassEligibilityReport(classId, threshold)
@@ -97,6 +94,60 @@ public class AttendanceReportController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Admin department report generated successfully",
                 attendanceReportService.getAdminDepartmentReport(departmentId, academicYearId, semesterId)
+        ));
+    }
+
+    @GetMapping("/class/{classId}/shortage-prediction")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> predictAttendanceShortage(
+            @PathVariable UUID classId) {
+        
+        return ResponseEntity.ok(ApiResponse.success(
+                "Attendance shortage prediction generated successfully",
+                attendanceReportService.predictAttendanceShortage(classId)
+        ));
+    }
+
+    @GetMapping("/faculty/{facultyId}/anomalies")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> detectFacultyAnomalies(
+            @PathVariable UUID facultyId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        verifyFacultyAccess(facultyId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Faculty attendance anomalies detected successfully",
+                attendanceReportService.detectFacultyAnomalies(facultyId, startDate, endDate)
+        ));
+    }
+
+    @GetMapping("/student/{studentId}/parent-notification-suggestions")
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> generateParentNotificationSuggestions(
+            @PathVariable UUID studentId,
+            @RequestParam UUID academicYearId,
+            @RequestParam UUID semesterId) {
+        
+        verifyStudentAccess(studentId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Parent notification suggestions generated successfully",
+                attendanceReportService.generateParentNotificationSuggestions(studentId, academicYearId, semesterId)
+        ));
+    }
+
+    @GetMapping("/admin/department/{departmentId}/automatic-warnings")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> generateAutomaticWarnings(
+            @PathVariable UUID departmentId,
+            @RequestParam UUID academicYearId,
+            @RequestParam UUID semesterId) {
+        
+        return ResponseEntity.ok(ApiResponse.success(
+                "Automatic warnings generated successfully",
+                attendanceReportService.generateAutomaticWarnings(departmentId, academicYearId, semesterId)
         ));
     }
 

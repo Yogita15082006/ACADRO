@@ -22,4 +22,10 @@ public interface AssignmentService {
     List<AssignmentDto.Response> getStudentAssignments();
     AssignmentDto.Response getAssignmentDetails(UUID assignmentId);
     AssignmentSubmissionDto.Response submitAssignment(UUID assignmentId, AssignmentSubmissionDto.SubmitRequest request);
+    
+    // AI Features
+    com.acronexus.dto.ai.AiInsightDto analyzeQuality(UUID assignmentId);
+    com.acronexus.dto.ai.AiInsightDto analyzePlagiarism(UUID submissionId);
+    com.acronexus.dto.ai.AiInsightDto getFeedbackSuggestions(UUID submissionId);
+    com.acronexus.dto.ai.AiInsightDto predictLateSubmissionRisk(UUID assignmentId);
 }

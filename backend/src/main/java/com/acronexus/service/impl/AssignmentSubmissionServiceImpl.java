@@ -48,7 +48,7 @@ public class AssignmentSubmissionServiceImpl implements AssignmentSubmissionServ
     @Override
     @Transactional
     public AssignmentSubmissionResponseDto update(UUID id, AssignmentSubmissionRequestDto requestDto) {
-        AssignmentSubmission existing = repository.findById(id)
+        repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AssignmentSubmission not found with id: " + id));
         
         AssignmentSubmission updatedEntity = mapper.toEntity(requestDto);

@@ -30,6 +30,7 @@ public class NoticeServiceImpl implements NoticeService {
     private final FileStorageRepository fileStorageRepository;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final NoticeMapper noticeMapper;
+    private final com.acronexus.service.AiService aiService;
 
     public NoticeServiceImpl(NoticeRepository noticeRepository,
                              DepartmentRepository departmentRepository,
@@ -37,7 +38,8 @@ public class NoticeServiceImpl implements NoticeService {
                              UserRepository userRepository,
                              FileStorageRepository fileStorageRepository,
                              StudentEnrollmentRepository studentEnrollmentRepository,
-                             NoticeMapper noticeMapper) {
+                             NoticeMapper noticeMapper,
+                             com.acronexus.service.AiService aiService) {
         this.noticeRepository = noticeRepository;
         this.departmentRepository = departmentRepository;
         this.acroClassRepository = acroClassRepository;
@@ -45,6 +47,7 @@ public class NoticeServiceImpl implements NoticeService {
         this.fileStorageRepository = fileStorageRepository;
         this.studentEnrollmentRepository = studentEnrollmentRepository;
         this.noticeMapper = noticeMapper;
+        this.aiService = aiService;
     }
 
     @Override
@@ -289,13 +292,92 @@ public class NoticeServiceImpl implements NoticeService {
                 .map(noticeMapper::toDto)
                 .collect(Collectors.toList());
     }
-    
-    // TODO (Future Groq Integration)
-    // AI notice summarization
-    
-    // TODO (Future AI)
-    // Important notice highlighting
-    
-    // TODO (Future AI)
-    // Personalized notice recommendations
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto summarizeNotice(UUID noticeId, UUID userId) {
+        Notice notice = noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notice not found"));
+        
+        if (notice.getIsDeleted()) {
+            throw new ResourceNotFoundException("Notice has been deleted");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        if (user.getRole() == UserRole.STUDENT && (!notice.getIsActive() || (notice.getPublishDate() != null && notice.getPublishDate().isAfter(ZonedDateTime.now())))) {
+            throw new UnauthorizedException("Notice is currently unavailable");
+        }
+
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("NOTICE_SUMMARY")
+                .contextType("notice-summary")
+                .contextId(noticeId.toString())
+                .data(java.util.Map.of(
+                        "title", notice.getTitle(),
+                        "description", notice.getDescription(),
+                        "category", notice.getCategory(),
+                        "priority", notice.getPriority().name()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto getImportantNoticeHighlights(UUID studentId) {
+        StudentEnrollment enrollment = studentEnrollmentRepository
+                .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Active student enrollment not found"));
+
+        UUID classId = enrollment.getAcroClass().getId();
+        UUID departmentId = enrollment.getAcroClass().getDepartment().getId();
+
+        List<Notice> notices = noticeRepository.findStudentFeed(departmentId, classId);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("NOTICE_HIGHLIGHTS")
+                .contextType("notice-highlights")
+                .contextId(studentId.toString())
+                .data(java.util.Map.of(
+                        "notices", notices.stream().map(n -> java.util.Map.of(
+                                "id", n.getId(),
+                                "title", n.getTitle(),
+                                "priority", n.getPriority().name(),
+                                "publishDate", n.getPublishDate() != null ? n.getPublishDate().toString() : ""
+                        )).collect(Collectors.toList())
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto getPersonalizedRecommendations(UUID studentId) {
+        StudentEnrollment enrollment = studentEnrollmentRepository
+                .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Active student enrollment not found"));
+
+        UUID classId = enrollment.getAcroClass().getId();
+        UUID departmentId = enrollment.getAcroClass().getDepartment().getId();
+
+        List<Notice> notices = noticeRepository.findStudentFeed(departmentId, classId);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("NOTICE_RECOMMENDATIONS")
+                .contextType("notice-recommendation")
+                .contextId(studentId.toString())
+                .data(java.util.Map.of(
+                        "notices", notices.stream().map(n -> java.util.Map.of(
+                                "id", n.getId(),
+                                "title", n.getTitle(),
+                                "category", n.getCategory()
+                        )).collect(Collectors.toList())
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
 }

@@ -6,5 +6,7 @@ import java.util.UUID;
 @Data
 public class ProfessionalDetailResponseDto {
     private UUID id;
-    // Add extra fields here
+    private String resumeUrl;
+    private Object publications;
+    private Object certifications;
 }

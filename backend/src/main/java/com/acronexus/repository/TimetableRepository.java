@@ -14,4 +14,5 @@ import com.acronexus.entity.Semester;
 public interface TimetableRepository extends JpaRepository<Timetable, UUID> {
     List<Timetable> findByAcroClassAndAcademicYearAndSemester(AcroClass acroClass, AcademicYear academicYear, Semester semester);
     List<Timetable> findByAcroClassIdAndAcademicYearIdAndSemesterIdOrderByVersionNumberDesc(UUID classId, UUID academicYearId, UUID semesterId);
+    List<Timetable> findByIsActiveTrueOrderByUploadedAtDesc();
 }

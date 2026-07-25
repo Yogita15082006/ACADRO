@@ -15,17 +15,27 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.acronexus.repository.FacultyRepository;
+import com.acronexus.security.UserDetailsImpl;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @Service
 @RequiredArgsConstructor
 public class ProfessionalDetailServiceImpl implements ProfessionalDetailService {
 
     private final ProfessionalDetailRepository repository;
     private final ProfessionalDetailMapper mapper;
+    private final FacultyRepository facultyRepository;
 
     @Override
     @Transactional
     public ProfessionalDetailResponseDto create(ProfessionalDetailRequestDto requestDto) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        com.acronexus.entity.Faculty faculty = facultyRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Faculty not found for current user"));
+
         ProfessionalDetail entity = mapper.toEntity(requestDto);
+        entity.setFaculty(faculty);
         return mapper.toDto(repository.save(entity));
     }
 
@@ -38,7 +48,8 @@ public class ProfessionalDetailServiceImpl implements ProfessionalDetailService 
 
     @Override
     public List<ProfessionalDetailResponseDto> getAll() {
-        return repository.findAll().stream()
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return repository.findByFacultyId(userDetails.getId()).stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -48,7 +59,11 @@ public class ProfessionalDetailServiceImpl implements ProfessionalDetailService 
     public ProfessionalDetailResponseDto update(UUID id, ProfessionalDetailRequestDto requestDto) {
         ProfessionalDetail entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProfessionalDetail not found with id: " + id));
-        // Update fields based on requestDto
+        
+        entity.setResumeUrl(requestDto.getResumeUrl());
+        entity.setPublications(requestDto.getPublications());
+        entity.setCertifications(requestDto.getCertifications());
+        
         return mapper.toDto(repository.save(entity));
     }
 

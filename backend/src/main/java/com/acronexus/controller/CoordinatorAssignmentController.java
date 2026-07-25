@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/coordinator-assignments")
+@RequestMapping("/api/v1/coordinator-assignments")
 @RequiredArgsConstructor
 public class CoordinatorAssignmentController {
 

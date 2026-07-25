@@ -11,7 +11,12 @@ import com.acronexus.repository.ClassSubjectRepository;
 import com.acronexus.repository.QuizRepository;
 import com.acronexus.repository.UserRepository;
 import com.acronexus.security.UserDetailsImpl;
+import com.acronexus.service.AiService;
 import com.acronexus.service.QuizService;
+import com.acronexus.dto.ai.AiAnalyticsRequest;
+import com.acronexus.dto.ai.AiInsightDto;
+import com.acronexus.entity.QuizQuestion;
+import com.acronexus.repository.QuizQuestionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +35,8 @@ public class QuizServiceImpl implements QuizService {
     private final QuizRepository quizRepository;
     private final ClassSubjectRepository classSubjectRepository;
     private final UserRepository userRepository;
+    private final AiService aiService;
+    private final QuizQuestionRepository quizQuestionRepository;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -149,5 +156,103 @@ public class QuizServiceImpl implements QuizService {
                 .createdBy(quiz.getCreatedBy().getId())
                 .createdByName(quiz.getCreatedBy().getFirstName() + " " + quiz.getCreatedBy().getLastName())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiInsightDto getQuizDifficultyAnalysis(UUID quizId) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+        verifyFacultyOwnership(quiz, getCurrentUser());
+        
+        List<QuizQuestion> questions = quizQuestionRepository.findByQuiz_Id(quizId);
+        
+        AiAnalyticsRequest request = AiAnalyticsRequest.builder()
+                .insightType("QUIZ_DIFFICULTY")
+                .contextType("quiz")
+                .contextId(quizId.toString())
+                .data(java.util.Map.of(
+                        "title", quiz.getTitle(),
+                        "description", quiz.getDescription(),
+                        "totalMarks", quiz.getTotalMarks(),
+                        "durationMinutes", quiz.getDurationMinutes(),
+                        "questions", questions.stream().map(q -> java.util.Map.of(
+                                "question", q.getQuestionText(),
+                                "marks", q.getMarks()
+                        )).collect(Collectors.toList())
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiInsightDto getQuestionQualityAnalysis(UUID questionId) {
+        QuizQuestion question = quizQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+        verifyFacultyOwnership(question.getQuiz(), getCurrentUser());
+        
+        AiAnalyticsRequest request = AiAnalyticsRequest.builder()
+                .insightType("QUIZ_QUESTION_QUALITY")
+                .contextType("quiz-question")
+                .contextId(questionId.toString())
+                .data(java.util.Map.of(
+                        "questionText", question.getQuestionText(),
+                        "marks", question.getMarks(),
+                        "options", question.getOptions()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiInsightDto generateQuestions(UUID classSubjectId, String topic, int count) {
+        ClassSubject classSubject = classSubjectRepository.findById(classSubjectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class Subject not found"));
+                
+        User facultyUser = getCurrentUser();
+        if (facultyUser.getRole() == UserRole.FACULTY && !classSubject.getFaculty().getId().equals(facultyUser.getId())) {
+            throw new UnauthorizedException("You are not authorized for this subject.");
+        }
+        
+        AiAnalyticsRequest request = AiAnalyticsRequest.builder()
+                .insightType("QUIZ_QUESTION_GENERATION")
+                .contextType("question-generation")
+                .contextId(classSubjectId.toString())
+                .data(java.util.Map.of(
+                        "topic", topic,
+                        "count", count,
+                        "subjectName", classSubject.getSubject().getName(),
+                        "subjectCode", classSubject.getSubject().getCode()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AiInsightDto getPersonalizedRecommendations() {
+        User student = getCurrentUser();
+        List<Quiz> quizzes = quizRepository.findAvailableQuizzesForStudent(student.getId());
+        
+        AiAnalyticsRequest request = AiAnalyticsRequest.builder()
+                .insightType("QUIZ_RECOMMENDATIONS")
+                .contextType("quiz-recommendation")
+                .contextId(student.getId().toString())
+                .data(java.util.Map.of(
+                        "availableQuizzes", quizzes.stream().map(q -> java.util.Map.of(
+                                "id", q.getId(),
+                                "title", q.getTitle(),
+                                "subject", q.getClassSubject().getSubject().getName(),
+                                "deadline", q.getEndTime().toString()
+                        )).collect(Collectors.toList())
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
     }
 }

@@ -35,7 +35,7 @@ export const Internships: React.FC<InternshipsProps> = ({ data, readOnly, onUpda
         technologies: newItem.technologies.split(',').map(t => t.trim()).filter(t => t)
       }];
       setInternships(updated);
-      onUpdate({ internships: updated });
+      onUpdate(updated);
       setNewItem({ role: '', company: '', mentor: '', duration: '', technologies: '', description: '', link: '' });
     }
   };
@@ -43,7 +43,7 @@ export const Internships: React.FC<InternshipsProps> = ({ data, readOnly, onUpda
   const handleDelete = (id: number) => {
     const updated = internships.filter(i => i.id !== id);
     setInternships(updated);
-    onUpdate({ internships: updated });
+    onUpdate(updated);
   };
 
   return (

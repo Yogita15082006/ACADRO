@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, java.util.UUID> {
     Optional<Subject> findByCode(String code);
+    java.util.List<Subject> findByIsActiveTrue();
 }

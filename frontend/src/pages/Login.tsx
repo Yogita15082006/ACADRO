@@ -1,242 +1,115 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { mockData } from '../data/mockData';
-import { User, Lock, ArrowRight, Sparkles, Eye, EyeOff, Upload, CheckCircle2, X, Mail, Briefcase, BookOpen, GraduationCap, Building2 } from 'lucide-react';
+import { User, Lock, ArrowRight, Sparkles, Eye, EyeOff, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { authService } from '../services/authService';
+import { profileService } from '../services/profileService';
+import { dashboardService } from '../services/dashboardService';
 
 export const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [role, setRole] = useState('student');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regMobile, setRegMobile] = useState('');
-  const [regId, setRegId] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regDepartment, setRegDepartment] = useState('');
-  const [idCardFile, setIdCardFile] = useState<File | null>(null);
-  
-  // Coordinator/Faculty Popup State
-  const [showCoordinatorPopup, setShowCoordinatorPopup] = useState(false);
-  const [newCoordinatorData, setNewCoordinatorData] = useState<any>(null);
-  
-  // Student Academic Registration States
-  const [regYear, setRegYear] = useState('');
-  const [regSemester, setRegSemester] = useState('');
-  const [regClass, setRegClass] = useState('');
-  const [regBatch, setRegBatch] = useState('');
-  const [regCgpa, setRegCgpa] = useState('');
-  const [regBacklogs, setRegBacklogs] = useState('');
-  const [regBatchCoordinator, setRegBatchCoordinator] = useState('');
-  const [regSgpas, setRegSgpas] = useState({ sem1: '', sem2: '', sem3: '', sem4: '', sem5: '', sem6: '', sem7: '', sem8: '' });
-  const [regSubjects, setRegSubjects] = useState<string[]>([]);
-  const [currentSubject, setCurrentSubject] = useState('');
 
-  // Auto-calculate CGPA based on entered SGPAs and selected semester
-  useEffect(() => {
-    const semNum = parseInt(regSemester.replace(/\D/g, '')) || 0;
-    const previousSems = Array.from({ length: Math.max(0, semNum - 1) }, (_, i) => `sem${i + 1}`);
-    
-    let total = 0;
-    let count = 0;
-    
-    previousSems.forEach(sem => {
-      const val = parseFloat(regSgpas[sem as keyof typeof regSgpas]);
-      if (!isNaN(val) && val > 0) {
-        total += val;
-        count++;
-      }
-    });
-
-    if (count > 0) {
-      setRegCgpa((total / count).toFixed(2));
-    } else {
-      setRegCgpa('');
-    }
-  }, [regSgpas, regSemester]);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Profile Popup State
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [assignedSubjects, setAssignedSubjects] = useState<any[]>([]);
+  const [currentRole, setCurrentRole] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const fetchProfileData = async (role: string) => {
+    try {
+      const profile = await profileService.getProfile();
+      setProfileData(profile);
+      setCurrentRole(role.toLowerCase());
+
+      if (role.toLowerCase() === 'hod') {
+        const hodDash = await dashboardService.getHodDashboard();
+        setDashboardData(hodDash.data);
+      } else if (role.toLowerCase() === 'faculty' || role.toLowerCase() === 'coordinator') {
+        const subjects = await profileService.getFacultyAssignedSubjects();
+        setAssignedSubjects(subjects);
+      }
+      
+      setShowProfilePopup(true);
+    } catch (err) {
+      console.error("Failed to fetch profile data for popup", err);
+      // Fallback: Just navigate directly if profile fetch fails
+      if (role.toLowerCase() === 'student') navigate('/student');
+      else navigate('/admin');
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      // DEVELOPMENT DEMO CREDENTIALS CHECK
-      if (import.meta.env.MODE === 'development') {
-        if (role === 'hod' && userId === 'yogitagurjar230840@gmail.com' && password === 'Admin@123') {
-           login('hod', 'A1');
-           navigate('/admin');
-           return;
-        }
-        if (role === 'coordinator' && userId === 'coordinator@acronexus.edu' && password === 'Coordinator@123') {
-           login('coordinator', 'A2');
-           navigate('/admin');
-           return;
-        }
-        if (role === 'faculty' && userId === 'faculty@acronexus.edu' && password === 'Faculty@123') {
-           login('faculty', 'A4');
-           navigate('/admin');
-           return;
-        }
-        if (role === 'student' && userId === 'student@acronexus.edu' && password === 'Student@123') {
-           login('student', 'STU1');
-           navigate('/student');
-           return;
-        }
-      }
-
-      if (role === 'hod' || role === 'coordinator' || role === 'faculty') {
-        const admin = mockData.admins.find(a => a.id === userId || a.empId === userId || a.email === userId);
-        if (admin && password === 'password' && admin.role === role) {
-          login(role, admin.id);
-          navigate('/admin');
+    try {
+        const loginRes = await login({ email: userId, password });
+        if (loginRes && loginRes.success) {
+            await fetchProfileData(loginRes.role);
         } else {
-          setError(`Invalid ${role.toUpperCase()} credentials. Make sure you selected the correct role.`);
+            setError(loginRes?.message || 'Login failed.');
         }
-      } else {
-        const student = mockData.students.find(s => s.id === userId || s.enrollmentNumber === userId || s.email === userId);
-        if (student && password === 'password') {
-          login('student', student.id);
-          navigate('/student');
-        } else {
-          setError('Invalid Student credentials.');
-        }
-      }
-      setIsLoading(false);
-    }, 800);
+    } catch (err: any) {
+        setError(err.response?.data?.message || 'Invalid credentials.');
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const resetRegistrationForm = () => {
-      setRegName('');
       setRegEmail('');
-      setRegMobile('');
-      setRegDepartment('');
-      setRegId('');
       setRegPassword('');
-      setIdCardFile(null);
-      setRegYear('');
-      setRegSemester('');
-      setRegClass('');
-      setRegBatch('');
-      setRegCgpa('');
-      setRegBacklogs('');
-      setRegBatchCoordinator('');
-      setRegSgpas({ sem1: '', sem2: '', sem3: '', sem4: '', sem5: '', sem6: '', sem7: '', sem8: '' });
-      setRegSubjects([]);
-      setCurrentSubject('');
   };
 
-  const handleCoordinatorConfirm = () => {
-    mockData.admins.push({
-      id: newCoordinatorData.id,
-      name: newCoordinatorData.name,
-      email: newCoordinatorData.email,
-      empId: newCoordinatorData.empId,
-      subjects: newCoordinatorData.subjects || [],
-      classes: newCoordinatorData.classes || [],
-      role: newCoordinatorData.role
-    });
-    
-    setShowCoordinatorPopup(false);
-    resetRegistrationForm();
-    // Auto login for coordinator/faculty
-    login(newCoordinatorData.role, newCoordinatorData.id);
-    navigate('/admin');
-  };
-
-  const handleCoordinatorCancel = () => {
-    setShowCoordinatorPopup(false);
-    setNewCoordinatorData(null);
-    setIsRegistering(false);
-    resetRegistrationForm();
-  };
-
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    if (role === 'student' && !idCardFile) {
-      setError('Please upload your Student ID Card.');
-      return;
-    }
-    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      if (role === 'coordinator' || role === 'faculty') {
-        const newAdmin = {
-          id: `A${mockData.admins.length + 1}`,
-          name: regName,
-          email: regEmail,
-          empId: regId,
-          password: regPassword,
-          subjects: role === 'faculty' ? ['Software Engineering', 'Web Development'] : ['Cloud Computing', 'Machine Learning', 'Internet of Things'],
-          classes: role === 'faculty' ? ['IT-1', 'IT-3'] : ['IT-1', 'IT-2'],
-          role: role
-        };
-        setNewCoordinatorData(newAdmin);
-        setShowCoordinatorPopup(true);
-        return; // Don't reset form yet
-      } else {
-        if (role === 'hod') {
-          mockData.admins.push({
-            id: `A${mockData.admins.length + 1}`,
-            name: regName,
-            email: regEmail,
-            empId: regId,
-            subjects: [],
-            classes: [],
-            role: role
-          });
-        } else if (role === 'student') {
-          mockData.students.push({
-            id: `STU${mockData.students.length + 1}`,
-            name: regName,
-            email: regEmail,
-            enrollmentNumber: regId,
-            classId: regClass,
-            className: regClass,
-            year: regYear,
-            semester: regSemester.replace(/\D/g, ''),
-            batch: regBatch,
-            branch: regDepartment || 'Information Technology',
-            overallAttendance: 0,
-            avatar: `https://i.pravatar.cc/150?u=${regId}`,
-            status: 'Active',
-            sgpa: { ...regSgpas, sem5: null, sem6: null, sem7: null, sem8: null },
-            cgpa: regCgpa,
-            activeBacklogs: Number(regBacklogs) || 0,
-            subjects: regSubjects,
-            batchCoordinator: regBatchCoordinator
-          });
+    
+    try {
+        // Phase 1: Verify Account
+        const verifyRes = await authService.verifyAccount({ email: regEmail });
+        
+        if (verifyRes.success) {
+            // Phase 2: Activate Account
+            const activateRes = await authService.activateAccount({ email: regEmail, password: regPassword });
+            
+            if (activateRes.success) {
+                // Success! Switch to login mode and pre-fill credentials
+                setIsRegistering(false);
+                setUserId(regEmail);
+                setPassword(regPassword);
+                resetRegistrationForm();
+                // Optionally show a success toast here
+            } else {
+                setError(activateRes.message || 'Failed to activate account.');
+            }
+        } else {
+            setError(verifyRes.message || 'Verification failed.');
         }
-        setIsRegistering(false);
-        setUserId(regId);
-        setPassword(regPassword);
-      }
-      
-      resetRegistrationForm();
-    }, 1200);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setIdCardFile(e.target.files[0]);
+    } catch (err: any) {
+        setError(err.response?.data?.message || 'Verification failed. This account may not exist in ERP records.');
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -294,40 +167,7 @@ export const Login = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-8 p-1.5 bg-muted rounded-xl shrink-0">
-              <Button 
-                variant={role === 'student' ? 'default' : 'ghost'} 
-                className={`rounded-lg transition-all ${role === 'student' ? 'shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => { setRole('student'); setError(''); }}
-                type="button"
-              >
-                Student
-              </Button>
-              <Button 
-                variant={role === 'faculty' ? 'default' : 'ghost'} 
-                className={`rounded-lg transition-all ${role === 'faculty' ? 'shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => { setRole('faculty'); setError(''); }}
-                type="button"
-              >
-                Faculty
-              </Button>
-              <Button 
-                variant={role === 'coordinator' ? 'default' : 'ghost'} 
-                className={`rounded-lg transition-all ${role === 'coordinator' ? 'shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => { setRole('coordinator'); setError(''); }}
-                type="button"
-              >
-                Coordinator
-              </Button>
-              <Button 
-                variant={role === 'hod' ? 'default' : 'ghost'} 
-                className={`rounded-lg transition-all ${role === 'hod' ? 'shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => { setRole('hod'); setError(''); setIsRegistering(false); }}
-                type="button"
-              >
-                HOD
-              </Button>
-            </div>
+
 
             {!isRegistering ? (
               // LOGIN FORM
@@ -339,7 +179,7 @@ export const Login = () => {
                     <Input 
                       type="text" 
                       className="pl-10 h-12 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm" 
-                      placeholder={role === 'student' ? "Try 'STU1'" : "Email or Employee ID"}
+                      placeholder="Email Address"
                       value={userId}
                       onChange={(e) => setUserId(e.target.value)}
                       required
@@ -390,298 +230,45 @@ export const Login = () => {
             ) : (
               // REGISTRATION FORM
               <form onSubmit={handleRegister} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted-foreground">Full Name</label>
-                  <Input 
-                    type="text" 
-                    className="h-11 bg-background border-border focus-visible:ring-primary/30 rounded-xl shadow-sm" 
-                    placeholder="John Doe"
-                    value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold text-muted-foreground">Email</label>
-                    <Input 
-                      type="email" 
-                      className="h-11 bg-background border-border focus-visible:ring-primary/30 rounded-xl shadow-sm" 
-                      placeholder="john@example.com"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-muted-foreground">
-                      {role === 'faculty' || role === 'coordinator' ? 'Employee ID' : 'Enrollment No.'}
-                    </label>
-                    <Input 
-                      type="text" 
-                      className="h-11 bg-background border-border focus-visible:ring-primary/30 rounded-xl shadow-sm" 
-                      placeholder={role === 'faculty' || role === 'coordinator' ? "EMP001" : "0827CS... "}
-                      value={regId}
-                      onChange={(e) => setRegId(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {(role === 'faculty' || role === 'coordinator') && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-muted-foreground">Mobile Number</label>
+                    <label className="text-sm font-semibold text-muted-foreground">Work/Student Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                       <Input 
-                        type="tel" 
-                        className="h-11 bg-background border-border focus-visible:ring-primary/30 rounded-xl shadow-sm" 
-                        placeholder="+91..."
-                        value={regMobile}
-                        onChange={(e) => setRegMobile(e.target.value)}
+                        type="email" 
+                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm" 
+                        placeholder="Email Address"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-muted-foreground">Department</label>
-                      <select 
-                        className="flex h-11 w-full items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        value={regDepartment}
-                        onChange={(e) => setRegDepartment(e.target.value)}
-                        required
-                      >
-                        <option value="" disabled>Select Dept</option>
-                        <option value="Information Technology">Information Technology</option>
-                        <option value="Computer Science">Computer Science</option>
-                        <option value="Data Science">Data Science</option>
-                      </select>
-                    </div>
                   </div>
-                )}
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted-foreground">Password</label>
-                  <div className="relative group">
-                    <Input 
-                      type={showPassword ? "text" : "password"} 
-                      className="pr-10 h-11 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm" 
-                      placeholder="Create a password"
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                    <button 
-                      type="button"
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-muted-foreground">New Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm" 
+                        placeholder="Create a strong password"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {role === 'student' && (
-                  <div className="space-y-6">
-                    <div className="space-y-2 pt-2">
-                      <label className="text-sm font-semibold text-muted-foreground flex justify-between">
-                        Upload ID Card 
-                        <span className="text-xs text-muted-foreground font-normal">(Required for verification)</span>
-                      </label>
-                      <div 
-                        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2 ${idCardFile ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <input 
-                          type="file" 
-                          ref={fileInputRef} 
-                          className="hidden" 
-                          accept="image/*,.pdf" 
-                          onChange={handleFileChange} 
-                        />
-                        {idCardFile ? (
-                          <>
-                            <CheckCircle2 className="w-8 h-8 text-primary" />
-                            <p className="text-sm font-medium text-foreground">{idCardFile.name}</p>
-                            <p className="text-xs text-muted-foreground">Click to change file</p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="p-3 bg-background rounded-full shadow-sm mb-1">
-                              <Upload className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                            <p className="text-sm font-medium text-foreground">Click to upload your Student ID</p>
-                            <p className="text-xs text-muted-foreground">JPEG, PNG or PDF up to 5MB</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4 pt-4 border-t border-border mt-4">
-                      <h3 className="font-bold text-foreground">Academic Details</h3>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Academic Year</label>
-                        <select 
-                          className="flex h-11 w-full items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          value={regYear}
-                          onChange={(e) => setRegYear(e.target.value)}
-                          required
-                        >
-                          <option value="" disabled>Select Year</option>
-                          <option value="2nd Year">2nd Year</option>
-                          <option value="3rd Year">3rd Year</option>
-                          <option value="4th Year">4th Year</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Semester</label>
-                        <select 
-                          className="flex h-11 w-full items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          value={regSemester}
-                          onChange={(e) => {
-                            setRegSemester(e.target.value);
-                            // Reset SGPAs if they decrease semester to ensure no stale data in calculation
-                            setRegSgpas({ sem1: '', sem2: '', sem3: '', sem4: '', sem5: '', sem6: '', sem7: '', sem8: '' });
-                          }}
-                          required
-                        >
-                          <option value="" disabled>Select Semester</option>
-                          <option value="Semester 3">Semester 3</option>
-                          <option value="Semester 4">Semester 4</option>
-                          <option value="Semester 5">Semester 5</option>
-                          <option value="Semester 6">Semester 6</option>
-                          <option value="Semester 7">Semester 7</option>
-                          <option value="Semester 8">Semester 8</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Class</label>
-                        <select 
-                          className="flex h-11 w-full items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          value={regClass}
-                          onChange={(e) => setRegClass(e.target.value)}
-                          required
-                        >
-                          <option value="" disabled>Select Class</option>
-                          <option value="IT-1">IT-1</option>
-                          <option value="IT-2">IT-2</option>
-                          <option value="DS-1">DS-1</option>
-                          <option value="DS-2">DS-2</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Batch</label>
-                        <Input 
-                          type="text" 
-                          className="h-11 bg-background border-border rounded-xl" 
-                          placeholder="e.g. A1"
-                          value={regBatch}
-                          onChange={(e) => setRegBatch(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {Array.from({ length: Math.max(0, (parseInt(regSemester.replace(/\D/g, '')) || 0) - 1) }, (_, i) => i + 1).map((semNum) => {
-                        const semKey = `sem${semNum}` as keyof typeof regSgpas;
-                        return (
-                          <div key={semKey} className="space-y-2">
-                            <label className="text-xs font-semibold text-muted-foreground">SGPA Sem {semNum}</label>
-                            <Input 
-                              type="number" step="0.01" min="0" max="10"
-                              className="h-10 bg-background border-border rounded-lg text-sm" 
-                              placeholder="0.00"
-                              value={regSgpas[semKey]}
-                              onChange={(e) => setRegSgpas({ ...regSgpas, [semKey]: e.target.value })}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Current CGPA</label>
-                        <Input 
-                          type="text"
-                          className="h-11 bg-muted border-border rounded-xl font-medium text-foreground cursor-not-allowed opacity-80" 
-                          placeholder="Auto-calculated"
-                          value={regCgpa}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Active Backlogs</label>
-                        <Input 
-                          type="number" min="0"
-                          className="h-11 bg-background border-border rounded-xl" 
-                          placeholder="0"
-                          value={regBacklogs}
-                          onChange={(e) => setRegBacklogs(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-muted-foreground">Batch Coordinator</label>
-                        <Input 
-                          type="text" 
-                          className="h-11 bg-background border-border rounded-xl" 
-                          placeholder="Name"
-                          value={regBatchCoordinator}
-                          onChange={(e) => setRegBatchCoordinator(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-muted-foreground">Current Semester Subjects</label>
-                      <div className="flex gap-2">
-                        <Input 
-                          type="text" 
-                          className="h-11 bg-background border-border rounded-xl flex-1" 
-                          placeholder="Add subject (e.g. Java)"
-                          value={currentSubject}
-                          onChange={(e) => setCurrentSubject(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (currentSubject.trim()) {
-                                setRegSubjects([...regSubjects, currentSubject.trim()]);
-                                setCurrentSubject('');
-                              }
-                            }
-                          }}
-                        />
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          className="h-11 rounded-xl shrink-0 border-border"
-                          onClick={() => {
-                            if (currentSubject.trim()) {
-                              setRegSubjects([...regSubjects, currentSubject.trim()]);
-                              setCurrentSubject('');
-                            }
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </div>
-                      {regSubjects.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {regSubjects.map((sub, i) => (
-                            <Badge key={i} variant="secondary" className="px-3 py-1 flex items-center gap-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                              {sub}
-                              <X className="w-3 h-3 cursor-pointer hover:text-destructive transition-colors ml-1" onClick={() => setRegSubjects(regSubjects.filter((_, idx) => idx !== i))} />
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    </div>
-                  </div>
-                )}
 
 
 
@@ -702,212 +289,130 @@ export const Login = () => {
               </form>
             )}
 
-            {(role === 'student' || role === 'faculty' || role === 'coordinator' || role === 'hod') && (
-              <p className="text-center mt-8 text-sm text-muted-foreground font-medium">
-                {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
-                <span 
-                  className="text-primary font-bold cursor-pointer hover:underline"
-                  onClick={() => {
-                    setIsRegistering(!isRegistering);
-                    setError('');
-                  }}
-                >
-                  {isRegistering ? 'Sign In' : 'Create Account'}
-                </span>
-              </p>
-            )}
-
-            {/* DEMO CREDENTIALS CARD - ONLY FOR DEVELOPMENT */}
-            {import.meta.env.MODE === 'development' && !isRegistering && (
-              <div className="mt-8 pt-6 border-t border-border animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center gap-2 mb-4">
-                  <Badge variant="outline" className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">
-                    Dev Mode
-                  </Badge>
-                  <h3 className="text-sm font-bold text-foreground">Test Credentials</h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* HOD */}
-                  <div className="p-3 rounded-xl border border-border bg-muted/50 hover:bg-muted transition-colors group relative overflow-hidden">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xl leading-none">👑</span>
-                        <span className="text-xs font-bold text-foreground">HOD</span>
-                      </div>
-                      <Button 
-                        size="sm" variant="ghost" 
-                        className="h-6 text-[10px] px-2 py-0 hover:bg-primary hover:text-primary-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          setRole('hod');
-                          setUserId('yogitagurjar230840@gmail.com');
-                          setPassword('Admin@123');
-                        }}
-                      >
-                        Quick Fill
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-muted-foreground truncate" title="yogitagurjar230840@gmail.com">
-                        <span className="font-semibold text-foreground/70">U:</span> yogitagurjar230840@gmail.com
-                      </p>
-                      <p className="text-[10px] font-mono text-muted-foreground">
-                        <span className="font-semibold text-foreground/70">P:</span> Admin@123
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Coordinator */}
-                  <div className="p-3 rounded-xl border border-border bg-muted/50 hover:bg-muted transition-colors group relative overflow-hidden">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xl leading-none">🏫</span>
-                        <span className="text-xs font-bold text-foreground">Coordinator</span>
-                      </div>
-                      <Button 
-                        size="sm" variant="ghost" 
-                        className="h-6 text-[10px] px-2 py-0 hover:bg-primary hover:text-primary-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          setRole('coordinator');
-                          setUserId('coordinator@acronexus.edu');
-                          setPassword('Coordinator@123');
-                        }}
-                      >
-                        Quick Fill
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-muted-foreground truncate" title="coordinator@acronexus.edu">
-                        <span className="font-semibold text-foreground/70">U:</span> coordinator@acronexus.edu
-                      </p>
-                      <p className="text-[10px] font-mono text-muted-foreground">
-                        <span className="font-semibold text-foreground/70">P:</span> Coordinator@123
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Faculty */}
-                  <div className="p-3 rounded-xl border border-border bg-muted/50 hover:bg-muted transition-colors group relative overflow-hidden">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xl leading-none">👨‍🏫</span>
-                        <span className="text-xs font-bold text-foreground">Faculty</span>
-                      </div>
-                      <Button 
-                        size="sm" variant="ghost" 
-                        className="h-6 text-[10px] px-2 py-0 hover:bg-primary hover:text-primary-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          setRole('faculty');
-                          setUserId('faculty@acronexus.edu');
-                          setPassword('Faculty@123');
-                        }}
-                      >
-                        Quick Fill
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-muted-foreground truncate" title="faculty@acronexus.edu">
-                        <span className="font-semibold text-foreground/70">U:</span> faculty@acronexus.edu
-                      </p>
-                      <p className="text-[10px] font-mono text-muted-foreground">
-                        <span className="font-semibold text-foreground/70">P:</span> Faculty@123
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Student */}
-                  <div className="p-3 rounded-xl border border-border bg-muted/50 hover:bg-muted transition-colors group relative overflow-hidden">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xl leading-none">🎓</span>
-                        <span className="text-xs font-bold text-foreground">Student</span>
-                      </div>
-                      <Button 
-                        size="sm" variant="ghost" 
-                        className="h-6 text-[10px] px-2 py-0 hover:bg-primary hover:text-primary-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          setRole('student');
-                          setUserId('student@acronexus.edu');
-                          setPassword('Student@123');
-                        }}
-                      >
-                        Quick Fill
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-muted-foreground truncate" title="student@acronexus.edu">
-                        <span className="font-semibold text-foreground/70">U:</span> student@acronexus.edu
-                      </p>
-                      <p className="text-[10px] font-mono text-muted-foreground">
-                        <span className="font-semibold text-foreground/70">P:</span> Student@123
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <p className="text-center mt-8 text-sm text-muted-foreground font-medium">
+              {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <span 
+                className="text-primary font-bold cursor-pointer hover:underline"
+                onClick={() => {
+                  setIsRegistering(!isRegistering);
+                  setError('');
+                }}
+              >
+                {isRegistering ? 'Sign In' : 'Create Account'}
+              </span>
+            </p>
           </div>
         </div>
       </Card>
 
-      {/* Coordinator Creation Confirmation Popup */}
-      {showCoordinatorPopup && newCoordinatorData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <Card className="w-full max-w-md shadow-2xl border-primary/20 animate-in zoom-in-95 duration-300">
-            <div className="bg-gradient-to-r from-primary to-blue-600 p-6 flex flex-col items-center justify-center text-white rounded-t-xl relative">
-              <div className="w-20 h-20 rounded-full border-4 border-white/20 bg-white/10 overflow-hidden mb-3">
-                <img 
-                  src={`https://i.pravatar.cc/150?u=${newCoordinatorData.empId}`} 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <h3 className="text-xl font-bold">{newCoordinatorData.name}</h3>
-              <Badge variant="secondary" className="mt-2 bg-white/20 text-white border-none hover:bg-white/30">
-                {newCoordinatorData.role === 'coordinator' ? 'Class Coordinator' : 'Faculty Member'}
-              </Badge>
+      <Dialog open={showProfilePopup} onOpenChange={() => {}}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-card border-border rounded-2xl shadow-2xl [&>button]:hidden">
+          <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white flex items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-lg">
+              {profileData?.profilePictureUrl ? (
+                <img src={profileData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User size={40} className="text-white/80" />
+              )}
             </div>
-            
-            <div className="p-6 space-y-4 bg-card">
-              <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Briefcase size={14} /> Employee ID</span>
-                  <p className="font-semibold text-foreground">{newCoordinatorData.empId}</p>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">{profileData?.firstName} {profileData?.lastName}</h2>
+              <p className="text-white/80 font-medium">{profileData?.email} • {profileData?.role?.replace('ROLE_', '')}</p>
+              <p className="text-white/80 text-sm">{profileData?.departmentName || 'Department of Information Technology'}</p>
+            </div>
+          </div>
+          
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Personal Details</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground block mb-1">Employee/Enrollment ID</span>
+                  <span className="font-medium">{profileData?.enrollmentNo || profileData?.instituteEnrollment || profileData?.aadhaarNumber || 'N/A'}</span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Mail size={14} /> Email</span>
-                  <p className="font-semibold text-foreground truncate" title={newCoordinatorData.email}>{newCoordinatorData.email}</p>
+                <div>
+                  <span className="text-muted-foreground block mb-1">Phone Number</span>
+                  <span className="font-medium">{profileData?.phone || 'N/A'}</span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Building2 size={14} /> {newCoordinatorData.role === 'coordinator' ? 'Coordinator Of (Section)' : 'Teaching (Section)'}</span>
-                  <p className="font-semibold text-foreground">{newCoordinatorData.classes && newCoordinatorData.classes.length > 0 ? newCoordinatorData.classes.join(', ') : 'IT-1'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><BookOpen size={14} /> Semester</span>
-                  <p className="font-semibold text-foreground">Semester 6</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><GraduationCap size={14} /> Assigned Subjects</span>
-                  <p className="font-semibold text-foreground">{newCoordinatorData.subjects ? newCoordinatorData.subjects.join(', ') : '3 Subjects'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><Building2 size={14} /> Total Assigned Classes</span>
-                  <p className="font-semibold text-foreground">12 / Week</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 pt-4 mt-2 border-t border-border">
-                <Button variant="outline" className="flex-1" onClick={handleCoordinatorCancel}>
-                  Cancel
-                </Button>
-                <Button className="flex-1 shadow-md shadow-primary/20" onClick={handleCoordinatorConfirm}>
-                  Open Dashboard
-                </Button>
+                {currentRole === 'student' && (
+                  <>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">Batch Year</span>
+                      <span className="font-medium">{profileData?.batchYear || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">Current Semester</span>
+                      <span className="font-medium">{profileData?.currentSemester || 'N/A'}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-          </Card>
-        </div>
-      )}
+
+            {/* Role Specific Info */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Academic Assignments</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {currentRole === 'hod' && dashboardData && (
+                  <>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">Total Faculty</span>
+                      <span className="font-medium">{dashboardData.departmentFacultyCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">Total Students</span>
+                      <span className="font-medium">{dashboardData.departmentStudentCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block mb-1">Managed Classes</span>
+                      <span className="font-medium">All IT Classes</span>
+                    </div>
+                  </>
+                )}
+                
+                {(currentRole === 'faculty' || currentRole === 'coordinator') && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground block mb-2">{currentRole === 'coordinator' ? 'Coordinator & Assigned Classes' : 'Assigned Classes & Subjects'}</span>
+                    {assignedSubjects.length > 0 ? (
+                      <div className="space-y-2">
+                        {assignedSubjects.map((subject: any, idx: number) => (
+                          <div key={idx} className="flex justify-between bg-muted/50 p-2 rounded border text-xs">
+                            <span className="font-medium">{subject.subjectName}</span>
+                            <span className="text-muted-foreground">{subject.className} ({subject.semester})</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="font-medium text-muted-foreground">No assigned subjects</span>
+                    )}
+                  </div>
+                )}
+                
+                {currentRole === 'student' && profileData?.subjects && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground block mb-2">Enrolled Subjects</span>
+                    <div className="flex flex-wrap gap-2">
+                      {profileData.subjects.map((sub: string, idx: number) => (
+                        <Badge key={idx} variant="outline" className="bg-muted/50">{sub}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/30 border-t flex justify-end">
+            <Button 
+              className="w-full sm:w-auto min-w-[200px]"
+              onClick={() => currentRole === 'student' ? navigate('/student') : navigate('/admin')}
+            >
+              Open Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -11,4 +11,6 @@ public interface AiMatchRunService {
     List<AiMatchRunResponseDto> getAll();
     AiMatchRunResponseDto update(UUID id, AiMatchRunRequestDto requestDto);
     void delete(UUID id);
+    com.acronexus.dto.ai.AiMatchResponse executeMatch();
+    void applyChanges(com.acronexus.dto.ai.AiMatchResponse aiMatchResponse);
 }

@@ -19,17 +19,7 @@ public class AssignmentController {
     @Autowired
     private AssignmentService assignmentService;
 
-    // TODO (Future Groq Integration)
-    // AI plagiarism detection.
-    
-    // TODO (Future AI)
-    // AI assignment quality analysis.
-    
-    // TODO (Future AI)
-    // AI feedback suggestions.
-
-    // TODO (Future AI)
-    // AI late submission risk prediction.
+    // Endpoints below
 
     // ==========================================
     // FACULTY ENDPOINTS
@@ -76,6 +66,24 @@ public class AssignmentController {
         return ResponseEntity.ok(assignmentService.evaluateSubmission(submissionId, request));
     }
 
+    @GetMapping("/faculty/{assignmentId}/ai/quality")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> analyzeQuality(@PathVariable UUID assignmentId) {
+        return ResponseEntity.ok(assignmentService.analyzeQuality(assignmentId));
+    }
+
+    @GetMapping("/faculty/submissions/{submissionId}/ai/plagiarism")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> analyzePlagiarism(@PathVariable UUID submissionId) {
+        return ResponseEntity.ok(assignmentService.analyzePlagiarism(submissionId));
+    }
+
+    @GetMapping("/faculty/submissions/{submissionId}/ai/feedback")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> getFeedbackSuggestions(@PathVariable UUID submissionId) {
+        return ResponseEntity.ok(assignmentService.getFeedbackSuggestions(submissionId));
+    }
+
     // ==========================================
     // STUDENT ENDPOINTS
     // ==========================================
@@ -98,6 +106,12 @@ public class AssignmentController {
             @PathVariable UUID assignmentId, 
             @Valid @RequestBody AssignmentSubmissionDto.SubmitRequest request) {
         return ResponseEntity.ok(assignmentService.submitAssignment(assignmentId, request));
+    }
+
+    @GetMapping("/student/{assignmentId}/ai/late-risk")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> predictLateSubmissionRisk(@PathVariable UUID assignmentId) {
+        return ResponseEntity.ok(assignmentService.predictLateSubmissionRisk(assignmentId));
     }
 
 }

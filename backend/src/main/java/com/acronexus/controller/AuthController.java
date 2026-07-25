@@ -29,10 +29,16 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        com.acronexus.entity.User userEntity = authService.getUserEntity(userDetails.getId());
+        if (userEntity.getIsActivated() == null || !userEntity.getIsActivated()) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Account not activated. Please create your account first."));
+        }
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         String role = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .findFirst()
@@ -65,6 +71,30 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequestDto requestDto) {
         authService.resetPassword(requestDto);
         return ResponseEntity.ok(ApiResponse.success("Password reset successfully", null));
+    }
+
+    @PostMapping("/verify-account")
+    public ResponseEntity<ApiResponse<VerifyAccountResponseDto>> verifyAccount(@Valid @RequestBody VerifyAccountRequestDto requestDto) {
+        try {
+            VerifyAccountResponseDto response = authService.verifyAccount(requestDto);
+            return ResponseEntity.ok(ApiResponse.success("Record found", response));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(ApiResponse.error(e.getMessage()));
+        } catch (com.acronexus.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/activate-account")
+    public ResponseEntity<ApiResponse<Void>> activateAccount(@Valid @RequestBody ActivateAccountRequestDto requestDto) {
+        try {
+            authService.activateAccount(requestDto);
+            return ResponseEntity.ok(ApiResponse.success("Account activated successfully", null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(ApiResponse.error(e.getMessage()));
+        } catch (com.acronexus.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @GetMapping("/me")

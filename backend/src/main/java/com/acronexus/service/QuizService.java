@@ -10,4 +10,9 @@ public interface QuizService {
     void deleteQuiz(UUID quizId);
     List<QuizDto.Response> getFacultyQuizzes();
     List<QuizDto.Response> getAvailableQuizzesForStudent();
+
+    com.acronexus.dto.ai.AiInsightDto getQuizDifficultyAnalysis(UUID quizId);
+    com.acronexus.dto.ai.AiInsightDto getQuestionQualityAnalysis(UUID questionId);
+    com.acronexus.dto.ai.AiInsightDto generateQuestions(UUID classSubjectId, String topic, int count);
+    com.acronexus.dto.ai.AiInsightDto getPersonalizedRecommendations();
 }

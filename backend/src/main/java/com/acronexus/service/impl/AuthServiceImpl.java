@@ -2,7 +2,9 @@ package com.acronexus.service.impl;
 
 import com.acronexus.dto.*;
 import com.acronexus.entity.User;
+import com.acronexus.entity.UserRole;
 import com.acronexus.repository.UserRepository;
+import com.acronexus.repository.StudentRepository;
 import com.acronexus.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,6 +18,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
+    private final StudentRepository studentRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -60,7 +63,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("User not found"));
                 
-        return UserProfileResponseDto.builder()
+        UserProfileResponseDto.UserProfileResponseDtoBuilder builder = UserProfileResponseDto.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .role(user.getRole().name())
@@ -71,8 +74,17 @@ public class AuthServiceImpl implements AuthService {
                 .dob(user.getDob())
                 .bloodGroup(user.getBloodGroup())
                 .profilePictureUrl(user.getProfilePictureUrl())
-                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
-                .build();
+                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null);
+                
+        if (user.getRole() == UserRole.STUDENT) {
+            studentRepository.findById(userId).ifPresent(student -> {
+                builder.enrollmentNo(student.getEnrollmentNo());
+                builder.rollNo(student.getRollNo());
+                builder.batchYear(student.getBatchYear());
+            });
+        }
+        
+        return builder.build();
     }
 
     @Override
@@ -91,6 +103,61 @@ public class AuthServiceImpl implements AuthService {
         
         userRepository.save(user);
         
+        if (user.getRole() == UserRole.STUDENT) {
+            studentRepository.findById(userId).ifPresent(student -> {
+                if (requestDto.getEnrollmentNo() != null) student.setEnrollmentNo(requestDto.getEnrollmentNo());
+                if (requestDto.getRollNo() != null) student.setRollNo(requestDto.getRollNo());
+                if (requestDto.getBatchYear() != null) student.setBatchYear(requestDto.getBatchYear());
+                studentRepository.save(student);
+            });
+        }
+        
         return getUserProfile(userId);
+    }
+
+    @Override
+    public VerifyAccountResponseDto verifyAccount(VerifyAccountRequestDto requestDto) {
+        User user = userRepository.findByEmail(requestDto.getEmail())
+                .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("No record found. Please contact your HOD."));
+
+        if (user.getIsActivated() != null && user.getIsActivated()) {
+            throw new IllegalStateException("This account already exists. Please login.");
+        }
+
+        VerifyAccountResponseDto.VerifyAccountResponseDtoBuilder builder = VerifyAccountResponseDto.builder()
+                .email(user.getEmail())
+                .name(user.getFirstName() + " " + user.getLastName())
+                .role(user.getRole().name())
+                .department(user.getDepartment() != null ? user.getDepartment().getName() : null);
+
+        if (user.getRole() == com.acronexus.entity.UserRole.STUDENT) {
+            studentRepository.findById(user.getId()).ifPresent(student -> {
+                builder.enrollmentNumber(student.getEnrollmentNo());
+                builder.batch(student.getBatchYear());
+            });
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    @Transactional
+    public void activateAccount(ActivateAccountRequestDto requestDto) {
+        User user = userRepository.findByEmail(requestDto.getEmail())
+                .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("No record found. Please contact your HOD."));
+
+        if (user.getIsActivated() != null && user.getIsActivated()) {
+            throw new IllegalStateException("This account already exists. Please login.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(requestDto.getPassword()));
+        user.setIsActivated(true);
+        userRepository.save(user);
+    }
+
+    @Override
+    public com.acronexus.entity.User getUserEntity(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("User not found"));
     }
 }

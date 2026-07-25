@@ -16,4 +16,8 @@ public interface LectureMaterialService {
     List<LectureMaterialResponseDto> getStudentMaterials(String token);
     LectureMaterialResponseDto getMaterialDetails(UUID materialId, String token);
     void trackDownload(UUID materialId, String token);
+
+    // AI Insights
+    com.acronexus.dto.ai.AiInsightDto generateStudyGuide(UUID materialId, String token);
+    com.acronexus.dto.ai.AiInsightDto summarizeMaterial(UUID materialId, String token);
 }

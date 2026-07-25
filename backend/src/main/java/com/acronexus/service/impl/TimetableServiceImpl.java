@@ -38,7 +38,7 @@ public class TimetableServiceImpl implements TimetableService {
 
     @Override
     public List<TimetableResponseDto> getAll() {
-        return repository.findAll().stream()
+        return repository.findByIsActiveTrueOrderByUploadedAtDesc().stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
     }

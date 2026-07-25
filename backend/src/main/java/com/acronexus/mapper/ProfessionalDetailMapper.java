@@ -11,7 +11,9 @@ public class ProfessionalDetailMapper {
     public ProfessionalDetail toEntity(ProfessionalDetailRequestDto dto) {
         if (dto == null) return null;
         ProfessionalDetail entity = new ProfessionalDetail();
-        // Map fields
+        entity.setResumeUrl(dto.getResumeUrl());
+        entity.setPublications(dto.getPublications());
+        entity.setCertifications(dto.getCertifications());
         return entity;
     }
 
@@ -21,7 +23,9 @@ public class ProfessionalDetailMapper {
         if(entity.getId() != null) {
             dto.setId(entity.getId());
         }
-        // Map fields
+        dto.setResumeUrl(entity.getResumeUrl());
+        dto.setPublications(entity.getPublications());
+        dto.setCertifications(entity.getCertifications());
         return dto;
     }
 }

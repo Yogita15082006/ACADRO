@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/ai-match-runs")
+@PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
 @RequiredArgsConstructor
 public class AiMatchRunController {
 
@@ -49,5 +51,17 @@ public class AiMatchRunController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("AiMatchRun deleted successfully", null));
+    }
+
+    @PostMapping("/execute")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiMatchResponse>> executeMatch() {
+        com.acronexus.dto.ai.AiMatchResponse result = service.executeMatch();
+        return ResponseEntity.ok(ApiResponse.success("AI Match execution completed successfully", result));
+    }
+
+    @PostMapping("/apply")
+    public ResponseEntity<ApiResponse<Void>> applyChanges(@RequestBody com.acronexus.dto.ai.AiMatchResponse aiMatchResponse) {
+        service.applyChanges(aiMatchResponse);
+        return ResponseEntity.ok(ApiResponse.success("AI changes applied successfully", null));
     }
 }

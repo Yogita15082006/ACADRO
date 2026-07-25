@@ -32,6 +32,7 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
     private final UserRepository userRepository;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final ResourceDownloadRepository resourceDownloadRepository;
+    private final com.acronexus.service.AiService aiService;
 
     @Override
     @Transactional
@@ -61,8 +62,6 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
         material.setVersionNumber(1);
         material.setUploadedAt(Instant.now());
 
-        // TODO (Future Groq Integration)
-        
         return mapper.toDto(repository.save(material));
     }
 
@@ -166,5 +165,45 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
         download.setDownloadedAt(Instant.now());
 
         resourceDownloadRepository.save(download);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto generateStudyGuide(UUID materialId, String token) {
+        LectureMaterial material = repository.findById(materialId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lecture Material not found"));
+
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("LECTURE_MATERIAL_STUDY_GUIDE")
+                .contextType("lecture-study-guide")
+                .contextId(materialId.toString())
+                .data(java.util.Map.of(
+                        "title", material.getTitle(),
+                        "description", material.getDescription() != null ? material.getDescription() : "",
+                        "unitNumber", material.getUnitNumber()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto summarizeMaterial(UUID materialId, String token) {
+        LectureMaterial material = repository.findById(materialId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lecture Material not found"));
+
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("LECTURE_MATERIAL_SUMMARY")
+                .contextType("lecture-summary")
+                .contextId(materialId.toString())
+                .data(java.util.Map.of(
+                        "title", material.getTitle(),
+                        "description", material.getDescription() != null ? material.getDescription() : "",
+                        "unitNumber", material.getUnitNumber()
+                ))
+                .build();
+                
+        return aiService.getInsights(request);
     }
 }

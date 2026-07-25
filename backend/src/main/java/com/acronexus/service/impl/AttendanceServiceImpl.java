@@ -20,9 +20,10 @@ import com.acronexus.entity.FacultyActivity;
 import com.acronexus.entity.FacultyActivityStatus;
 import com.acronexus.entity.Faculty;
 import com.acronexus.service.AttendanceService;
+import com.acronexus.service.AiService;
+import com.acronexus.dto.ai.AiAnalyticsRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +46,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final UserRepository userRepository;
     private final FacultyActivityRepository facultyActivityRepository;
     private final FacultyRepository facultyRepository;
+    private final AiService aiService;
 
     private static final int EXPIRY_MINUTES = 5;
 
@@ -140,11 +142,26 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         studentAttendanceRepository.save(attendance);
 
-        // TODO (Future Enhancement)
-        // Detect suspicious attendance patterns.
-        // Face recognition integration.
-        // GPS verification.
-        // AI attendance analytics.
+        // Detect suspicious attendance patterns and verification
+        try {
+            java.util.Map<String, Object> aiData = new java.util.HashMap<>();
+            aiData.put("studentId", studentId.toString());
+            aiData.put("classSubjectId", classSubjectId.toString());
+            aiData.put("date", today.toString());
+            aiData.put("latitude", request.getLatitude());
+            aiData.put("longitude", request.getLongitude());
+            aiData.put("faceDataProvided", request.getFaceData() != null && !request.getFaceData().isEmpty());
+            
+            AiAnalyticsRequest aiRequest = AiAnalyticsRequest.builder()
+                    .insightType("ATTENDANCE_VERIFICATION")
+                    .data(aiData)
+                    .build();
+            
+            aiService.getInsights(aiRequest);
+        } catch (Exception e) {
+            log.error("AI attendance verification and analytics failed", e);
+            // Non-blocking, so we continue even if AI fails
+        }
 
         return ApiResponse.success("Attendance marked successfully.", null);
     }

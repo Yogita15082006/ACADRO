@@ -64,8 +64,8 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     // For Admin: Student Lookup
     @Query("SELECT sa FROM StudentAttendance sa " +
            "WHERE sa.student.enrollmentNo = :enrollmentNo OR " +
-           "LOWER(sa.student.user.firstName) LIKE LOWER(CONCAT('%', :studentName, '%')) OR " +
-           "LOWER(sa.student.user.lastName) LIKE LOWER(CONCAT('%', :studentName, '%')) " +
+           "LOWER(sa.student.user.firstName) LIKE LOWER(CONCAT('%', CAST(:studentName AS string), '%')) OR " +
+           "LOWER(sa.student.user.lastName) LIKE LOWER(CONCAT('%', CAST(:studentName AS string), '%')) " +
            "ORDER BY sa.date DESC")
     List<StudentAttendance> findByEnrollmentNoOrStudentName(@Param("enrollmentNo") String enrollmentNo, 
                                                             @Param("studentName") String studentName);

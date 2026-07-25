@@ -24,7 +24,54 @@ public class StudentAttendance extends BaseAuditableEntity {
     private AttendanceStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id")
+    private AttendanceSession session;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "marked_by")
     private User markedBy;
 
+
+
+    public ClassSubject getClassSubject() {
+        return this.classSubject;
+    }
+    public void setClassSubject(ClassSubject classSubject) {
+        this.classSubject = classSubject;
+    }
+
+    public Student getStudent() {
+        return this.student;
+    }
+    public void setStudent(Student student) {
+        this.student = student;
+    }
+
+    public java.time.LocalDate getDate() {
+        return this.date;
+    }
+    public void setDate(java.time.LocalDate date) {
+        this.date = date;
+    }
+
+    public AttendanceStatus getStatus() {
+        return this.status;
+    }
+    public void setStatus(AttendanceStatus status) {
+        this.status = status;
+    }
+
+    public AttendanceSession getSession() {
+        return this.session;
+    }
+    public void setSession(AttendanceSession session) {
+        this.session = session;
+    }
+
+    public User getMarkedBy() {
+        return this.markedBy;
+    }
+    public void setMarkedBy(User markedBy) {
+        this.markedBy = markedBy;
+    }
 }

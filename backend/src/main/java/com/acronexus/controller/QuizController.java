@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.acronexus.dto.ai.AiInsightDto;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,18 +26,6 @@ public class QuizController {
     private final QuizService quizService;
     private final QuizQuestionService questionService;
     private final QuizAttemptService attemptService;
-
-    // TODO (Future Groq Integration)
-    // AI question generation.
-
-    // TODO (Future AI)
-    // Difficulty analysis.
-
-    // TODO (Future AI)
-    // Personalized quiz recommendations.
-
-    // TODO (Future AI)
-    // Question quality analysis.
 
     // ==========================================
     // FACULTY ENDPOINTS
@@ -108,6 +97,28 @@ public class QuizController {
         return ResponseEntity.ok(ApiResponse.success("Attempts fetched successfully", attemptService.getAttemptsForQuiz(quizId)));
     }
 
+    // --- AI Analytics APIs (Faculty) ---
+    @GetMapping("/faculty/{quizId}/ai/difficulty")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> getDifficultyAnalysis(@PathVariable UUID quizId) {
+        return ResponseEntity.ok(ApiResponse.success("Quiz difficulty analysis generated", quizService.getQuizDifficultyAnalysis(quizId)));
+    }
+
+    @GetMapping("/faculty/questions/{questionId}/ai/quality")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> getQuestionQualityAnalysis(@PathVariable UUID questionId) {
+        return ResponseEntity.ok(ApiResponse.success("Question quality analysis generated", quizService.getQuestionQualityAnalysis(questionId)));
+    }
+
+    @GetMapping("/faculty/subjects/{classSubjectId}/ai/generate-questions")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> generateQuestions(
+            @PathVariable UUID classSubjectId,
+            @RequestParam String topic,
+            @RequestParam(defaultValue = "5") int count) {
+        return ResponseEntity.ok(ApiResponse.success("Questions generated successfully", quizService.generateQuestions(classSubjectId, topic, count)));
+    }
+
     // ==========================================
     // STUDENT ENDPOINTS
     // ==========================================
@@ -137,6 +148,13 @@ public class QuizController {
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<List<QuizAttemptDto.Response>>> getStudentResults() {
         return ResponseEntity.ok(ApiResponse.success("Results fetched successfully", attemptService.getStudentResults()));
+    }
+
+    // --- AI Analytics APIs (Student) ---
+    @GetMapping("/student/ai/recommendations")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> getPersonalizedRecommendations() {
+        return ResponseEntity.ok(ApiResponse.success("Personalized recommendations generated", quizService.getPersonalizedRecommendations()));
     }
 
     // ==========================================

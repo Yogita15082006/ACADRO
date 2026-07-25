@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { mockData } from '../data/mockData';
+import { authService } from '../services/authService';
 
 export const AuthContext = createContext<any>(null);
 
@@ -10,95 +10,68 @@ export const AuthProvider = ({ children }) => {
   const [realRole, setRealRole] = useState<any>(null); // 'hod', 'coordinator', 'faculty', or 'student'
   const [loading, setLoading] = useState(true);
 
-  const [impersonatedUser, setImpersonatedUser] = useState<any>(null);
-  const [impersonatedRole, setImpersonatedRole] = useState<any>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-
   useEffect(() => {
-    // Check URL for preview mode
-    const params = new URLSearchParams(window.location.search);
-    const previewId = params.get('preview');
-
-    if (previewId) {
-      const selectedUser = mockData.admins.find(a => a.id === previewId || a.empId === previewId);
-      if (selectedUser) {
-        setRealUser(selectedUser);
-        setRealRole(selectedUser.role || 'faculty');
-        setLoading(false);
-        return; // Skip normal login if in preview mode
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem('acronexus_token');
+      
+      if (storedToken) {
+        try {
+          const profileRes = await authService.getProfile();
+          if (profileRes.success) {
+            setRealUser(profileRes.data);
+            setRealRole(profileRes.data.role.replace('ROLE_', '').toLowerCase());
+          }
+        } catch (error) {
+          console.error("Failed to fetch profile", error);
+          localStorage.removeItem('acronexus_token');
+        }
       }
-    }
+      setLoading(false);
+    };
 
-    // Check local storage for mock session
-    const storedUser = localStorage.getItem('acronexus_user');
-    const storedRole = localStorage.getItem('acronexus_role');
-    
-    if (storedUser && storedRole) {
-      setRealUser(JSON.parse(storedUser));
-      setRealRole(storedRole);
-    }
-    setLoading(false);
+    initializeAuth();
   }, []);
 
-  const login = (requestedRole, id) => {
-    let selectedUser;
-    let actualRole = requestedRole;
-
-    if (requestedRole === 'hod' || requestedRole === 'coordinator' || requestedRole === 'faculty') {
-      selectedUser = mockData.admins.find(a => a.id === id || a.empId === id || a.email === id);
-      if (selectedUser) {
-        actualRole = selectedUser.role || 'faculty';
-      } else {
-        selectedUser = mockData.admins[0];
-        actualRole = selectedUser.role || 'hod';
+  const login = async (credentials: any) => {
+    try {
+      const response = await authService.login(credentials);
+      if (response.success && response.data) {
+        localStorage.setItem('acronexus_token', response.data.token);
+        
+        // Fetch full profile
+        const profileRes = await authService.getProfile();
+        if (profileRes.success) {
+          const fetchedRole = profileRes.data.role.replace('ROLE_', '').toLowerCase();
+          setRealUser(profileRes.data);
+          setRealRole(fetchedRole);
+          
+          return { success: true, role: fetchedRole };
+        }
       }
-    } else {
-      selectedUser = mockData.students.find(s => s.id === id || s.enrollmentNumber === id || s.email === id) || mockData.students[0];
-      actualRole = 'student';
+      return { success: false, message: response.message || 'Login failed' };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Login failed. Please check your credentials.' 
+      };
     }
-    
-    setRealUser(selectedUser);
-    setRealRole(actualRole);
-    localStorage.setItem('acronexus_user', JSON.stringify(selectedUser));
-    localStorage.setItem('acronexus_role', actualRole);
-    
-    // Reset impersonation on login
-    setImpersonatedUser(null);
-    setImpersonatedRole(null);
-    setIsEditMode(false);
   };
 
   const logout = () => {
     setRealUser(null);
     setRealRole(null);
-    setImpersonatedUser(null);
-    setImpersonatedRole(null);
-    setIsEditMode(false);
+    localStorage.removeItem('acronexus_token');
     localStorage.removeItem('acronexus_user');
     localStorage.removeItem('acronexus_role');
   };
 
-  const startImpersonation = (impUser, impRole) => {
-    setImpersonatedUser(impUser);
-    setImpersonatedRole(impRole);
-    setIsEditMode(false); // Default to read-only
-  };
-
-  const stopImpersonation = () => {
-    setImpersonatedUser(null);
-    setImpersonatedRole(null);
-    setIsEditMode(false);
-  };
-
-  const user = impersonatedUser || realUser;
-  const role = impersonatedRole || realRole;
+  const user = realUser;
+  const role = realRole;
 
   return (
     <AuthContext.Provider value={{ 
       user, role, realUser, realRole, 
-      login, logout, loading,
-      impersonatedUser, startImpersonation, stopImpersonation,
-      isEditMode, setIsEditMode
+      login, logout, loading
     }}>
       {!loading && children}
     </AuthContext.Provider>

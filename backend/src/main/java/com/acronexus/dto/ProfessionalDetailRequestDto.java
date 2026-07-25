@@ -4,5 +4,7 @@ import lombok.Data;
 
 @Data
 public class ProfessionalDetailRequestDto {
-    // Add validation and fields here
+    private String resumeUrl;
+    private Object publications;
+    private Object certifications;
 }

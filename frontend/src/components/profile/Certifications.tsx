@@ -26,7 +26,7 @@ export const Certifications: React.FC<CertificationsProps> = ({ data, readOnly, 
     if (newItem.title && newItem.issuer) {
       const updated = [...certifications, { ...newItem, id: Date.now() }];
       setCertifications(updated);
-      onUpdate({ certifications: updated });
+      onUpdate(updated);
       setNewItem({ title: '', issuer: '', date: '', link: '' });
     }
   };
@@ -34,7 +34,7 @@ export const Certifications: React.FC<CertificationsProps> = ({ data, readOnly, 
   const handleDelete = (id: number) => {
     const updated = certifications.filter(c => c.id !== id);
     setCertifications(updated);
-    onUpdate({ certifications: updated });
+    onUpdate(updated);
   };
 
   return (

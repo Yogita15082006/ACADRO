@@ -21,6 +21,7 @@ public interface ClassSubjectRepository extends JpaRepository<ClassSubject, UUID
     long countDistinctClassesByFacultyId(@Param("facultyId") UUID facultyId);
 
     List<ClassSubject> findByFacultyIdAndIsActiveTrue(UUID facultyId);
+    List<ClassSubject> findByFacultyId(UUID facultyId);
     
     List<ClassSubject> findByAcroClassIdAndIsActiveTrue(UUID classId);
 }

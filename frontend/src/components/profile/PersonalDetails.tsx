@@ -19,27 +19,27 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
 
   const [formData, setFormData] = useState({
     // Basic Info
-    name: data.name || '',
-    gender: data.gender || 'Male',
+    name: data.name || (data.firstName ? `${data.firstName} ${data.lastName}`.trim() : '') || '',
+    gender: data.gender ? data.gender.charAt(0) + data.gender.slice(1).toLowerCase() : 'Male',
     dob: data.dob || '',
     category: data.category || 'General',
-    bloodGroup: data.bloodGroup || '',
+    bloodGroup: data.bloodGroup ? data.bloodGroup.replace('_PLUS', '+').replace('_MINUS', '-') : '',
     nationality: data.nationality || 'Indian',
     religion: data.religion || '',
     aadhaarNumber: data.aadhaarNumber || '',
     residenceType: data.residenceType || 'Local',
     
     // Contact Info
-    mobileNumber: data.mobileNumber || data.phone || '',
+    mobileNumber: data.phone || data.mobileNumber || '',
     whatsappNumber: data.whatsappNumber || '',
     personalEmail: data.personalEmail || data.email || '',
     collegeEmail: data.collegeEmail || '',
 
     // Academic Info
-    rgpvEnrollment: data.rgpvEnrollment || data.enrollmentNumber || '',
+    rgpvEnrollment: data.enrollmentNo || data.rgpvEnrollment || '',
     instituteEnrollment: data.instituteEnrollment || '',
     course: data.course || 'B.Tech',
-    branch: data.branch || data.department || '',
+    branch: data.departmentName || data.branch || '',
     batchYear: data.batchYear || '',
     currentSemester: data.currentSemester || '',
     section: data.section || '',
@@ -47,12 +47,41 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
     // Skills & Interests
     clubs: data.clubs || '',
     hobbies: data.hobbies || '',
-    technicalSkills: data.technicalSkills || '',
-    softSkills: data.softSkills || ''
+    skills: data.skills ? data.skills.join(', ') : ''
   });
 
   const handleSave = () => {
-    onUpdate({ ...formData, photo: photoPreview });
+    const nameParts = formData.name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const mapBloodGroup = (bg: string) => {
+      switch(bg) {
+        case "A+": return "A_PLUS";
+        case "A-": return "A_MINUS";
+        case "B+": return "B_PLUS";
+        case "B-": return "B_MINUS";
+        case "AB+": return "AB_PLUS";
+        case "AB-": return "AB_MINUS";
+        case "O+": return "O_PLUS";
+        case "O-": return "O_MINUS";
+        default: return null;
+      }
+    };
+
+    const updatedData = {
+      ...formData,
+      firstName,
+      lastName,
+      phone: formData.mobileNumber,
+      departmentName: formData.branch,
+      enrollmentNo: formData.rgpvEnrollment,
+      bloodGroup: mapBloodGroup(formData.bloodGroup),
+      gender: formData.gender.toUpperCase(),
+      profilePictureUrl: photoPreview,
+      skills: formData.skills.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '')
+    };
+    onUpdate(updatedData);
     setIsEditing(false);
   };
 
@@ -260,12 +289,8 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
               {renderSectionHeader('Skills & Interests', <FileText className="w-4 h-4 text-primary" />)}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Technical Skills (comma separated)</label>
-                  <Textarea value={formData.technicalSkills} onChange={(e) => setFormData({ ...formData, technicalSkills: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Soft Skills (comma separated)</label>
-                  <Textarea value={formData.softSkills} onChange={(e) => setFormData({ ...formData, softSkills: e.target.value })} />
+                  <label className="text-xs font-semibold text-muted-foreground">Skills (comma separated)</label>
+                  <Textarea value={formData.skills} onChange={(e) => setFormData({ ...formData, skills: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Clubs / Communities</label>
@@ -396,19 +421,13 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
               {renderSectionHeader('Skills & Interests', <FileText className="w-4 h-4 text-primary" />)}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/10 p-5 rounded-xl border border-border/50">
                 <div className="flex flex-col space-y-2 min-w-0">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Technical Skills</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Skills</span>
                   <div className="flex flex-wrap gap-2">
-                    {formData.technicalSkills ? formData.technicalSkills.split(',').map((s, i) => (
-                      <Badge key={i} variant="secondary">{s.trim()}</Badge>
-                    )) : <span className="text-sm">N/A</span>}
-                  </div>
-                </div>
-                <div className="flex flex-col space-y-2 min-w-0">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Soft Skills</span>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.softSkills ? formData.softSkills.split(',').map((s, i) => (
-                      <Badge key={i} variant="secondary">{s.trim()}</Badge>
-                    )) : <span className="text-sm">N/A</span>}
+                    {formData.skills ? formData.skills.split(',').map((s: string, i: number) => {
+                      const trimmed = s.trim();
+                      if (!trimmed) return null;
+                      return <Badge key={i} variant="secondary">{trimmed}</Badge>;
+                    }) : <span className="text-sm">N/A</span>}
                   </div>
                 </div>
                 <div className="flex flex-col space-y-1 mt-2 min-w-0">

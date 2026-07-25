@@ -98,4 +98,26 @@ public class LectureMaterialController {
         service.trackDownload(id, extractToken(authHeader));
         return ResponseEntity.ok(ApiResponse.success("Download tracked successfully", null));
     }
+
+    @GetMapping("/student/{id}/study-guide")
+    @PreAuthorize("hasAnyRole('STUDENT', 'HOD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> generateStudyGuide(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Study guide generated successfully", 
+                service.generateStudyGuide(id, extractToken(authHeader))
+        ));
+    }
+
+    @GetMapping("/student/{id}/summary")
+    @PreAuthorize("hasAnyRole('STUDENT', 'HOD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ai.AiInsightDto>> summarizeMaterial(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Material summary generated successfully", 
+                service.summarizeMaterial(id, extractToken(authHeader))
+        ));
+    }
 }

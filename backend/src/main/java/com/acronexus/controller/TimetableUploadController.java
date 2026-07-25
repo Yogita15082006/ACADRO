@@ -31,19 +31,56 @@ public class TimetableUploadController {
     public ResponseEntity<ApiResponse<?>> uploadTimetable(
             @Parameter(description = "Timetable PDF file", required = true)
             @RequestParam("file") MultipartFile file,
-            @Parameter(description = "Department ID", required = true)
-            @RequestParam("departmentId") UUID departmentId,
-            @Parameter(description = "Academic Year ID", required = true)
-            @RequestParam("academicYearId") UUID academicYearId,
-            @Parameter(description = "Semester ID", required = true)
-            @RequestParam("semesterId") UUID semesterId,
-            @Parameter(description = "Class ID", required = true)
-            @RequestParam("classId") UUID classId,
+            @Parameter(description = "Department Name", required = true)
+            @RequestParam("departmentName") String departmentName,
+            @Parameter(description = "Academic Year", required = true)
+            @RequestParam("academicYear") String academicYear,
+            @Parameter(description = "Semester Name", required = true)
+            @RequestParam("semesterName") String semesterName,
+            @Parameter(description = "Class Name", required = true)
+            @RequestParam("className") String className,
+            @Parameter(description = "Batch Name", required = false)
+            @RequestParam(value = "batchName", required = false) String batchName,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
         ApiResponse<?> response = timetableUploadService.uploadTimetable(
-                file, departmentId, academicYearId, semesterId, classId, userDetails.getId());
+                file, departmentName, academicYear, semesterName, className, batchName, userDetails.getId());
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/{versionId}/replace", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @Operation(summary = "Replace Timetable File", description = "Replaces a timetable file by soft deleting the old version and creating a new one.")
+    public ResponseEntity<ApiResponse<?>> replaceTimetable(
+            @PathVariable UUID versionId,
+            @Parameter(description = "Timetable PDF file", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Department Name", required = true)
+            @RequestParam("departmentName") String departmentName,
+            @Parameter(description = "Academic Year", required = true)
+            @RequestParam("academicYear") String academicYear,
+            @Parameter(description = "Semester Name", required = true)
+            @RequestParam("semesterName") String semesterName,
+            @Parameter(description = "Class Name", required = true)
+            @RequestParam("className") String className,
+            @Parameter(description = "Batch Name", required = false)
+            @RequestParam(value = "batchName", required = false) String batchName,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        
+        // First soft delete the old version
+        timetableUploadService.softDeleteVersion(versionId);
+        
+        // Then upload the new version
+        ApiResponse<?> response = timetableUploadService.uploadTimetable(
+                file, departmentName, academicYear, semesterName, className, batchName, userDetails.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @Operation(summary = "Get All Timetables", description = "Retrieves all timetables")
+    public ResponseEntity<ApiResponse<?>> getAllTimetables() {
+        return ResponseEntity.ok(timetableUploadService.getAllTimetables());
     }
 
     @GetMapping("/history")

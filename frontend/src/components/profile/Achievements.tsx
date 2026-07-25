@@ -28,7 +28,7 @@ export const Achievements: React.FC<AchievementsProps> = ({ data, readOnly, onUp
     if (newItem.title && newItem.category) {
       const updated = [...achievements, { ...newItem, id: Date.now() }];
       setAchievements(updated);
-      onUpdate({ achievements: updated });
+      onUpdate(updated);
       setNewItem({ title: '', category: '', date: '', description: '', link: '' });
     }
   };
@@ -36,7 +36,7 @@ export const Achievements: React.FC<AchievementsProps> = ({ data, readOnly, onUp
   const handleDelete = (id: number) => {
     const updated = achievements.filter(a => a.id !== id);
     setAchievements(updated);
-    onUpdate({ achievements: updated });
+    onUpdate(updated);
   };
 
   return (

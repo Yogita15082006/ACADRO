@@ -35,7 +35,6 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserNotificationRepository userNotificationRepository;
     private final LectureMaterialRepository lectureMaterialRepository;
     private final SubjectVersionRepository subjectVersionRepository;
-    private final TimetableRepository timetableRepository;
     private final ClassSubjectRepository classSubjectRepository;
     private final DepartmentRepository departmentRepository;
     private final AcroClassRepository acroClassRepository;
@@ -266,7 +265,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public FacultyDashboardResponse getFacultyDashboard(UUID userId) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         long totalSubjects = classSubjectRepository.countByFacultyIdAndIsActiveTrue(userId);

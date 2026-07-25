@@ -13,7 +13,7 @@ import java.util.UUID;
 @Repository
 public interface LectureMaterialRepository extends JpaRepository<LectureMaterial, UUID> {
 
-    @Query("SELECT COUNT(lm) > 0 FROM LectureMaterial lm WHERE lm.uploadedBy.id = :facultyId AND lm.classSubject.id = :classSubjectId AND LOWER(lm.title) = LOWER(:title) AND lm.isActive = true AND lm.isDeleted = false")
+    @Query("SELECT COUNT(lm) > 0 FROM LectureMaterial lm WHERE lm.uploadedBy.id = :facultyId AND lm.classSubject.id = :classSubjectId AND LOWER(lm.title) = LOWER(CAST(:title AS string)) AND lm.isActive = true AND lm.isDeleted = false")
     boolean existsByFacultyAndSubjectAndTitle(@Param("facultyId") UUID facultyId, @Param("classSubjectId") UUID classSubjectId, @Param("title") String title);
 
     @Query("SELECT lm FROM LectureMaterial lm JOIN FETCH lm.file JOIN FETCH lm.classSubject cs JOIN FETCH cs.subject JOIN FETCH cs.acroClass WHERE lm.isDeleted = false AND lm.uploadedBy.id = :facultyId")

@@ -30,11 +30,11 @@ public class BulkUpload {
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private Object errorLog;
+    private java.util.Map<String, Object> errorLog;
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private Object aiMappingLog;
+    private java.util.Map<String, Object> aiMappingLog;
 
     private Boolean rolledBack = false;
 

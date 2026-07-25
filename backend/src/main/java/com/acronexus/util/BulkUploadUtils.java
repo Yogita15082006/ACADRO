@@ -56,8 +56,13 @@ public class BulkUploadUtils {
     public static BulkUploadResponseDto buildResponseDto(BulkUpload upload, UploadStats stats, FileStorage fileStorage, long processingTimeMs) {
         BulkUploadResponseDto dto = new BulkUploadResponseDto();
         dto.setId(upload.getId());
-        dto.setFileName(fileStorage.getFileName());
-        dto.setFileType(fileStorage.getFileType());
+        if (fileStorage != null) {
+            dto.setFileName(fileStorage.getFileName());
+            dto.setFileType(fileStorage.getFileType());
+        } else {
+            dto.setFileName("API_IMPORT.json");
+            dto.setFileType("application/json");
+        }
         
         if (upload.getErrorLog() instanceof Map) {
             @SuppressWarnings("unchecked")
@@ -68,7 +73,11 @@ public class BulkUploadUtils {
         }
         
         if (upload.getUploadedBy() != null) {
-            dto.setUploadedBy(upload.getUploadedBy().getFirstName() + " " + upload.getUploadedBy().getLastName());
+            try {
+                dto.setUploadedBy(upload.getUploadedBy().getFirstName() + " " + upload.getUploadedBy().getLastName());
+            } catch (Exception e) {
+                dto.setUploadedBy("System User");
+            }
         }
         
         dto.setProcessingTimeMs(processingTimeMs);

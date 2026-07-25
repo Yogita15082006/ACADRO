@@ -13,20 +13,20 @@ interface FamilyDetailsProps {
 export const FamilyDetails: React.FC<FamilyDetailsProps> = ({ data, readOnly, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    fatherName: data.fatherName || '',
-    fatherMobile: data.fatherMobile || '',
-    fatherOccupation: data.fatherOccupation || '',
-    fatherDesignation: data.fatherDesignation || '',
-    fatherOrganization: data.fatherOrganization || '',
-    motherName: data.motherName || '',
-    motherMobile: data.motherMobile || '',
-    motherOccupation: data.motherOccupation || '',
-    motherDesignation: data.motherDesignation || '',
-    motherOrganization: data.motherOrganization || '',
-    familyStatus: data.familyStatus || '',
-    numberOfBrothers: data.numberOfBrothers || '',
-    numberOfSisters: data.numberOfSisters || '',
-    annualIncome: data.annualIncome || '',
+    fatherName: data.familyDetails?.fatherName || '',
+    fatherMobile: data.familyDetails?.fatherMobile || '',
+    fatherOccupation: data.familyDetails?.fatherOccupation || '',
+    fatherDesignation: data.familyDetails?.fatherDesignation || '',
+    fatherOrganization: data.familyDetails?.fatherOrganization || '',
+    motherName: data.familyDetails?.motherName || '',
+    motherMobile: data.familyDetails?.motherMobile || '',
+    motherOccupation: data.familyDetails?.motherOccupation || '',
+    motherDesignation: data.familyDetails?.motherDesignation || '',
+    motherOrganization: data.familyDetails?.motherOrganization || '',
+    familyStatus: data.familyDetails?.familyStatus || '',
+    numberOfBrothers: data.familyDetails?.numberOfBrothers || '',
+    numberOfSisters: data.familyDetails?.numberOfSisters || '',
+    annualIncome: data.familyDetails?.annualIncome || '',
   });
 
   const handleSave = () => {

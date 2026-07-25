@@ -16,4 +16,8 @@ public interface NoticeService {
     List<NoticeDto> getStudentNotices(UUID studentId);
     NoticeDto getNoticeDetails(UUID noticeId, UUID userId);
     List<NoticeDto> searchNotices(NoticeSearchFilter filter, UUID userId);
+    
+    com.acronexus.dto.ai.AiInsightDto summarizeNotice(UUID noticeId, UUID userId);
+    com.acronexus.dto.ai.AiInsightDto getImportantNoticeHighlights(UUID studentId);
+    com.acronexus.dto.ai.AiInsightDto getPersonalizedRecommendations(UUID studentId);
 }

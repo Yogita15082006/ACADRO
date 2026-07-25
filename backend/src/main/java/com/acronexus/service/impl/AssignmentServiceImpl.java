@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -38,18 +37,9 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Autowired
     private UserRepository userRepository;
-    
-    // TODO (Future Groq Integration)
-    // AI plagiarism detection.
 
-    // TODO (Future AI)
-    // AI assignment quality analysis.
-
-    // TODO (Future AI)
-    // AI feedback suggestions.
-
-    // TODO (Future AI)
-    // AI late submission risk prediction.
+    @Autowired
+    private com.acronexus.service.AiService aiService;
 
     private User getCurrentUser() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -279,5 +269,82 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .feedback(submission.getFeedback())
                 .isLate(submission.getIsLate())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto analyzeQuality(UUID assignmentId) {
+        AssignmentDto.Response assignment = getAssignmentDetails(assignmentId);
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("title", assignment.getTitle());
+        data.put("description", assignment.getDescription());
+        data.put("maxMarks", assignment.getMaxMarks());
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ASSIGNMENT_QUALITY")
+                .data(data)
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto analyzePlagiarism(UUID submissionId) {
+        AssignmentSubmission submission = assignmentSubmissionRepository.findById(submissionId)
+                .orElseThrow(() -> new RuntimeException("Submission not found"));
+        verifyFacultyOwnership(submission.getAssignment(), getCurrentUser());
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("assignmentTitle", submission.getAssignment().getTitle());
+        data.put("studentName", submission.getStudent().getUser().getFirstName());
+        data.put("fileUrl", submission.getFile() != null ? submission.getFile().getDocumentUrl() : null);
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ASSIGNMENT_PLAGIARISM")
+                .data(data)
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto getFeedbackSuggestions(UUID submissionId) {
+        AssignmentSubmission submission = assignmentSubmissionRepository.findById(submissionId)
+                .orElseThrow(() -> new RuntimeException("Submission not found"));
+        verifyFacultyOwnership(submission.getAssignment(), getCurrentUser());
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("assignmentTitle", submission.getAssignment().getTitle());
+        data.put("maxMarks", submission.getAssignment().getMaxMarks());
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("ASSIGNMENT_FEEDBACK")
+                .data(data)
+                .build();
+                
+        return aiService.getInsights(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.ai.AiInsightDto predictLateSubmissionRisk(UUID assignmentId) {
+        Assignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new RuntimeException("Assignment not found"));
+        Student student = getCurrentStudent();
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("deadline", assignment.getDeadline().toString());
+        data.put("currentDate", ZonedDateTime.now().toString());
+        data.put("studentId", student.getId());
+        
+        com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
+                .insightType("LATE_SUBMISSION_RISK")
+                .data(data)
+                .build();
+                
+        return aiService.getInsights(request);
     }
 }

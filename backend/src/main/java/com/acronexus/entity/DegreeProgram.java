@@ -1,4 +1,5 @@
 package com.acronexus.entity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.ZonedDateTime;
@@ -8,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 @Entity
 @Table(name = "degree_programs")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class DegreeProgram {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

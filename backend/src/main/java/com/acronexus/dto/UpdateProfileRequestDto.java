@@ -20,4 +20,9 @@ public class UpdateProfileRequestDto {
     private LocalDate dob;
     private BloodGroup bloodGroup;
     private String profilePictureUrl;
+    
+    // Student specific fields
+    private String enrollmentNo;
+    private String rollNo;
+    private String batchYear;
 }

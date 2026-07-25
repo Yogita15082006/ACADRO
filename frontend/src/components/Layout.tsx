@@ -7,12 +7,12 @@ import {
   Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { cn } from "@/lib/utils";
 import { NotificationPanel } from './NotificationPanel';
 
 export const Layout = () => {
-  const { user, role, logout, impersonatedUser, stopImpersonation, isEditMode, setIsEditMode } = useAuth();
+  const { user, role, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -144,43 +144,7 @@ export const Layout = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative">
-        {impersonatedUser && (
-          <div className="bg-primary/5 border-b border-primary/20 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between z-50 gap-3 sm:gap-0">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-              </span>
-              <span className="text-sm font-medium text-foreground">
-                Monitoring: <strong className="text-primary">{user?.name}</strong>
-              </span>
-              <Badge variant="outline" className={cn("ml-2 text-xs border", isEditMode ? "bg-amber-500/10 text-amber-600 border-amber-500/30" : "bg-primary/5 text-primary border-primary/20")}>
-                {isEditMode ? 'Edit Mode' : 'Read-Only Mode'}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                size="sm" 
-                variant={isEditMode ? "secondary" : "outline"} 
-                className={cn("h-8 text-xs font-medium", isEditMode ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 border border-amber-500/30" : "")}
-                onClick={() => setIsEditMode(!isEditMode)}
-              >
-                {isEditMode ? 'Switch to Read-Only' : 'Switch to Edit Mode'}
-              </Button>
-              <Button 
-                size="sm" 
-                variant="default" 
-                className="h-8 text-xs shadow-sm"
-                onClick={() => { 
-                  stopImpersonation(); 
-                  navigate('/admin/coordinators'); 
-                }}
-              >
-                <LogOut size={14} className="mr-2" /> Exit Monitoring
-              </Button>
-            </div>
-          </div>
-        )}
+
         
         {/* Sticky Top Header */}
         <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
@@ -239,8 +203,7 @@ export const Layout = () => {
         {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
           <div className={cn(
-            "max-w-7xl mx-auto w-full animate-in fade-in duration-300 pb-12",
-            impersonatedUser && !isEditMode && "pointer-events-none opacity-95"
+            "max-w-7xl mx-auto w-full animate-in fade-in duration-300 pb-12"
           )}>
             <Outlet />
           </div>

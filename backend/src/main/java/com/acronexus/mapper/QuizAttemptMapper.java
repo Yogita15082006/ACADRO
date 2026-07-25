@@ -20,11 +20,6 @@ public class QuizAttemptMapper {
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
-        Boolean passed = null;
-        if (percentage != null) {
-            passed = percentage.compareTo(new BigDecimal("40.00")) >= 0;
-        }
-
         return QuizAttemptDto.Response.builder()
                 .id(entity.getId())
                 .quizId(entity.getQuiz().getId())

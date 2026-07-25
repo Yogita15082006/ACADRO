@@ -18,5 +18,11 @@ public interface AttendanceReportService {
 
     // Admin Reports
     AdminDepartmentReportDto getAdminDepartmentReport(UUID departmentId, UUID academicYearId, UUID semesterId);
+    
+    // AI Insights
+    com.acronexus.dto.ai.AiInsightDto predictAttendanceShortage(UUID classId);
+    com.acronexus.dto.ai.AiInsightDto detectFacultyAnomalies(UUID facultyId, LocalDate startDate, LocalDate endDate);
+    com.acronexus.dto.ai.AiInsightDto generateParentNotificationSuggestions(UUID studentId, UUID academicYearId, UUID semesterId);
+    com.acronexus.dto.ai.AiInsightDto generateAutomaticWarnings(UUID departmentId, UUID academicYearId, UUID semesterId);
 
 }

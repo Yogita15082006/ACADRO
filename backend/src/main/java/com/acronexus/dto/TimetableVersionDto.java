@@ -18,4 +18,12 @@ public class TimetableVersionDto {
     private Boolean isDeleted;
     private String uploadedBy;
     private ZonedDateTime uploadedAt;
+    
+    // Additional metadata for UI
+    private String department;
+    private String degree;
+    private String academicYear;
+    private String semester;
+    private String batch;
+    private String className;
 }

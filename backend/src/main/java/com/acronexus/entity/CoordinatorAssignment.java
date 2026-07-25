@@ -12,17 +12,15 @@ public class CoordinatorAssignment extends BaseAuditableEntity {
     @JoinColumn(name = "coordinator_id", nullable = false)
     private User coordinator;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "class_id", nullable = false)
-    private AcroClass acroClass;
+    @Column(name = "class_name")
+    private String className;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "academic_year_id")
-    private AcademicYear academicYear;
+    private String batch;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "semester_id")
-    private Semester semester;
+    @Column(name = "academic_year")
+    private String academicYear;
+
+    private String semester;
 
     @Column(nullable = false)
     private java.time.LocalDate effectiveFrom;

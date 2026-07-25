@@ -21,8 +21,8 @@ public interface FacultyActivityRepository extends JpaRepository<FacultyActivity
     List<FacultyActivity> findByFacultyIdOrderByDateDesc(@Param("facultyId") UUID facultyId);
 
     @Query("SELECT fa FROM FacultyActivity fa " +
-           "WHERE LOWER(fa.faculty.user.firstName) LIKE LOWER(CONCAT('%', :facultyName, '%')) OR " +
-           "LOWER(fa.faculty.user.lastName) LIKE LOWER(CONCAT('%', :facultyName, '%')) OR " +
+           "WHERE LOWER(fa.faculty.user.firstName) LIKE LOWER(CONCAT('%', CAST(:facultyName AS string), '%')) OR " +
+           "LOWER(fa.faculty.user.lastName) LIKE LOWER(CONCAT('%', CAST(:facultyName AS string), '%')) OR " +
            "fa.faculty.employeeId = :employeeId " +
            "ORDER BY fa.date DESC")
     List<FacultyActivity> findByFacultyNameOrEmployeeId(@Param("facultyName") String facultyName, 

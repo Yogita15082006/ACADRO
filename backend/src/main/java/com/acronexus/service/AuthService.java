@@ -9,4 +9,7 @@ public interface AuthService {
     void resetPassword(ResetPasswordRequestDto requestDto);
     UserProfileResponseDto getUserProfile(UUID userId);
     UserProfileResponseDto updateProfile(UUID userId, UpdateProfileRequestDto requestDto);
+    VerifyAccountResponseDto verifyAccount(VerifyAccountRequestDto requestDto);
+    void activateAccount(ActivateAccountRequestDto requestDto);
+    com.acronexus.entity.User getUserEntity(UUID userId);
 }
