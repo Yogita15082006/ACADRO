@@ -9,6 +9,7 @@ public interface TimetableUploadService {
     ApiResponse<?> getVersionHistory(UUID classId, UUID academicYearId, UUID semesterId);
     byte[] downloadVersion(UUID versionId);
     String getFileName(UUID versionId);
+    String getFileMimeType(UUID versionId);
     ApiResponse<?> setActiveVersion(UUID versionId);
     ApiResponse<?> softDeleteVersion(UUID versionId);
     ApiResponse<?> getAllTimetables();

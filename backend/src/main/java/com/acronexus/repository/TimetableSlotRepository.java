@@ -10,6 +10,7 @@ import java.util.UUID;
 @Repository
 public interface TimetableSlotRepository extends JpaRepository<TimetableSlot, UUID> {
     List<TimetableSlot> findByTimetableId(UUID timetableId);
+    void deleteByTimetableId(UUID timetableId);
     List<TimetableSlot> findByFacultyId(UUID facultyId);
     List<TimetableSlot> findByFacultyIdAndIsActiveTrue(UUID facultyId);
 }

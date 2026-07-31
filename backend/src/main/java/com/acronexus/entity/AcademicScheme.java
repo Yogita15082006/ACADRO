@@ -12,6 +12,14 @@ public class AcademicScheme extends BaseEntity {
     private String className;
     private String academicYear;
     private String semester;
+    private String schemeName;
+    private String department;
+    private String degree;
+    @Column(length = 2000)
+    private String description;
+    @Column(length = 2000)
+    private String eligibility;
+    private String benefits;
 
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "file_storage_id", nullable = false)

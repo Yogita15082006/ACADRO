@@ -81,9 +81,15 @@ public class ClassSubjectService {
             dto.setClassName(classSubject.getAcroClass().getName() + " - " + classSubject.getAcroClass().getSection());
             
             List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName());
-            if (!coordinatorAssignments.isEmpty() && coordinatorAssignments.get(0).getCoordinator() != null) {
-                User coordinator = coordinatorAssignments.get(0).getCoordinator();
-                dto.setCoordinatorName(coordinator.getFirstName() + " " + coordinator.getLastName());
+            if (!coordinatorAssignments.isEmpty()) {
+                CoordinatorAssignment ca = coordinatorAssignments.get(0);
+                if (ca.getCoordinator() != null) {
+                    User coordinator = ca.getCoordinator();
+                    dto.setCoordinatorName(coordinator.getFirstName() + " " + coordinator.getLastName());
+                }
+                if (ca.getBatch() != null) {
+                    dto.setBatch(ca.getBatch());
+                }
             }
         }
 
@@ -104,6 +110,10 @@ public class ClassSubjectService {
 
         if (classSubject.getSemester() != null) {
             dto.setSemester("Semester " + classSubject.getSemester().getSemesterNumber());
+        }
+        
+        if (classSubject.getAcroClass() != null && classSubject.getAcroClass().getDegreeProgram() != null && classSubject.getAcroClass().getDegreeProgram().getDepartment() != null) {
+            dto.setDepartment(classSubject.getAcroClass().getDegreeProgram().getDepartment().getName());
         }
         
         dto.setGenerationType("manual");

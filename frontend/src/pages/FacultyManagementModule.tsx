@@ -206,8 +206,8 @@ const AcademicResourceDialog = ({ open, type, onClose, onUpload }: any) => {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Upload size={18} className="text-primary" /> Upload {type === 'syllabus' ? 'Academic Syllabus' : 'Academic Scheme'}</DialogTitle>
-          <DialogDescription>Upload the official PDF document. AI will automatically extract the structure.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Upload size={18} className="text-primary" /> Upload {type.charAt(0).toUpperCase() + type.slice(1)}</DialogTitle>
+          <DialogDescription>Upload the official PDF document. AI will automatically extract the structure if applicable.</DialogDescription>
         </DialogHeader>
         
         <div className="grid grid-cols-2 gap-4 py-4">
@@ -256,11 +256,11 @@ const AcademicResourceDialog = ({ open, type, onClose, onUpload }: any) => {
           </div>
           
           <div className="col-span-2">
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">{type === 'syllabus' ? 'Syllabus PDF' : 'Scheme PDF'}</label>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">{type === 'syllabus' ? 'Syllabus PDF' : (type === 'timetable' ? 'Timetable Document (PDF/Image)' : 'Scheme PDF')}</label>
             <div className="border-2 border-dashed border-border rounded-lg p-6 bg-muted/20 flex flex-col items-center justify-center relative cursor-pointer hover:bg-muted/40 transition-colors">
               <Upload size={24} className="text-muted-foreground mb-2" />
               <p className="text-sm font-medium">{file ? file.name : "Drag & drop or click to browse"}</p>
-              <input type="file" accept=".pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files && setFile(e.target.files[0])} />
+              <input type="file" accept={type === 'timetable' ? ".pdf,.jpg,.jpeg,.png" : ".pdf"} className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files && setFile(e.target.files[0])} />
             </div>
           </div>
           
@@ -308,6 +308,7 @@ export const FacultyManagementModule = () => {
       const resources = response.data?.data || [];
       setLocalSyllabus(resources.filter((r: any) => r.fileType === 'SYLLABUS'));
       setLocalSchemes(resources.filter((r: any) => r.fileType === 'SCHEME'));
+      setLocalTimetables(resources.filter((r: any) => r.fileType === 'TIMETABLE'));
     } catch (e) {
       console.error('Failed to fetch resources', e);
     }
@@ -315,13 +316,20 @@ export const FacultyManagementModule = () => {
 
   const handleViewPdf = async (url: string) => {
     if (!url) return;
+    const newWindow = window.open('', '_blank');
+    if (!newWindow) {
+      toast.error('Please allow popups to view the PDF');
+      return;
+    }
+    newWindow.document.write('Loading PDF...');
     try {
       const endpoint = url.startsWith('/api') ? url.substring(4) : url;
       const response = await api.get(endpoint, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const objectUrl = URL.createObjectURL(blob);
-      window.open(objectUrl, '_blank');
+      newWindow.location.href = objectUrl;
     } catch (error) {
+      newWindow.close();
       toast.error('Failed to load PDF');
     }
   };
@@ -330,12 +338,19 @@ export const FacultyManagementModule = () => {
   useEffect(() => {
     fetchAcademicResources();
   }, []);
-  const [localTimetables, setLocalTimetables] = useState((mockData as any).uploadedTimetables || []);
+  const [localTimetables, setLocalTimetables] = useState<any[]>([]);
   const [ttAssignments, setTtAssignments] = useState<Record<string, any[]>>({});
+  
+  // AI Match Workflow States
+  const [reviewData, setReviewData] = useState<any>(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewTtId, setReviewTtId] = useState<string | null>(null);
+  const [isConfirmingAssignment, setIsConfirmingAssignment] = useState(false);
   
   const [showCoordDialog, setShowCoordDialog] = useState<any>(null);
   const [syllabusFormOpen, setSyllabusFormOpen] = useState(false);
   const [schemeFormOpen, setSchemeFormOpen] = useState(false);
+  const [timetableFormOpen, setTimetableFormOpen] = useState(false);
 
   const [viewFacultyDialog, setViewFacultyDialog] = useState<any>(null);
   const [unmatchedFacultyDialog, setUnmatchedFacultyDialog] = useState<any>(null);
@@ -349,6 +364,8 @@ export const FacultyManagementModule = () => {
   const [isAILoading, setIsAILoading] = useState<Record<string, boolean>>({});
   const [finalConfirmOpen, setFinalConfirmOpen] = useState<string | null>(null);
   const [syllabusToDelete, setSyllabusToDelete] = useState<string | null>(null);
+  const [schemeToDelete, setSchemeToDelete] = useState<string | null>(null);
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<string | null>(null);
   const [onboardingSuccessCoord, setOnboardingSuccessCoord] = useState<any>(null);
   const { login } = useAuth();
 
@@ -402,6 +419,21 @@ export const FacultyManagementModule = () => {
       setSyllabusToDelete(null);
     }
   };
+
+  const handleDeleteScheme = async () => {
+    if (!schemeToDelete) return;
+    try {
+      await api.delete('/v1/academic-resources/' + schemeToDelete);
+      toast.success('Scheme deleted successfully.');
+      setLocalSchemes(localSchemes.filter((s: any) => s.id !== schemeToDelete));
+    } catch(e) {
+      toast.error('Failed to delete scheme');
+    } finally {
+      setSchemeToDelete(null);
+    }
+  };
+
+
 
   const handleRejectAll = (ttId: string) => {
     setTtAssignments(prev => {
@@ -479,6 +511,7 @@ export const FacultyManagementModule = () => {
   const handleAcademicResourceUpload = async (type: string, _data: any, file: File) => {
     setSyllabusFormOpen(false);
     setSchemeFormOpen(false);
+    setTimetableFormOpen(false);
     setUploadFile(file);
     setIsUploading(true);
     if (type === 'syllabus') {
@@ -532,13 +565,49 @@ export const FacultyManagementModule = () => {
       } finally {
         setIsUploading(false);
       }
+    } else if (type === 'timetable') {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error('Invalid file type. Please upload a PDF, JPG, or PNG.');
+        setIsUploading(false);
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('academicYear', _data.year || '1');
+      if (_data.batch) formData.append('batchName', _data.batch);
+      if (_data.className) formData.append('className', _data.className);
+      if (_data.department) formData.append('departmentName', _data.department);
+      formData.append('semesterName', _data.semester || '1');
+      
+      try {
+        const res = await api.post('/v1/timetables/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        const newTtId = res.data?.data?.id;
+        if (newTtId) {
+          toast.success('Timetable uploaded successfully. Auto-triggering AI Match & Review...');
+          setActiveTab('timetable');
+          fetchAcademicResources();
+          autoTriggerAIMatch(newTtId);
+        } else {
+          toast.error('Failed to retrieve new Timetable ID');
+        }
+      } catch(e: any) {
+        toast.error(e.response?.data?.message || 'Failed to upload timetable');
+      } finally {
+        setIsUploading(false);
+      }
     } else {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('academicYear', _data.academicYear || '2023-2024');
-      formData.append('batch', _data.batch || '2023-2027');
-      formData.append('className', _data.className || 'CS-A');
-      formData.append('semester', _data.semester || '5');
+      if (_data.year) formData.append('academicYear', _data.year);
+      if (_data.batch) formData.append('batch', _data.batch);
+      if (_data.className) formData.append('className', _data.className);
+      if (_data.department) formData.append('department', _data.department);
+      if (_data.degree) formData.append('degree', _data.degree);
+      if (_data.semester) formData.append('semester', _data.semester);
       
       try {
         await api.post('/v1/academic-resources/scheme', formData, {
@@ -591,7 +660,7 @@ export const FacultyManagementModule = () => {
       setValidationResult(null);
       setEditableRecords([]);
       setTimeout(() => setShowImportSummary(true), 300);
-      fetchFaculties();
+      fetchFaculty();
     } catch (error) {
       toast.error('Failed to import faculties.');
       console.error(error);
@@ -644,6 +713,38 @@ export const FacultyManagementModule = () => {
     setTimeout(() => {
       runAIAssignment(ttId);
     }, 500);
+  };
+
+  const handleReplaceTimetable = async (replaceId: string, file: File) => {
+    const existingTt = localTimetables.find((t: any) => t.id === replaceId);
+    if (!existingTt) {
+      toast.error('Original timetable not found.');
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadProgress(50);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('academicYear', existingTt.metadata?.academicYear || '1');
+    if (existingTt.metadata?.batch) formData.append('batchName', existingTt.metadata.batch);
+    if (existingTt.metadata?.className) formData.append('className', existingTt.metadata.className);
+    if (existingTt.metadata?.department) formData.append('departmentName', existingTt.metadata.department);
+    formData.append('semesterName', existingTt.metadata?.semester || '1');
+    
+    try {
+      await api.post(`/v1/timetables/${replaceId}/replace`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Timetable replaced successfully.');
+      setUploadDialog({ isOpen: false, type: null });
+      fetchAcademicResources();
+    } catch(e) {
+      toast.error('Failed to replace timetable');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const handleUploadSuccess = (type: 'faculty' | 'syllabus' | 'scheme' | 'timetable', replaceId?: string) => {
@@ -753,44 +854,77 @@ export const FacultyManagementModule = () => {
     }
   };
 
-  const handleDeleteTimetable = (id: string) => {
-    setLocalTimetables(prev => prev.filter(t => t.id !== id));
-    toast.success('Timetable deleted successfully.');
+  const handleDeleteTimetable = async (id: string) => {
+    try {
+      await api.delete('/v1/academic-resources/' + id);
+      toast.success('Timetable deleted successfully.');
+      fetchAcademicResources();
+    } catch(e) {
+      toast.error('Failed to delete timetable');
+    }
   };
 
-  const runAIAssignment = (ttId: string) => {
-    setIsAILoading(prev => ({ ...prev, [ttId]: true }));
-    setTimeout(() => {
+  const runAIAssignment = async (ttId: string) => {
+    try {
+      setIsAILoading(prev => ({ ...prev, [ttId]: true }));
+      const response = await api.post(`/v1/timetables/${ttId}/ai-match`);
+      const data = response.data?.data;
+      if (data) {
+        setReviewData(data);
+        setReviewTtId(ttId);
+        setReviewDialogOpen(true);
+        toast.success('AI Match complete! Please review the extracted assignments.');
+      }
+    } catch (e: any) {
+      console.error('AI Match failed', e);
+      toast.error(e.response?.data?.message || 'Failed to extract timetable information');
+    } finally {
       setIsAILoading(prev => ({ ...prev, [ttId]: false }));
-      
-      const tt = localTimetables.find((t: any) => t.id === ttId);
-      if (!tt) return;
+    }
+  };
+  const handleConfirmAssignment = async () => {
+    if (!reviewTtId || !reviewData) return;
+    try {
+      setIsConfirmingAssignment(true);
+      await api.post(`/v1/timetables/${reviewTtId}/confirm-assignments`, reviewData);
+      toast.success('Assignments confirmed and fully synchronized!');
+      setReviewDialogOpen(false);
+      setReviewData(null);
+      setReviewTtId(null);
+      fetchAcademicResources();
+      fetchFaculty();
+    } catch (e: any) {
+      console.error('Confirmation failed', e);
+      toast.error(e.response?.data?.message || 'Failed to confirm assignments');
+    } finally {
+      setIsConfirmingAssignment(false);
+    }
+  };
 
-      const availableFaculty = localFaculty.filter(f => f.role === 'FACULTY' || f.role === 'COORDINATOR');
-      
-      const newAssignments = tt.slots.map((s: any, i: number) => {
-        const randomFaculty = availableFaculty[Math.floor(Math.random() * availableFaculty.length)] || localFaculty[0];
-        const isFound = s.faculty !== 'Pending Assignment' && localFaculty.some(f => f.name === s.faculty);
-        const assignedFaculty = isFound ? s.faculty : randomFaculty.name;
-        
-        return { 
-          id: `AI_${ttId}_${Date.now()}_${i}`, 
-          facultyName: assignedFaculty, 
-          subject: s.subject, 
-          className: tt.className, 
-          academicYear: tt.academicYear, 
-          semester: tt.semester, 
-          confidence: isFound ? '100%' : `${Math.floor(Math.random() * 15) + 85}%`,
-          status: 'Pending' 
-        };
-      });
+  const handleUpdateCoordinator = (idx: number, newFacultyId: string, matchedName: string) => {
+    const updated = [...reviewData.coordinatorAssignments];
+    updated[idx].coordinatorId = newFacultyId;
+    updated[idx].matchedCoordinatorName = matchedName;
+    setReviewData({ ...reviewData, coordinatorAssignments: updated });
+  };
 
-      setTtAssignments(prev => ({
-        ...prev,
-        [ttId]: newAssignments
-      }));
-      toast.success('AI Match complete! Assignments generated for ' + tt.name);
-    }, 1500);
+  const handleDeleteCoordinator = (idx: number) => {
+    const updated = [...reviewData.coordinatorAssignments];
+    updated.splice(idx, 1);
+    setReviewData({ ...reviewData, coordinatorAssignments: updated });
+  };
+
+  const handleUpdateSubject = (idx: number, newFacultyId: string, matchedName: string) => {
+    const updated = [...reviewData.subjectAssignments];
+    updated[idx].facultyId = newFacultyId;
+    updated[idx].matchedFacultyName = matchedName;
+    setReviewData({ ...reviewData, subjectAssignments: updated });
+  };
+
+  const handleDeleteSubject = (idx: number) => {
+    const updated = [...reviewData.subjectAssignments];
+    updated.splice(idx, 1);
+    setReviewData({ ...reviewData, subjectAssignments: updated });
   };
 
   const handleManualAssignment = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1029,7 +1163,20 @@ export const FacultyManagementModule = () => {
 
             {/* Profile Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredFaculty.map(f => (
+              {filteredFaculty.map(f => {
+                const hasClasses = f.classes && f.classes.length > 0;
+                const hasSubjects = f.subjects && f.subjects.length > 0;
+                let displayRole = f.role;
+                if (f.role !== 'HOD' && f.role !== 'ADMIN') {
+                  if (f.role === 'COORDINATOR' || f.role === 'both') {
+                     if (hasSubjects) displayRole = 'Faculty + Coordinator';
+                     else displayRole = 'Coordinator';
+                  } else {
+                     displayRole = 'Faculty';
+                  }
+                }
+
+                return (
                 <Card key={f.id} className="bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-5 flex flex-col h-full relative group">
                     <div className="flex justify-between items-start mb-4">
@@ -1039,20 +1186,36 @@ export const FacultyManagementModule = () => {
                         </div>
                         <div>
                           <h3 className="font-semibold text-foreground">{f.name}</h3>
-                          <Badge variant={f.role === 'HOD' ? 'default' : f.role === 'COORDINATOR' ? 'secondary' : 'outline'} className="text-[10px] mt-1 capitalize">{f.role}</Badge>
+                          <Badge variant={displayRole === 'HOD' || displayRole === 'ADMIN' ? 'default' : displayRole.includes('Coordinator') ? 'secondary' : 'outline'} className="text-[10px] mt-1 capitalize">{displayRole}</Badge>
                         </div>
                       </div>
                     </div>
                     
                     <div className="space-y-3 flex-1">
-                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground flex items-center gap-1"><BookOpen size={12} /> Subjects</span>
-                          <span className="text-xs font-medium">{(f.subjects || []).length} Assigned</span>
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1"><BookOpen size={12} /> Assigned Subjects</span>
+                          {hasSubjects ? (
+                            <div className="flex flex-wrap gap-1">
+                              {f.subjects.map((sub: string, idx: number) => (
+                                <Badge key={idx} variant="outline" className="text-[10px] bg-background font-medium">{sub}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs font-medium text-muted-foreground italic">None</span>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground flex items-center gap-1"><GraduationCap size={12} /> Classes</span>
-                          <span className="text-xs font-medium">{(f.classes || []).length} Assigned</span>
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1"><GraduationCap size={12} /> Assigned Classes</span>
+                          {hasClasses ? (
+                            <div className="flex flex-wrap gap-1">
+                              {f.classes.map((cls: string, idx: number) => (
+                                <Badge key={idx} variant="outline" className="text-[10px] bg-background font-medium">{cls}</Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs font-medium text-muted-foreground italic">None</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1066,7 +1229,7 @@ export const FacultyManagementModule = () => {
                     </Button>
                   </CardContent>
                 </Card>
-              ))}
+              )})}
             </div>
           </div>
         </div>
@@ -1135,7 +1298,7 @@ export const FacultyManagementModule = () => {
                         <Sparkles size={12} className="text-primary" /> AI Detected Subjects ({s.metadata?.totalSubjects || s.totalSubjects || 0})
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {(s.metadata?.detectedSubjects || s.detectedSubjects).map((sub: any, i: number) => {
+                        {(s.metadata?.detectedSubjects || s.detectedSubjects || []).map((sub: any, i: number) => {
                           let t = (sub.type || 'Theory').trim();
                           if (!t || t === '' || t.toLowerCase() === 'null') t = 'Theory';
                           if (t.toLowerCase() === 'elective' || t.toLowerCase() === 'de') t = 'Departmental Elective';
@@ -1169,25 +1332,57 @@ export const FacultyManagementModule = () => {
           </div>
           <div className="grid gap-4">
             {localSchemes.map((s: any) => (
-              <Card key={s.id} className="bg-card border-border shadow-sm">
+              <Card key={s.id} className="bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-                      <FileText className="text-blue-500" size={22} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground">{s.fileName || s.name}</h3>
-                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{s.academicYear}</span><span>•</span><span>{s.metadata?.semester || s.semester}</span>
-                        <span>•</span><span>{s.totalSubjects} subjects</span>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                        <FileText className="text-blue-500" size={22} />
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {s.subjects.map((sub: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="text-xs">{sub}</Badge>
-                        ))}
+                      <div>
+                        <h3 className="font-semibold text-foreground">{s.fileName || s.name || 'Scheme.pdf'}</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 mt-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><span className="font-medium">Department:</span> {s.metadata?.department || s.department || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Batch:</span> {s.metadata?.batch || s.batch || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Year:</span> {s.metadata?.academicYear || s.academicYear || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Semester:</span> {s.metadata?.semester || s.semester || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Class:</span> {s.metadata?.className || s.className || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Uploaded By:</span> {s.uploadedBy || 'N/A'}</span>
+                          <span className="flex items-center gap-1"><span className="font-medium">Upload Date:</span> {s.uploadedAt ? new Date(s.uploadedAt).toLocaleDateString() : s.uploadDate || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 items-end">
+                      <Badge variant={(s.metadata?.status || s.status) === 'Processed' ? 'default' : 'secondary'} className="text-xs">
+                        {(s.metadata?.status || s.status) === 'Processed' && <CheckCircle size={12} className="mr-1" />}{(s.metadata?.status || s.status || 'Processed')}
+                      </Badge>
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => s.documentUrl ? handleViewPdf(s.documentUrl) : toast.error('PDF not available')}>
+                          <Eye size={14} className="mr-1" /> View
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setUploadDialog({ isOpen: true, type: 'scheme', replaceId: s.id })}>
+                          <RefreshCcw size={14} className="mr-1" /> Replace
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => setSchemeToDelete(s.id)}>
+                          <Trash2 size={14} className="mr-1" /> Delete
+                        </Button>
                       </div>
                     </div>
                   </div>
+                  {(s.subjects && s.subjects.length > 0) && (
+                    <div className="mt-4 bg-muted/20 rounded-lg p-3 border border-border/40">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                        <Sparkles size={12} className="text-blue-500" /> Subjects ({s.totalSubjects || s.subjects.length || 0})
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(s.subjects || []).map((sub: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs gap-1">
+                            {sub}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -1201,194 +1396,58 @@ export const FacultyManagementModule = () => {
           {/* Existing Timetables */}
           <div className="flex justify-between items-center mt-6">
             <h3 className="font-semibold text-foreground flex items-center gap-2"><Clock size={18} className="text-primary"/> Class Timetables</h3>
-            <Button className="gap-2 shadow-sm" variant="outline" onClick={() => setUploadDialog({ isOpen: true, type: 'timetable' })}>
+            <Button className="gap-2 shadow-sm" variant="outline" onClick={() => setTimetableFormOpen(true)}>
               <Upload size={16} /> Upload Timetable
             </Button>
           </div>
           <div className="grid gap-4">
-            {localTimetables.map((tt: any) => (
+            {localTimetables.map((tt: any) => {
+              const yearValue = tt.metadata?.academicYear || '1';
+              return (
               <Card key={tt.id} className="bg-card border-border shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Clock size={16} className="text-primary" />
-                      {tt.name}
-                    </CardTitle>
-                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
-                      <div className="flex gap-2">
-                        <Badge variant="outline" className="text-xs">{tt.academicYear}</Badge>
-                        <Badge variant="outline" className="text-xs">{tt.semester}</Badge>
-                        <Badge variant="secondary" className="text-xs">{tt.className}</Badge>
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Clock className="text-primary" size={22} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-foreground">{tt.fileName || tt.name || 'Timetable.pdf'}</h3>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                        <span className="font-medium text-primary">Department:</span> <span>{tt.metadata?.department || tt.department || 'N/A'}</span>
+                        <span>•</span>
+                        <span className="font-medium text-primary">Batch:</span> <span>{tt.metadata?.batch || tt.batch || 'N/A'}</span>
+                        <span>•</span>
+                        <span className="font-medium text-primary">Year:</span> <span>{yearValue}</span>
+                        <span>•</span>
+                        <span className="font-medium text-primary">Sem:</span> <span>{tt.metadata?.semester || tt.semester || 'N/A'}</span>
+                        <span>•</span>
+                        <span className="font-medium text-primary">Class:</span> <span>{tt.metadata?.className || tt.className || 'N/A'}</span>
                       </div>
-                      <div className="flex gap-1 sm:border-l sm:border-border sm:pl-3">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => setViewTimetableDialog(tt)}>
+                      <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
+                        <div className="flex gap-3">
+                          <span>Uploaded by: <strong className="text-foreground">{tt.uploadedBy || 'N/A'}</strong></span>
+                          <span>Date: <strong className="text-foreground">{tt.uploadedAt ? new Date(tt.uploadedAt).toLocaleDateString() : 'N/A'}</strong></span>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleViewPdf(tt.documentUrl)}>
                           <Eye size={14} /> View
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => setUploadDialog({ isOpen: true, type: 'timetable', replaceId: tt.id })}>
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => setUploadDialog({ isOpen: true, type: 'timetable', replaceId: tt.id })}>
                           <RefreshCcw size={14} /> Replace
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDeleteTimetable(tt.id)}>
+                        <Button size="sm" variant="default" className="h-8 text-xs gap-1" onClick={() => runAIAssignment(tt.id)} disabled={isAILoading[tt.id]}>
+                          {isAILoading[tt.id] ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI Match
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteConfirmDialog(tt.id)}>
                           <Trash2 size={14} /> Delete
                         </Button>
                       </div>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-2 space-y-4">
-                  
-                  {/* Actions for this Timetable */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/20 p-3 rounded-lg border border-border/40">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                        <Brain size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold">Assignment Workflow</h4>
-                        <p className="text-xs text-muted-foreground">Manage assignments specifically for this timetable.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <Button variant="outline" size="sm" className="gap-2 shadow-sm whitespace-nowrap" onClick={() => setManualAssignOpen(tt.id)}>
-                        <UserPlus size={14} /> Manual Assign
-                      </Button>
-                      <Button size="sm" className="gap-2 shadow-md whitespace-nowrap" onClick={() => runAIAssignment(tt.id)} disabled={isAILoading[tt.id]}>
-                        {isAILoading[tt.id] ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} 
-                        {isAILoading[tt.id] ? 'Analyzing...' : 'AI Match'}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Timetable Slots Table */}
-                  <div className="border border-border/40 rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="text-xs text-muted-foreground uppercase bg-muted/40 border-b border-border/40">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-semibold">Day</th>
-                          <th className="px-3 py-2 text-left font-semibold">Time</th>
-                          <th className="px-3 py-2 text-left font-semibold">Subject</th>
-                          <th className="px-3 py-2 text-left font-semibold">Faculty</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/30">
-                        {tt.slots.map((slot: any, i: number) => {
-                          const isFound = slot.faculty === 'Pending Assignment' || localFaculty.some(f => f.name === slot.faculty);
-                          return (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2 font-medium">{slot.day}</td>
-                              <td className="px-3 py-2 font-mono text-xs">{slot.time}</td>
-                              <td className="px-3 py-2">{slot.subject}</td>
-                              <td className="px-3 py-2">
-                                {isFound ? (
-                                  <span className="text-muted-foreground">{slot.faculty}</span>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="destructive" className="flex items-center gap-1 text-[10px]">
-                                      <AlertTriangle size={10} /> Faculty Not Found
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground">{slot.faculty}</span>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-primary ml-auto" onClick={() => setUnmatchedFacultyDialog({ slot, tt })}>
-                                      <Edit2 size={12} />
-                                    </Button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Coordinator Assignments Table for this Timetable */}
-                  {ttAssignments[tt.id] && ttAssignments[tt.id].length > 0 && (
-                    <div className="mt-6 border border-border/50 rounded-lg overflow-hidden bg-background">
-                      <div className="p-3 bg-muted/30 border-b border-border/50 flex justify-between items-center">
-                        <h4 className="text-sm font-semibold flex items-center gap-2">
-                          👨‍🏫 Coordinator Assignments
-                        </h4>
-                      </div>
-                      <div className="p-2 space-y-1">
-                        {[
-                          { cls: 'IT-1', name: 'Rahul Sharma' },
-                          { cls: 'IT-2', name: 'Priya Verma' },
-                          { cls: 'DS-1', name: 'Amit Jain' },
-                          { cls: 'DS-2', name: 'Neha Gupta' }
-                        ].map(coord => (
-                          <div key={coord.cls} className="flex items-center justify-between p-2 rounded hover:bg-muted/50 border border-transparent hover:border-border/50 transition-colors">
-                            <span className="text-sm font-medium flex items-center gap-2">
-                              <CheckCircle size={14} className="text-green-500" /> {coord.cls} &rarr; {coord.name}
-                            </span>
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-primary hover:bg-primary/10">Edit</Button>
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]">Change Coordinator</Button>
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-destructive hover:bg-destructive/10">Remove</Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Assignments Verification Table for this Timetable */}
-                  {ttAssignments[tt.id] && ttAssignments[tt.id].length > 0 && (
-                    <div className="mt-4 border border-border/50 rounded-lg overflow-hidden bg-background">
-                      <div className="p-3 bg-muted/30 border-b border-border/50 flex justify-between items-center">
-                        <h4 className="text-sm font-semibold flex items-center gap-2">
-                          <CheckCircle size={16} className="text-primary" /> Assignment Verification
-                        </h4>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleRejectAll(tt.id)}>
-                            Reject All
-                          </Button>
-                          <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveAll(tt.id)}>
-                            Approve All
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-sm">
-                          <thead className="text-xs text-muted-foreground uppercase bg-muted/20 border-b border-border/40 sticky top-0 z-10">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold">Faculty</th>
-                              <th className="px-3 py-2 text-left font-semibold">Subject</th>
-                              <th className="px-3 py-2 text-left font-semibold">Status</th>
-                              <th className="px-3 py-2 text-right font-semibold">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/30">
-                            {ttAssignments[tt.id].map((a: any) => (
-                              <tr key={a.id} className="hover:bg-muted/10 transition-colors">
-                                <td className="px-3 py-2 font-medium text-foreground">{a.facultyName}</td>
-                                <td className="px-3 py-2">{a.subject}</td>
-                                <td className="px-3 py-2">
-                                  <Badge variant={a.status === 'Approved' ? 'default' : a.status === 'Rejected' ? 'destructive' : 'secondary'} className="text-[10px]">
-                                    {a.status}
-                                  </Badge>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  {a.status === 'Pending' && (
-                                    <div className="flex justify-end gap-1">
-                                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                        onClick={() => handleAssignmentAction(tt.id, a.id, 'Approved')}>
-                                        <CheckCircle size={14} />
-                                      </Button>
-                                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                        onClick={() => handleAssignmentAction(tt.id, a.id, 'Rejected')}>
-                                        <XCircle size={14} />
-                                      </Button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
-            ))}
+            )})}
           </div>
         </div>
       )}
@@ -1411,6 +1470,13 @@ export const FacultyManagementModule = () => {
         open={schemeFormOpen} 
         type="scheme" 
         onClose={() => setSchemeFormOpen(false)} 
+        onUpload={handleAcademicResourceUpload} 
+      />
+
+      <AcademicResourceDialog 
+        open={timetableFormOpen} 
+        type="timetable" 
+        onClose={() => setTimetableFormOpen(false)} 
         onUpload={handleAcademicResourceUpload} 
       />
 
@@ -1469,8 +1535,8 @@ export const FacultyManagementModule = () => {
                   {viewFacultyDialog.classes && viewFacultyDialog.classes.length > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground">Assigned Classes</Label>
-                      <div className="flex gap-1 flex-wrap mt-1">
-                        {viewFacultyDialog.classes.map((c: string) => (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(viewFacultyDialog.classes || []).map((c: string) => (
                           <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
                         ))}
                       </div>
@@ -1479,8 +1545,8 @@ export const FacultyManagementModule = () => {
                   {viewFacultyDialog.subjects && viewFacultyDialog.subjects.length > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground">Assigned Subjects</Label>
-                      <div className="flex gap-1 flex-wrap mt-1">
-                        {viewFacultyDialog.subjects.map((s: string) => (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {(viewFacultyDialog.subjects || []).map((s: string) => (
                           <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
                         ))}
                       </div>
@@ -1524,8 +1590,20 @@ export const FacultyManagementModule = () => {
               <>
                 <Upload size={32} className="text-muted-foreground mb-3" />
                 <p className="text-sm font-medium">Drag & drop or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-1">Supports PDF, XLSX, CSV (Max 10MB)</p>
-                <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={() => uploadDialog.type && simulateUpload(uploadDialog.type)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {uploadDialog.type === 'timetable' ? 'Supports PDF, JPG, PNG (Max 10MB)' : 'Supports PDF, XLSX, CSV (Max 10MB)'}
+                </p>
+                <input type="file" 
+                  accept={uploadDialog.type === 'timetable' ? '.pdf,.jpg,.jpeg,.png' : '.xlsx,.csv,.pdf'}
+                  className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    if (uploadDialog.type === 'timetable' && uploadDialog.replaceId) {
+                      handleReplaceTimetable(uploadDialog.replaceId, e.target.files[0]);
+                    } else if (uploadDialog.type) {
+                      simulateUpload(uploadDialog.type);
+                    }
+                  }
+                }} />
               </>
             )}
           </div>
@@ -1784,12 +1862,31 @@ export const FacultyManagementModule = () => {
               Delete Syllabus
             </DialogTitle>
             <DialogDescription className="pt-2">
-              Are you sure you want to permanently delete this syllabus? This action cannot be undone.
+              Are you sure you want to permanently delete this syllabus document?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setSyllabusToDelete(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeleteSyllabus}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Scheme Confirmation Dialog */}
+      <Dialog open={!!schemeToDelete} onOpenChange={() => setSchemeToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle size={20} />
+              Delete Scheme
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to permanently delete this scheme document?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSchemeToDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteScheme}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2067,6 +2164,207 @@ export const FacultyManagementModule = () => {
         </DialogContent>
       </Dialog>
 
+
+      {/* Timetable AI Review Dialog */}
+      <Dialog open={reviewDialogOpen} onOpenChange={() => setReviewDialogOpen(false)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b border-border/40">
+            <div className="flex justify-between items-start">
+              <div className="w-full">
+                <DialogTitle className="flex items-center gap-2 text-xl">
+                  <Brain className="text-primary" size={20} />
+                  AI Timetable Review & Assignment
+                </DialogTitle>
+                <DialogDescription className="mt-2 flex flex-wrap items-center gap-3">
+                  <Badge variant="secondary">Dept: {reviewData?.department}</Badge>
+                  <Badge variant="secondary">Year: {reviewData?.academicYear}</Badge>
+                  <Badge variant="secondary">Sem: {reviewData?.semester}</Badge>
+                  <Badge variant="outline">Class: {reviewData?.className}</Badge>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-muted/20">
+            
+            {/* Section 1: Coordinator Assignment */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Shield size={18} className="text-primary" /> Coordinator Assignment
+              </h3>
+              <div className="border rounded-lg bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium w-1/3">Original Name (From PDF)</th>
+                      <th className="px-4 py-3 text-left font-medium w-1/2">Matched Faculty</th>
+                      <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviewData?.coordinatorAssignments?.map((coord: any, idx: number) => {
+                      const isUnmatched = !coord.coordinatorId;
+                      return (
+                        <tr key={idx} className={`border-b last:border-0 ${isUnmatched ? 'bg-orange-500/10' : ''}`}>
+                          <td className="px-4 py-3 font-medium">{coord.originalCoordinatorName || 'N/A'}</td>
+                          <td className="px-4 py-3">
+                            {isUnmatched ? (
+                              <div className="flex items-center gap-2 text-orange-600 font-medium text-xs mb-2">
+                                <AlertTriangle size={14} /> Needs Manual Review
+                              </div>
+                            ) : null}
+                            <select 
+                              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                              value={coord.coordinatorId || ''}
+                              onChange={(e) => {
+                                const selected = localFaculty.find(f => f.id === e.target.value);
+                                handleUpdateCoordinator(idx, e.target.value, selected ? selected.name : '');
+                              }}
+                            >
+                              <option value="">Select Coordinator...</option>
+                              {localFaculty.map(f => (
+                                <option key={f.id} value={f.id}>{f.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-right align-top pt-4">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDeleteCoordinator(idx)}>
+                              <Trash2 size={14} className="text-destructive" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!reviewData?.coordinatorAssignments?.length && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No coordinators extracted.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Section 2: Faculty Subject Assignment */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <BookOpen size={18} className="text-primary" /> Faculty Subject Assignment
+              </h3>
+              <div className="border rounded-lg bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium w-1/4">Subject Code</th>
+                      <th className="px-4 py-3 text-left font-medium w-1/3">Subject Name</th>
+                      <th className="px-4 py-3 text-left font-medium w-1/3">Matched Faculty</th>
+                      <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviewData?.subjectAssignments?.map((sub: any, idx: number) => {
+                      const isUnmatched = !sub.facultyId;
+                      return (
+                        <tr key={idx} className={`border-b last:border-0 ${isUnmatched ? 'bg-orange-500/10' : ''}`}>
+                          <td className="px-4 py-3 font-medium">
+                            <input 
+                              type="text" 
+                              className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                              value={sub.subjectCode || ''}
+                              onChange={(e) => {
+                                const updated = [...reviewData.subjectAssignments];
+                                updated[idx].subjectCode = e.target.value;
+                                setReviewData({ ...reviewData, subjectAssignments: updated });
+                              }}
+                              placeholder="Code"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              type="text" 
+                              className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                              value={sub.matchedSubjectName || sub.originalSubjectName || ''}
+                              onChange={(e) => {
+                                const updated = [...reviewData.subjectAssignments];
+                                updated[idx].matchedSubjectName = e.target.value;
+                                setReviewData({ ...reviewData, subjectAssignments: updated });
+                              }}
+                              placeholder="Subject Name"
+                            />
+                            {sub.originalSubjectName && <div className="text-xs text-muted-foreground mt-1">Original: {sub.originalSubjectName}</div>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isUnmatched ? (
+                              <div className="flex items-center gap-2 text-orange-600 font-medium text-xs mb-2">
+                                <AlertTriangle size={14} /> Needs Manual Review
+                              </div>
+                            ) : null}
+                            <select 
+                              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                              value={sub.facultyId || ''}
+                              onChange={(e) => {
+                                const selected = localFaculty.find(f => f.id === e.target.value);
+                                handleUpdateSubject(idx, e.target.value, selected ? selected.name : '');
+                              }}
+                            >
+                              <option value="">Select Faculty...</option>
+                              {localFaculty.map(f => (
+                                <option key={f.id} value={f.id}>{f.name}</option>
+                              ))}
+                            </select>
+                            {sub.originalFacultyName && <div className="text-xs text-muted-foreground mt-1">Original: {sub.originalFacultyName}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-right align-top pt-4">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDeleteSubject(idx)}>
+                              <Trash2 size={14} className="text-destructive" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!reviewData?.subjectAssignments?.length && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No subjects extracted.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="p-4 border-t border-border/40 bg-card sm:justify-between">
+            <Button variant="ghost" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmAssignment} disabled={isConfirmingAssignment || (reviewData?.coordinatorAssignments?.some((c:any) => !c.coordinatorId) || reviewData?.subjectAssignments?.some((s:any) => !s.facultyId))}>
+              {isConfirmingAssignment ? (
+                <><Loader2 size={16} className="animate-spin mr-2" /> Confirming...</>
+              ) : (
+                'Confirm and Assign'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Timetable Delete Dialog */}
+      <Dialog open={!!deleteConfirmDialog} onOpenChange={() => setDeleteConfirmDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle size={18} /> Confirm Deletion
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete this timetable?
+              <br/><br/>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex gap-2 sm:justify-end">
+            <Button variant="ghost" onClick={() => setDeleteConfirmDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => {
+              if (deleteConfirmDialog) handleDeleteTimetable(deleteConfirmDialog);
+              setDeleteConfirmDialog(null);
+            }}>Delete Permanently</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

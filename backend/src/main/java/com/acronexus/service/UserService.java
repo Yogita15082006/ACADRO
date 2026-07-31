@@ -67,10 +67,96 @@ public class UserService {
         // Batch-load all faculty records to avoid N+1 queries
         Map<UUID, Faculty> facultyMap = facultyRepository.findAll().stream()
                 .collect(Collectors.toMap(Faculty::getId, Function.identity()));
+                
+        // Batch-load all subject and class assignments for dashboard mapping
+        Map<UUID, List<String>> subjectsByFaculty = classSubjectRepository.findAll().stream()
+                .filter(cs -> cs.getIsActive() != null && cs.getIsActive() && cs.getFaculty() != null)
+                .collect(Collectors.groupingBy(
+                    cs -> cs.getFaculty().getId(),
+                    Collectors.mapping(cs -> cs.getSubject().getName(), Collectors.toList())
+                ));
+                
+        Map<UUID, List<String>> classesByFaculty = classSubjectRepository.findAll().stream()
+                .filter(cs -> cs.getIsActive() != null && cs.getIsActive() && cs.getFaculty() != null && cs.getAcroClass() != null)
+                .collect(Collectors.groupingBy(
+                    cs -> cs.getFaculty().getId(),
+                    Collectors.mapping(cs -> cs.getAcroClass().getName(), Collectors.toList())
+                ));
+                
+        Map<UUID, List<String>> classesByCoord = coordinatorAssignmentRepository.findAll().stream()
+                .filter(ca -> ca.getIsActive() != null && ca.getIsActive() && ca.getCoordinator() != null)
+                .collect(Collectors.groupingBy(
+                    ca -> ca.getCoordinator().getId(),
+                    Collectors.mapping(CoordinatorAssignment::getClassName, Collectors.toList())
+                ));
         
         return users.stream()
-                .map(user -> userMapper.toDto(user, facultyMap.get(user.getId())))
+                .map(user -> {
+                    UserResponseDto dto = userMapper.toDto(user, facultyMap.get(user.getId()));
+                    if (user.getRole() == UserRole.FACULTY || user.getRole() == UserRole.COORDINATOR || user.getRole() == UserRole.HOD) {
+                        dto.setSubjects(subjectsByFaculty.getOrDefault(user.getId(), List.of()));
+                        
+                        List<String> combinedClasses = new java.util.ArrayList<>();
+                        combinedClasses.addAll(classesByFaculty.getOrDefault(user.getId(), List.of()));
+                        combinedClasses.addAll(classesByCoord.getOrDefault(user.getId(), List.of()));
+                        dto.setClasses(combinedClasses);
+                        
+                        // Deduplicate subjects and classes
+                        dto.setSubjects(dto.getSubjects().stream().distinct().collect(Collectors.toList()));
+                        dto.setClasses(dto.getClasses().stream().distinct().collect(Collectors.toList()));
+                    }
+                    return dto;
+                })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public UserResponseDto updateUser(UUID id, Map<String, Object> updates) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+
+        if (updates.containsKey("role") && updates.get("role") != null) {
+            String roleStr = updates.get("role").toString().trim().toUpperCase();
+            try {
+                UserRole newRole = UserRole.valueOf(roleStr);
+                if (user.getRole() != newRole) {
+                    user.setRole(newRole);
+                    log.info("Updated user {} role to {}", id, newRole);
+                    
+                    Faculty faculty = facultyRepository.findById(id).orElse(null);
+                    if (faculty != null) {
+                        if (newRole == UserRole.COORDINATOR) {
+                            faculty.setDesignation("Coordinator");
+                            facultyRepository.save(faculty);
+                        } else if (newRole == UserRole.HOD) {
+                            faculty.setDesignation("HOD");
+                            facultyRepository.save(faculty);
+                        } else if (newRole == UserRole.FACULTY && ("Coordinator".equalsIgnoreCase(faculty.getDesignation()) || "HOD".equalsIgnoreCase(faculty.getDesignation()) || faculty.getDesignation() == null)) {
+                            faculty.setDesignation("Faculty");
+                            facultyRepository.save(faculty);
+                        }
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid role specified: " + roleStr);
+            }
+        }
+        if (updates.containsKey("firstName") && updates.get("firstName") != null) {
+            user.setFirstName(updates.get("firstName").toString().trim());
+        }
+        if (updates.containsKey("lastName") && updates.get("lastName") != null) {
+            user.setLastName(updates.get("lastName").toString().trim());
+        }
+        if (updates.containsKey("phone") && updates.get("phone") != null) {
+            user.setPhone(updates.get("phone").toString().trim());
+        }
+        if (updates.containsKey("isActive") && updates.get("isActive") != null) {
+            user.setIsActive(Boolean.parseBoolean(updates.get("isActive").toString()));
+        }
+
+        User savedUser = userRepository.save(user);
+        Faculty faculty = facultyRepository.findById(id).orElse(null);
+        return userMapper.toDto(savedUser, faculty);
     }
 
     @Transactional

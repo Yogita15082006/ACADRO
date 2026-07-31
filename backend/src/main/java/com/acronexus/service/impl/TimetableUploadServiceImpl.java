@@ -84,7 +84,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
                 });
 
         AcroClass acroClass = acroClassRepository.findAll().stream()
-                .filter(c -> c.getName().equalsIgnoreCase(className))
+                .filter(c -> c.getName().equalsIgnoreCase(className) && c.getDepartment() != null && c.getDepartment().getName().equalsIgnoreCase(departmentName))
                 .findFirst()
                 .orElseGet(() -> {
                     AcroClass c = new AcroClass();
@@ -109,14 +109,28 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
         }
 
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
-        if (!originalFilename.endsWith(".pdf")) {
-            throw new IllegalArgumentException("Only PDF files are currently supported for Timetable Uploads.");
+        if (!originalFilename.endsWith(".pdf") && 
+            !originalFilename.endsWith(".jpg") && 
+            !originalFilename.endsWith(".jpeg") && 
+            !originalFilename.endsWith(".png")) {
+            throw new IllegalArgumentException("Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG.");
         }
 
-        try (PDDocument document = Loader.loadPDF(file.getBytes())) {
-            // PDF is valid if it loads without throwing an exception
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid PDF file structure or corrupted file.");
+        if (originalFilename.endsWith(".pdf")) {
+            try (PDDocument document = Loader.loadPDF(file.getBytes())) {
+                // PDF is valid if it loads without throwing an exception
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Invalid PDF file structure or corrupted file.");
+            }
+        } else {
+            try {
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(file.getInputStream());
+                if (img == null) {
+                    throw new IllegalArgumentException("Invalid image file structure or corrupted file.");
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Invalid image file structure or corrupted file.");
+            }
         }
 
         // Deactivate older versions
@@ -233,10 +247,26 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     public String getFileName(UUID versionId) {
         Timetable version = timetableRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
-        if (version.getFile() != null) {
+        if (version.getFile() != null && version.getFile().getFileName() != null) {
             return version.getFile().getFileName();
         }
         return "timetable.pdf";
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getFileMimeType(UUID versionId) {
+        Timetable version = timetableRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Version not found"));
+        if (version.getFile() != null && version.getFile().getMimeType() != null) {
+            return version.getFile().getMimeType();
+        }
+        
+        // Fallback for older uploads
+        String fileName = getFileName(versionId).toLowerCase();
+        if (fileName.endsWith(".png")) return "image/png";
+        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) return "image/jpeg";
+        return "application/pdf";
     }
 
     @Override
@@ -296,7 +326,8 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
             FileStorage fs = new FileStorage();
             fs.setFileName(file.getOriginalFilename());
             fs.setDocumentUrl(filePath.toString());
-            fs.setFileType(file.getContentType());
+            fs.setFileType("TIMETABLE");
+            fs.setMimeType(file.getContentType());
             fs.setUploadedBy(user);
             fs.setUploadedAt(ZonedDateTime.now());
             fs.setIsActive(true);

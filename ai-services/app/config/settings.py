@@ -6,7 +6,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 
 # Explicitly load the .env file into the environment
-load_dotenv(ENV_PATH)
+print(f"Loading env from: {ENV_PATH}")
+load_dotenv(ENV_PATH, override=True)
+print(f"Loaded GROQ_API_KEY from os.environ: {os.environ.get('GROQ_API_KEY')}")
 
 class Settings(BaseSettings):
     groq_api_key: str

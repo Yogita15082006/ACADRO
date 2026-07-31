@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { 
   LayoutDashboard, Users, 
-  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library
+  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +26,7 @@ export const Layout = () => {
   const adminLinks = [
     { to: '/admin', icon: <LayoutDashboard size={18} />, label: 'Dashboard', roles: ['hod', 'coordinator', 'faculty', 'both'] },
     ...(role === 'hod' || role === 'coordinator' || role === 'faculty' || role === 'both' ? [{ to: '/admin/classes', icon: <Library size={18} />, label: 'Classes', roles: ['hod', 'coordinator', 'faculty', 'both'] }] : []),
+    { to: '/admin/academic-resources', icon: <FolderOpen size={18} />, label: 'Academic Resources', roles: ['hod', 'coordinator', 'faculty', 'both'] },
     ...(role === 'hod' ? [{ to: '/admin/students', icon: <GraduationCap size={18} />, label: 'Students', roles: ['hod'] }] : []),
     ...(role === 'hod' ? [{ to: '/admin/faculty-management', icon: <Users size={18} />, label: 'Faculty Management', roles: ['hod'] }] : []),
     ...(role === 'coordinator' || role === 'faculty' || role === 'both' ? [{ to: '/admin/students', icon: <GraduationCap size={18} />, label: 'Students', roles: ['coordinator', 'faculty', 'both'] }] : []),
@@ -40,6 +41,7 @@ export const Layout = () => {
   const studentLinks = [
     { to: '/student', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
     { to: '/student/classes', icon: <Library size={18} />, label: 'Classes' },
+    { to: '/student/academic-resources', icon: <FolderOpen size={18} />, label: 'Academic Resources' },
     { to: '/student/attendance', icon: <Users size={18} />, label: 'Attendance' },
     { to: '/student/examinations', icon: <GraduationCap size={18} />, label: 'Examinations' },
     { to: '/student/events', icon: <Calendar size={18} />, label: 'Events' },

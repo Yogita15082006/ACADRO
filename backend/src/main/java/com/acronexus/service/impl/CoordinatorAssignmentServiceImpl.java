@@ -38,9 +38,16 @@ public class CoordinatorAssignmentServiceImpl implements CoordinatorAssignmentSe
         }
         
         com.acronexus.entity.Faculty faculty = facultyRepository.findById(user.getId()).orElse(null);
+        if (faculty != null && ("Faculty".equalsIgnoreCase(faculty.getDesignation()) || "Assistant Professor".equalsIgnoreCase(faculty.getDesignation()) || faculty.getDesignation() == null || faculty.getDesignation().isBlank())) {
+            faculty.setDesignation("Coordinator");
+            facultyRepository.save(faculty);
+        }
         
         List<CoordinatorAssignment> existing = repository.findByCoordinatorId(user.getId());
-        repository.deleteAll(existing);
+        if (!existing.isEmpty()) {
+            repository.deleteAll(existing);
+            repository.flush();
+        }
         
         List<CoordinatorAssignment> createdAssignments = new java.util.ArrayList<>();
         if (requestDto.getAssignments() != null) {

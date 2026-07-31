@@ -22,7 +22,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/class-subjects")
 @RequiredArgsConstructor
@@ -117,6 +119,31 @@ public class ClassSubjectController {
                 dto.setFacultyId(cs.getFaculty().getId());
                 dto.setFacultyName(cs.getFaculty().getUser().getFirstName() + " " + cs.getFaculty().getUser().getLastName());
             }
+            
+            // Map additional metadata for Subject Cards
+            if (cs.getAcroClass() != null) {
+                if (cs.getAcroClass().getDepartment() != null) {
+                    dto.setDepartment(cs.getAcroClass().getDepartment().getName());
+                }
+                // For class section, fallback to className if not explicitly tracked
+                dto.setClassSection(cs.getAcroClass().getName());
+            }
+            
+            // Map Coordinator name (first active one for the class/semester/year)
+            if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
+                coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+                    .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
+                                  java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
+                    .findFirst()
+                    .ifPresent(ca -> {
+                        log.info("Mapping subject {} (class {}) to coordinator {}, batch {}", cs.getSubject().getName(), cs.getAcroClass().getName(), ca.getCoordinator() != null ? ca.getCoordinator().getFirstName() : "null", ca.getBatch());
+                        dto.setBatch(ca.getBatch());
+                        if (ca.getCoordinator() != null) {
+                            dto.setCoordinatorName(ca.getCoordinator().getFirstName() + " " + ca.getCoordinator().getLastName());
+                        }
+                    });
+            }
+            
             return dto;
         }).collect(Collectors.toList());
 

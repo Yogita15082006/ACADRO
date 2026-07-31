@@ -32,6 +32,11 @@ public class UserResponseDto {
     // Department info
     private DepartmentInfo department;
     
+    // Overview Dashboard assignments
+    private java.util.List<String> classes;
+    private java.util.List<String> subjects;
+    
+
     @Data
     public static class DepartmentInfo {
         private UUID id;

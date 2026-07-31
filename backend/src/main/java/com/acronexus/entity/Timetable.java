@@ -14,7 +14,7 @@ public class Timetable {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "class_id", nullable = false)
+    @JoinColumn(name = "class_id")
     private AcroClass acroClass;
 
     @ManyToOne(fetch = FetchType.LAZY)

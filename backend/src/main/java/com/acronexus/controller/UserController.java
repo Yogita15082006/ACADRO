@@ -8,13 +8,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping({"/api/users", "/api/v1/users"})
 @RequiredArgsConstructor
 public class UserController {
 
@@ -49,5 +51,19 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deleteAllFaculty() {
         userService.deleteAllFaculty();
         return ResponseEntity.ok(ApiResponse.success("All faculty records deleted successfully", null));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<UserResponseDto>> updateUser(@PathVariable UUID id, @RequestBody Map<String, Object> updates) {
+        UserResponseDto updatedUser = userService.updateUser(id, updates);
+        return ResponseEntity.ok(ApiResponse.success("User role and details updated successfully", updatedUser));
+    }
+
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<UserResponseDto>> patchUser(@PathVariable UUID id, @RequestBody Map<String, Object> updates) {
+        UserResponseDto updatedUser = userService.updateUser(id, updates);
+        return ResponseEntity.ok(ApiResponse.success("User role and details updated successfully", updatedUser));
     }
 }

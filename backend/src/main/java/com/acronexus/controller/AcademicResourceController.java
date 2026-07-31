@@ -34,12 +34,18 @@ public class AcademicResourceController {
             @Parameter(description = "Scheme PDF file", required = true)
             @RequestParam("file") MultipartFile file,
             @RequestParam("academicYear") String academicYear,
-            @RequestParam("batch") String batch,
-            @RequestParam("className") String className,
+            @RequestParam(value = "batch", required = false) String batch,
+            @RequestParam(value = "className", required = false) String className,
             @RequestParam("semester") String semester,
+            @RequestParam(value = "schemeName", required = false) String schemeName,
+            @RequestParam(value = "department", required = false) String department,
+            @RequestParam(value = "degree", required = false) String degree,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "eligibility", required = false) String eligibility,
+            @RequestParam(value = "benefits", required = false) String benefits,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        return ResponseEntity.ok(service.uploadScheme(file, academicYear, batch, className, semester, userDetails.getId()));
+        return ResponseEntity.ok(service.uploadScheme(file, academicYear, batch, className, semester, schemeName, department, degree, description, eligibility, benefits, userDetails.getId()));
     }
 
     @PostMapping(value = "/syllabus", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -57,6 +63,23 @@ public class AcademicResourceController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
         return ResponseEntity.ok(service.uploadSyllabus(file, academicYear, batch, className, department, degree, semester, userDetails.getId()));
+    }
+
+
+    @PostMapping(value = "/timetable", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
+    @Operation(summary = "Upload Timetable", description = "Uploads a Timetable PDF file. Requires ADMIN, HOD, or COORDINATOR role.")
+    public ResponseEntity<ApiResponse<AcademicResourceDto>> uploadTimetable(
+            @Parameter(description = "Timetable PDF file", required = true)
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "academicYear", required = false) String academicYear,
+            @RequestParam(value = "batch", required = false) String batch,
+            @RequestParam(value = "className", required = false) String className,
+            @RequestParam(value = "department", required = false) String department,
+            @RequestParam(value = "semester", required = false) String semester,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        
+        return ResponseEntity.ok(service.uploadTimetable(file, academicYear, batch, className, department, semester, userDetails.getId()));
     }
 
     @GetMapping

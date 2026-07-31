@@ -6,7 +6,7 @@ async function updatePasswords() {
     user: 'postgres',
     host: 'localhost',
     database: 'acronexus',
-    password: 'payal',
+    password: process.env.DB_PASSWORD || 'your_password_here',
     port: 5432,
   });
 

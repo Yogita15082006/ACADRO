@@ -17,4 +17,9 @@ public class ClassSubjectResponseDto {
     private String facultyName;
     private String coordinatorName;
     private String generationType;
+    
+    // Additional metadata for Subject Cards
+    private String department;
+    private String batch;
+    private String classSection;
 }

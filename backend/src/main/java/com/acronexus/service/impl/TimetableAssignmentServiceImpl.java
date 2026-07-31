@@ -40,12 +40,12 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
 
     @Override
     public TimetableReviewReportDto performAiMatch(UUID timetableId, UUID requestedBy) {
-        Timetable timetable = timetableRepository.findById(timetableId)
-                .orElseThrow(() -> new RuntimeException("Timetable not found"));
+        Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
+                .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("Timetable not found"));
                 
         FileStorage fileStorage = timetable.getFile();
         if (fileStorage == null || fileStorage.getDocumentUrl() == null) {
-            throw new RuntimeException("No file attached to timetable");
+            throw new com.acronexus.exception.ResourceNotFoundException("No file attached to timetable");
         }
 
         // 1. Check Cache — Disabled temporarily to force fresh AI matching
@@ -79,6 +79,12 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         String jsonContent = null;
         try {
             File pdfFile = new File(fileStorage.getDocumentUrl().replace("file://", "").replace("%20", " "));
+            if (!pdfFile.exists()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND,
+                        "The physical PDF file could not be found on the server. Please upload the timetable again."
+                );
+            }
             String absolutePath = pdfFile.getAbsolutePath();
             log.info("Sending absolute path to FastAPI: {}", absolutePath);
             jsonContent = aiService.extractTimetable(absolutePath);
@@ -137,11 +143,16 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                     String extractedSubject = t.has("subjectName") ? t.get("subjectName").asText() : null;
                     String extractedSubjectType = t.has("subjectType") && !t.get("subjectType").isNull() ? t.get("subjectType").asText() : null;
                     
-                    if (extractedFaculty == null || extractedSubject == null) continue;
-                    
-                    String pairKey = com.acronexus.util.NameNormalizer.normalize(extractedFaculty) + "|" + com.acronexus.util.NameNormalizer.normalize(extractedSubject);
-                    if (seenPairs.contains(pairKey)) continue;
-                    seenPairs.add(pairKey);
+                    if (extractedFaculty == null || extractedFaculty.trim().isEmpty() || extractedFaculty.equalsIgnoreCase("null")) {
+                        extractedFaculty = "Needs Manual Review";
+                    }
+                    if (extractedSubject == null || extractedSubject.trim().isEmpty() || extractedSubject.equalsIgnoreCase("null")) {
+                        if (extractedSubjectCode != null && !extractedSubjectCode.trim().isEmpty() && !extractedSubjectCode.equalsIgnoreCase("null")) {
+                            extractedSubject = extractedSubjectCode; // Fallback to code if name is missing
+                        } else {
+                            extractedSubject = "Unknown Subject";
+                        }
+                    }
                     
                     String matchedFacultyId = fuzzyMatchFaculty(extractedFaculty, faculties);
                     
@@ -182,6 +193,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                 ca.setClassName(timetable.getAcroClass().getName());
                 ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
                 ca.setAcademicYear(timetable.getAcademicYear().getYear());
+                ca.setBatch(dto.getBatch());
                 
                 ca.setOriginalCoordinatorName(extractedCoord);
                 
@@ -231,7 +243,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     @Override
     @Transactional
     public void confirmAssignments(UUID timetableId, TimetableReviewReportDto reviewDto, UUID requestedBy) {
-        Timetable timetable = timetableRepository.findById(timetableId)
+        Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
                 .orElseThrow(() -> new RuntimeException("Timetable not found"));
 
         User creator = userRepository.findById(requestedBy).orElse(null);
@@ -284,41 +296,47 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         }
 
         // Process Coordinator Assignments using Upsert
-        if (reviewDto.getCoordinatorAssignments() != null) {
-            for (ParsedCoordinatorAssignmentDto cm : reviewDto.getCoordinatorAssignments()) {
-                User coordinator = null;
-                if (cm.getCoordinatorId() != null && isValidUUID(cm.getCoordinatorId())) {
-                    coordinator = userRepository.findById(UUID.fromString(cm.getCoordinatorId())).orElse(null);
-                }
+        if (reviewDto.getCoordinatorAssignments() != null && !reviewDto.getCoordinatorAssignments().isEmpty()) {
+            // ONLY process the explicit Coordinator from the Review Popup Coordinator Section.
+            // If the frontend somehow sent an array of faculties, we discard everything except the first actual explicitly mapped coordinator.
+            ParsedCoordinatorAssignmentDto cm = reviewDto.getCoordinatorAssignments().get(0);
+            
+            User coordinator = null;
+            if (cm.getCoordinatorId() != null && isValidUUID(cm.getCoordinatorId())) {
+                coordinator = userRepository.findById(UUID.fromString(cm.getCoordinatorId())).orElse(null);
+            }
+            
+            List<CoordinatorAssignment> existingCoords = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(timetable.getAcroClass().getName())
+                .stream()
+                .filter(ca -> java.util.Objects.equals(ca.getAcademicYear(), timetable.getAcademicYear().getYear()) &&
+                              java.util.Objects.equals(ca.getSemester(), "Semester " + timetable.getSemester().getSemesterNumber()) &&
+                              java.util.Objects.equals(ca.getBatch(), timetable.getBatch()))
+                .collect(java.util.stream.Collectors.toList());
                 
-                List<CoordinatorAssignment> existingCoords = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(timetable.getAcroClass().getName())
-                    .stream()
-                    .filter(ca -> java.util.Objects.equals(ca.getAcademicYear(), timetable.getAcademicYear().getYear()) &&
-                                  java.util.Objects.equals(ca.getSemester(), "Semester " + timetable.getSemester().getSemesterNumber()) &&
-                                  java.util.Objects.equals(ca.getBatch(), cm.getBatch()))
-                    .collect(java.util.stream.Collectors.toList());
-                    
-                CoordinatorAssignment ca;
-                if (!existingCoords.isEmpty()) {
-                    ca = existingCoords.get(0);
-                } else {
-                    ca = new CoordinatorAssignment();
-                    ca.setClassName(timetable.getAcroClass().getName());
-                    ca.setAcademicYear(timetable.getAcademicYear().getYear());
-                    ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
-                    ca.setBatch(cm.getBatch());
-                    ca.setEffectiveFrom(LocalDate.now());
-                    ca.setIsActive(true);
-                    ca.setCreatedBy(creator);
-                }
-                
-                ca.setCoordinator(coordinator);
-                coordinatorAssignmentRepository.save(ca);
+            CoordinatorAssignment ca;
+            if (!existingCoords.isEmpty()) {
+                ca = existingCoords.get(0);
+                log.info("Updating existing CoordinatorAssignment for class={}, batch={}, existingBatch={}", timetable.getAcroClass().getName(), timetable.getBatch(), ca.getBatch());
+            } else {
+                ca = new CoordinatorAssignment();
+                ca.setClassName(timetable.getAcroClass().getName());
+                ca.setAcademicYear(timetable.getAcademicYear().getYear());
+                ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
+                ca.setBatch(timetable.getBatch());
+                ca.setEffectiveFrom(LocalDate.now());
+                ca.setIsActive(true);
+                log.info("Creating NEW CoordinatorAssignment for class={}, batch={}", timetable.getAcroClass().getName(), timetable.getBatch());
+                ca.setCreatedBy(creator);
+            }
+            
+            ca.setCoordinator(coordinator);
+            coordinatorAssignmentRepository.save(ca);
 
-                if (coordinator != null && "FACULTY".equals(coordinator.getRole().name())) {
-                    coordinator.setRole(com.acronexus.entity.UserRole.COORDINATOR);
-                    userRepository.save(coordinator);
-                }
+            // Promote to COORDINATOR role ONLY for the explicitly selected coordinator
+            if (coordinator != null && "FACULTY".equals(coordinator.getRole().name())) {
+                log.info("Promoting explicitly selected faculty {} to COORDINATOR role.", coordinator.getEmail());
+                coordinator.setRole(com.acronexus.entity.UserRole.COORDINATOR);
+                userRepository.save(coordinator);
             }
         }
         

@@ -2,7 +2,7 @@ const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 
 const client = new Client({
-  connectionString: 'postgresql://postgres:payal@localhost:5432/acronexus'
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:your_password_here@localhost:5432/acronexus'
 });
 
 async function reset() {

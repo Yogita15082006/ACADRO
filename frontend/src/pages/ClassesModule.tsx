@@ -50,13 +50,7 @@ export const ClassesModule = () => {
   
   const [isPostAnnouncementOpen, setIsPostAnnouncementOpen] = useState(false);
   const [isUploadMaterialOpen, setIsUploadMaterialOpen] = useState(false);
-  const visibleWorkspaces = workspaces.filter(ws => {
-    if (role === 'faculty') return ws.facultyName === user.name;
-    if (role === 'coordinator') return ws.coordinatorName === user.name;
-    if (role === 'both') return ws.facultyName === user.name || ws.coordinatorName === user.name;
-    if (role === 'student') return ws.className === user?.className;
-    return true;
-  });
+  const visibleWorkspaces = workspaces;
 
   
   const handleDeleteWorkspace = async (id: string, e: React.MouseEvent) => {
@@ -432,9 +426,11 @@ export const ClassesModule = () => {
 
               <CardContent className="px-5 py-5 flex-1 bg-card flex flex-col gap-4">
                 <div className="flex flex-wrap gap-2">
-                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><Calendar className="w-3 h-3 mr-1.5 opacity-70" /> {ws.year}</Badge>
-                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><BookOpen className="w-3 h-3 mr-1.5 opacity-70" /> {ws.semester}</Badge>
-                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><Users className="w-3 h-3 mr-1.5 opacity-70" /> {ws.className}</Badge>
+                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><Calendar className="w-3 h-3 mr-1.5 opacity-70" /> Year: {ws.year}</Badge>
+                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><BookOpen className="w-3 h-3 mr-1.5 opacity-70" /> Sem: {ws.semester}</Badge>
+                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30"><Users className="w-3 h-3 mr-1.5 opacity-70" /> Class: {ws.classSection || ws.className}</Badge>
+                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30">Dept: {ws.department?.name || ws.department || 'N/A'}</Badge>
+                   <Badge variant="outline" className="font-medium text-foreground border-border/60 bg-muted/30">Batch: {ws.batch || 'N/A'}</Badge>
                 </div>
                 <div className="space-y-3 mt-2">
                   <div className="flex items-center gap-3 text-sm">
@@ -443,7 +439,7 @@ export const ClassesModule = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Assigned Faculty</p>
-                      <p className="font-semibold text-foreground text-sm truncate mt-0.5">{ws.facultyName}</p>
+                      <p className="font-semibold text-foreground text-sm truncate mt-0.5">{ws.facultyName || 'Unassigned'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
@@ -451,8 +447,8 @@ export const ClassesModule = () => {
                       <Users className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Class Coordinator</p>
-                      <p className="font-semibold text-foreground text-sm truncate mt-0.5">{ws.coordinatorName}</p>
+                      <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Coordinator Name</p>
+                      <p className="font-semibold text-foreground text-sm truncate mt-0.5">{ws.coordinatorName || 'Unassigned'}</p>
                     </div>
                   </div>
                 </div>

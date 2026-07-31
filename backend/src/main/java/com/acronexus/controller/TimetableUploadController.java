@@ -27,7 +27,7 @@ public class TimetableUploadController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
-    @Operation(summary = "Upload Timetable File", description = "Uploads a PDF file. Requires ADMIN or HOD role.")
+    @Operation(summary = "Upload Timetable File", description = "Uploads a PDF or Image file (JPG/PNG). Requires ADMIN or HOD role.")
     public ResponseEntity<ApiResponse<?>> uploadTimetable(
             @Parameter(description = "Timetable PDF file", required = true)
             @RequestParam("file") MultipartFile file,
@@ -77,14 +77,14 @@ public class TimetableUploadController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Get All Timetables", description = "Retrieves all timetables")
     public ResponseEntity<ApiResponse<?>> getAllTimetables() {
         return ResponseEntity.ok(timetableUploadService.getAllTimetables());
     }
 
     @GetMapping("/history")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Get Version History", description = "Retrieves version history for a specific Timetable")
     public ResponseEntity<ApiResponse<?>> getVersionHistory(
             @RequestParam("classId") UUID classId,
@@ -96,14 +96,15 @@ public class TimetableUploadController {
 
     @GetMapping("/{versionId}/download")
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
-    @Operation(summary = "Download a specific version", description = "Downloads the PDF file for a specific version")
+    @Operation(summary = "Download a specific version", description = "Downloads the file for a specific version")
     public ResponseEntity<byte[]> downloadVersion(@PathVariable UUID versionId) {
         byte[] fileBytes = timetableUploadService.downloadVersion(versionId);
         String fileName = timetableUploadService.getFileName(versionId);
+        String mimeType = timetableUploadService.getFileMimeType(versionId);
         
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentType(MediaType.parseMediaType(mimeType));
         
         return ResponseEntity.ok()
                 .headers(headers)

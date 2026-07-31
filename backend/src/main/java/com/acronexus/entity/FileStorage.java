@@ -17,6 +17,7 @@ public class FileStorage {
     private String fileName;
     private String documentUrl;
     private String fileType;
+    private String mimeType;
     private String parsedContent;
     @JdbcTypeCode(SqlTypes.JSON)
     private String aiMetadata;

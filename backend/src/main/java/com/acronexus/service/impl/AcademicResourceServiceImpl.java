@@ -37,6 +37,8 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     private final UserRepository userRepository;
     private final AcademicSchemeRepository academicSchemeRepository;
     private final AcademicSyllabusRepository academicSyllabusRepository;
+    private final TimetableRepository timetableRepository;
+    private final TimetableSlotRepository timetableSlotRepository;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
 
@@ -44,7 +46,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
 
     @Override
     @Transactional
-    public ApiResponse<AcademicResourceDto> uploadScheme(MultipartFile file, String academicYear, String batch, String className, String semester, UUID uploadedBy) {
+    public ApiResponse<AcademicResourceDto> uploadScheme(MultipartFile file, String academicYear, String batch, String className, String semester, String schemeName, String department, String degree, String description, String eligibility, String benefits, UUID uploadedBy) {
         validatePdf(file);
         User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
 
@@ -290,6 +292,33 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         return ApiResponse.success("Syllabus uploaded successfully", mapToDto(fileStorage));
     }
 
+
+    @Override
+    @Transactional
+    public ApiResponse<AcademicResourceDto> uploadTimetable(MultipartFile file, String academicYear, String batch, String className, String department, String semester, UUID uploadedBy) {
+        validatePdf(file);
+        User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Map<String, Object> metadataMap = new HashMap<>();
+        metadataMap.put("academicYear", academicYear);
+        if (batch != null && !batch.isEmpty()) metadataMap.put("batch", batch);
+        if (className != null && !className.isEmpty()) metadataMap.put("className", className);
+        if (department != null && !department.isEmpty()) metadataMap.put("department", department);
+        metadataMap.put("semester", semester);
+        metadataMap.put("status", "Processed");
+
+        FileStorage fileStorage = saveFile(file, user, "TIMETABLE", metadataMap);
+
+        Timetable timetable = new Timetable();
+        timetable.setBatch(batch);
+        timetable.setFile(fileStorage);
+        timetable.setUploadedBy(user);
+        
+        timetableRepository.save(timetable);
+
+        return ApiResponse.success("Timetable uploaded successfully", mapToDto(fileStorage));
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<AcademicResourceDto> getAllResources() {
@@ -302,7 +331,12 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
                 })
                 .collect(Collectors.toList());
 
-        return files.stream().map(this::mapToDto).collect(Collectors.toList());
+        List<AcademicResourceDto> dtos = files.stream().map(this::mapToDto).collect(Collectors.toList());
+
+        List<Timetable> timetables = timetableRepository.findByIsActiveTrueOrderByUploadedAtDesc();
+        dtos.addAll(timetables.stream().map(this::mapTimetableToDto).collect(Collectors.toList()));
+
+        return dtos;
     }
 
     @Override
@@ -316,7 +350,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
             Path path = Paths.get(file.getDocumentUrl());
             return Files.readAllBytes(path);
         } catch (IOException e) {
-            throw new RuntimeException("Error reading file", e);
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "File not physically found on server");
         }
     }
 
@@ -340,6 +374,14 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         java.util.Optional<com.acronexus.entity.AcademicScheme> scheme = academicSchemeRepository.findByFileStorageId(id);
         if (scheme.isPresent()) {
             academicSchemeRepository.delete(scheme.get());
+        }
+
+        if ("TIMETABLE".equals(file.getFileType())) {
+            java.util.Optional<Timetable> tt = timetableRepository.findByFileId(id);
+            if (tt.isPresent()) {
+                timetableSlotRepository.deleteByTimetableId(tt.get().getId());
+                timetableRepository.delete(tt.get());
+            }
         }
         
         try {
@@ -436,6 +478,12 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
                 metadata.put("className", scheme.getClassName());
                 metadata.put("academicYear", scheme.getAcademicYear());
                 metadata.put("semester", scheme.getSemester());
+                metadata.put("schemeName", scheme.getSchemeName());
+                metadata.put("department", scheme.getDepartment());
+                metadata.put("degree", scheme.getDegree());
+                metadata.put("description", scheme.getDescription());
+                metadata.put("eligibility", scheme.getEligibility());
+                metadata.put("benefits", scheme.getBenefits());
             });
         } else if (fs.getFileType().equals("SYLLABUS")) {
             academicSyllabusRepository.findByFileStorageId(fs.getId()).ifPresent(syllabus -> {
@@ -474,5 +522,30 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
                 .uploadedAt(fs.getUploadedAt())
                 .metadata(metadata)
                 .build();
+    }
+private AcademicResourceDto mapTimetableToDto(Timetable timetable) {
+        AcademicResourceDto dto = mapToDto(timetable.getFile());
+        if (dto.getMetadata() == null) {
+            dto.setMetadata(new java.util.HashMap<>());
+        }
+        if (timetable.getAcademicYear() != null) {
+            dto.getMetadata().put("academicYear", timetable.getAcademicYear().getYear());
+        }
+        if (timetable.getSemester() != null) {
+            dto.getMetadata().put("semester", String.valueOf(timetable.getSemester().getSemesterNumber()));
+        }
+        if (timetable.getAcroClass() != null) {
+            dto.getMetadata().put("className", timetable.getAcroClass().getName());
+            if (timetable.getAcroClass().getDepartment() != null) {
+                dto.getMetadata().put("department", timetable.getAcroClass().getDepartment().getName());
+            }
+            if (timetable.getAcroClass().getDegreeProgram() != null) {
+                dto.getMetadata().put("degree", timetable.getAcroClass().getDegreeProgram().getName());
+            }
+        }
+        if (timetable.getBatch() != null) {
+            dto.getMetadata().put("batch", timetable.getBatch());
+        }
+        return dto;
     }
 }
