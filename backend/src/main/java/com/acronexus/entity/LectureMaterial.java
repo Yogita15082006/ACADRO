@@ -40,4 +40,34 @@ public class LectureMaterial {
     @org.hibernate.annotations.CreationTimestamp
     private java.time.Instant uploadedAt;
 
+    @Column(length = 255)
+    private String unit;
+
+    @Column(length = 255)
+    private String department;
+
+    @Column(length = 100)
+    private String batch;
+
+    @Column(length = 50)
+    private String year;
+
+    @Column(length = 50)
+    private String semester;
+
+    @Column(length = 100)
+    private String className;
+
+    @Column(length = 255)
+    private String facultyName;
+
+    @Column(length = 255)
+    private String fileName;
+
+    @Column(length = 1000)
+    private String fileUrl;
+
+    @org.hibernate.annotations.UpdateTimestamp
+    private java.time.Instant updatedAt;
+
 }

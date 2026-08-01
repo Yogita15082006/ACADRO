@@ -20,4 +20,11 @@ public interface LectureMaterialService {
     // AI Insights
     com.acronexus.dto.ai.AiInsightDto generateStudyGuide(UUID materialId, String token);
     com.acronexus.dto.ai.AiInsightDto summarizeMaterial(UUID materialId, String token);
+
+    // Subject Card Module APIs
+    List<LectureMaterialResponseDto> getSubjectMaterials(UUID classSubjectId, com.acronexus.security.UserDetailsImpl userDetails);
+    LectureMaterialResponseDto uploadSubjectMaterial(UUID classSubjectId, org.springframework.web.multipart.MultipartFile file, String title, String unit, Integer unitNumber, com.acronexus.security.UserDetailsImpl userDetails);
+    void deleteSubjectMaterial(UUID materialId, com.acronexus.security.UserDetailsImpl userDetails, String token);
+    byte[] downloadMaterialFile(UUID materialId);
+    String getMaterialFileName(UUID materialId);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Users, BookOpen, Plus, FileText, Calendar, Bell, ClipboardList, CheckCircle2, TrendingUp, MessageSquare, Upload, File, ArrowLeft, ClipboardCheck, Eye, Sparkles } from 'lucide-react';
+import { Users, BookOpen, Plus, FileText, Calendar, Bell, ClipboardList, CheckCircle2, TrendingUp, MessageSquare, Upload, File, ArrowLeft, ClipboardCheck, Eye, Sparkles, Trash2, Download, Image as ImageIcon } from 'lucide-react';
 import { AssignmentModule } from './AssignmentModule';
 import { QuizModule } from './QuizModule';
 import { SubjectAttendancePanel } from './SubjectAttendancePanel';
@@ -17,7 +17,7 @@ import { SubjectAnalyticsPanel } from './SubjectAnalyticsPanel';
 import { SubjectSyllabusView } from './SubjectSyllabusView';
 
 export const ClassesModule = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
 
@@ -52,6 +52,253 @@ export const ClassesModule = () => {
   const [isPostAnnouncementOpen, setIsPostAnnouncementOpen] = useState(false);
   const [isUploadMaterialOpen, setIsUploadMaterialOpen] = useState(false);
   const visibleWorkspaces = workspaces;
+
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementContent, setAnnouncementContent] = useState('');
+  const [announcementPriority, setAnnouncementPriority] = useState('Normal');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const fetchAnnouncements = async (silent = false) => {
+    if (!activeWorkspace) return;
+    try {
+      if (!silent) setLoadingAnnouncements(true);
+      const res = await api.get(`/v1/subject-announcements/subject/${activeWorkspace}`);
+      if (res.data && res.data.data) {
+        setAnnouncements(res.data.data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch subject announcements', e);
+      if (!silent) setAnnouncements([]);
+    } finally {
+      if (!silent) setLoadingAnnouncements(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeWorkspace && activeTab === 'announcements') {
+      fetchAnnouncements();
+      const interval = setInterval(() => {
+        fetchAnnouncements(true);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeWorkspace, activeTab]);
+
+  const handlePostAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementContent.trim()) {
+      alert("Please fill in both title and content for the announcement.");
+      return;
+    }
+    try {
+      const payload = {
+        title: announcementTitle,
+        message: announcementContent,
+        priority: announcementPriority
+      };
+      await api.post(`/v1/subject-announcements/subject/${activeWorkspace}`, payload);
+      setAnnouncementTitle('');
+      setAnnouncementContent('');
+      setAnnouncementPriority('Normal');
+      setIsPostAnnouncementOpen(false);
+      fetchAnnouncements();
+    } catch (e: any) {
+      console.error('Failed to post announcement', e);
+      alert(e.response?.data?.message || "Failed to post announcement. Only the assigned faculty can post announcements.");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    try {
+      await api.delete(`/v1/subject-announcements/${deleteConfirmId}`);
+      setDeleteConfirmId(null);
+      fetchAnnouncements();
+    } catch (e: any) {
+      console.error('Failed to delete announcement', e);
+      alert(e.response?.data?.message || "Failed to delete announcement.");
+    }
+  };
+
+  const materialFileInputRef = useRef<HTMLInputElement>(null);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialUnit, setMaterialUnit] = useState('');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
+  const [deleteMaterialId, setDeleteMaterialId] = useState<string | null>(null);
+
+  const fetchMaterials = async (silent = false) => {
+    if (!activeWorkspace) return;
+    try {
+      if (!silent) setLoadingMaterials(true);
+      const res = await api.get(`/v1/lecture-materials/subject/${activeWorkspace}`);
+      if (res.data && res.data.data) {
+        setMaterials(res.data.data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch subject materials', e);
+      if (!silent) setMaterials([]);
+    } finally {
+      if (!silent) setLoadingMaterials(false);
+    }
+  };
+
+  const formatUnitLabel = (item: string) => {
+    if (!item || typeof item !== 'string') return 'General / Study Material';
+    if (item.toLowerCase().includes('general')) return 'General / Study Material';
+    const match = item.match(/(?:Unit|Module)\s*([IVXLCDM\d]+)/i);
+    if (match) {
+      const num = match[1].trim();
+      return item.trim().toLowerCase().startsWith('module') ? `Module ${num}` : `Unit ${num}`;
+    }
+    const shortPart = item.split(/[:\-,]/)[0].trim();
+    return shortPart.replace(/([a-zA-Z])(\d)/, '$1 $2') || 'General / Study Material';
+  };
+
+  const getSyllabusUnits = () => {
+    const defaultUnits = ['General / Study Material', 'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5'];
+    const ws = workspaces.find(w => w.id === activeWorkspace);
+    if (!ws) return defaultUnits;
+
+    const processList = (list: string[]) => {
+      const cleaned = list.map(formatUnitLabel);
+      const unique = Array.from(new Set(cleaned)).filter(Boolean);
+      if (unique.length > 0) {
+        if (!unique.includes('General / Study Material')) {
+          unique.unshift('General / Study Material');
+        }
+        return unique;
+      }
+      return defaultUnits;
+    };
+
+    if (ws.linkedSyllabus?.unitTitles && Array.isArray(ws.linkedSyllabus.unitTitles) && ws.linkedSyllabus.unitTitles.length > 0) {
+      return processList(ws.linkedSyllabus.unitTitles);
+    }
+    if (ws.linkedSyllabus?.rawContent) {
+      const regex = /(?:Unit|UNIT|Module|MODULE)\s*[:-]?\s*(?:[IVXLCDM\d]+)/g;
+      const matches = ws.linkedSyllabus.rawContent.match(regex);
+      if (matches && matches.length > 0) {
+        return processList(Array.from(new Set(matches)).map((m: any) => m.trim()));
+      }
+    }
+    return defaultUnits;
+  };
+
+  useEffect(() => {
+    if (activeWorkspace && activeTab === 'materials') {
+      fetchMaterials();
+      const ws = workspaces.find(w => w.id === activeWorkspace);
+      if (ws && !ws.linkedSyllabus) {
+        api.get(`/v1/class-subjects/${activeWorkspace}/syllabus`).then(res => {
+          if (res.data && res.data.data && ws) {
+            ws.linkedSyllabus = res.data.data;
+          }
+        }).catch(() => {});
+      }
+      const interval = setInterval(() => {
+        fetchMaterials(true);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeWorkspace, activeTab]);
+
+  const handleUploadMaterialSubmit = async () => {
+    if (!materialTitle.trim() || !materialFile) {
+      alert("Please enter a Document Title and select a File to upload.");
+      return;
+    }
+    try {
+      setIsUploadingMaterial(true);
+      const formData = new FormData();
+      formData.append('file', materialFile);
+      formData.append('title', materialTitle.trim());
+      const selectedUnit = materialUnit || getSyllabusUnits()[0] || "General";
+      formData.append('unit', selectedUnit);
+      
+      const unitNumMatch = selectedUnit.match(/\d+/);
+      let unitNum = 1;
+      if (unitNumMatch) {
+        unitNum = parseInt(unitNumMatch[0], 10);
+      } else if (selectedUnit.includes('II')) unitNum = 2;
+      else if (selectedUnit.includes('III')) unitNum = 3;
+      else if (selectedUnit.includes('IV')) unitNum = 4;
+      else if (selectedUnit.includes('V')) unitNum = 5;
+      formData.append('unitNumber', String(unitNum));
+
+      await api.post(`/v1/lecture-materials/subject/${activeWorkspace}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setMaterialTitle('');
+      setMaterialUnit('');
+      setMaterialFile(null);
+      setIsUploadMaterialOpen(false);
+      fetchMaterials();
+    } catch (e: any) {
+      console.error('Failed to upload lecture material', e);
+      alert(e.response?.data?.message || "Failed to upload lecture material. Only the assigned faculty can upload materials.");
+    } finally {
+      setIsUploadingMaterial(false);
+    }
+  };
+
+  const handleConfirmDeleteMaterial = async () => {
+    if (!deleteMaterialId) return;
+    try {
+      await api.delete(`/v1/lecture-materials/${deleteMaterialId}`);
+      setDeleteMaterialId(null);
+      fetchMaterials();
+    } catch (e: any) {
+      console.error('Failed to delete material', e);
+      alert(e.response?.data?.message || "Failed to delete lecture material.");
+    }
+  };
+
+  const handleViewMaterial = async (m: any) => {
+    try {
+      const endpoint = `/v1/lecture-materials/${m.id}/view`;
+      const response = await api.get(endpoint, { responseType: 'blob' });
+      let contentType = response.headers['content-type'] || 'application/pdf';
+      const fName = (m.fileName || m.title || '').toLowerCase();
+      if (fName.endsWith('.jpg') || fName.endsWith('.jpeg')) contentType = 'image/jpeg';
+      else if (fName.endsWith('.png')) contentType = 'image/png';
+      else if (fName.endsWith('.webp')) contentType = 'image/webp';
+      else if (fName.endsWith('.pdf')) contentType = 'application/pdf';
+
+      const blob = new Blob([response.data], { type: contentType });
+      const objectUrl = URL.createObjectURL(blob);
+      const newWindow = window.open(objectUrl, '_blank');
+      if (!newWindow) {
+        alert('Please allow popups to view the document');
+      }
+    } catch (err: any) {
+      console.error("Failed to load material preview:", err);
+      alert(err.response?.data?.message || "Failed to load material preview.");
+    }
+  };
+
+  const handleDownloadMaterial = async (m: any) => {
+    try {
+      const endpoint = `/v1/lecture-materials/${m.id}/download`;
+      const response = await api.get(endpoint, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = m.fileName || m.title || 'document.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err: any) {
+      console.error("Failed to download material:", err);
+      alert(err.response?.data?.message || "Failed to download file.");
+    }
+  };
 
   
   const handleDeleteWorkspace = async (id: string, e: React.MouseEvent) => {
@@ -89,8 +336,11 @@ export const ClassesModule = () => {
   if (activeWorkspace) {
     const ws = workspaces.find(w => w.id === activeWorkspace);
     if (!ws) return null;
-    
-    const wsNotices = mockData.notices.filter(n => n.classId === ws.classId && n.subjectId === ws.subjectId);
+
+    const isAssignedFaculty = role === 'faculty' && (
+      String(ws.facultyId) === String(user?.id) || 
+      (ws.facultyName && ws.facultyName === `${user?.firstName || ''} ${user?.lastName || ''}`.trim())
+    );
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300 pb-10">
@@ -148,34 +398,47 @@ export const ClassesModule = () => {
                   <h3 className="text-lg font-semibold flex items-center gap-2"><Bell className="w-5 h-5 text-amber-500" /> Announcements</h3>
                   <p className="text-sm text-muted-foreground">Stay updated with the latest news for this subject.</p>
                 </div>
-                {role !== 'student' && (
+                {isAssignedFaculty && (
                   <Button onClick={() => setIsPostAnnouncementOpen(true)} className="shadow-sm">
                     <MessageSquare className="w-4 h-4 mr-2" /> Post Announcement
                   </Button>
                 )}
               </div>
               <div className="space-y-4">
-                {wsNotices.length > 0 ? wsNotices.map((n, idx) => (
+                {announcements.length > 0 ? announcements.map((n, idx) => (
                   <Card key={idx} className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="py-4 bg-muted/20 border-b border-border/50">
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm">
-                            {n.postedBy.substring(0, 1)}
+                            {(n.postedBy || n.facultyName || 'F').substring(0, 1)}
                           </div>
                           <div>
-                            <CardTitle className="text-base">{n.postedBy}</CardTitle>
+                            <CardTitle className="text-base">{n.postedBy || n.facultyName}</CardTitle>
                             <CardDescription className="flex items-center gap-2 mt-0.5">
-                              <Calendar className="w-3.5 h-3.5" /> {n.publishDate}
+                              <Calendar className="w-3.5 h-3.5" /> {n.publishDate || 'Just now'}
                             </CardDescription>
                           </div>
                         </div>
-                        <Badge variant="outline" className={`${n.priority === 'Urgent' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' : n.priority === 'High' ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' : ''}`}>{n.priority}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`${n.priority === 'Urgent' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' : n.priority === 'Important' || n.priority === 'High' ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' : ''}`}>{n.priority}</Badge>
+                          {(isAssignedFaculty && (!n.facultyId || String(n.facultyId) === String(user?.id))) && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                              onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(n.id); }}
+                              title="Delete Announcement"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-4">
                       <h4 className="text-base font-semibold text-foreground">{n.title}</h4>
-                      <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{n.description}</p>
+                      <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{n.description || n.message}</p>
                       {n.attachments && n.attachments.length > 0 && (
                         <div className="mt-4 flex flex-wrap gap-2">
                           {n.attachments.map((att: any, i: number) => (
@@ -205,39 +468,66 @@ export const ClassesModule = () => {
                   <h3 className="text-lg font-semibold flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-500" /> Lecture Materials</h3>
                   <p className="text-sm text-muted-foreground">Access and organize subject resources.</p>
                 </div>
-                {role !== 'student' && (
+                {role === 'faculty' && (
                   <Button onClick={() => setIsUploadMaterialOpen(true)} className="shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white">
                     <Upload className="w-4 h-4 mr-2" /> Upload Material
                   </Button>
                 )}
               </div>
               
-              <div className="space-y-6">
-                {[1, 2, 3].map(unit => (
-                  <div key={unit} className="space-y-3">
-                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pl-1">Unit {unit} Materials</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {[1, 2].map(m => (
-                        <Card key={`${unit}-${m}`} className="border border-border/50 shadow-sm hover:shadow-md transition-all group cursor-pointer">
-                          <CardContent className="p-4 flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                              <File className="w-6 h-6" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-sm text-foreground truncate">Ch{unit}_Lecture{m}_Slides.pdf</h4>
-                              <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-2">
-                                <span>Uploaded {m * 2} days ago</span>
-                                <span>•</span>
-                                <span>{(Math.random() * 5 + 1).toFixed(1)} MB</span>
-                              </p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {loadingMaterials ? (
+                <div className="py-12 text-center text-muted-foreground">Loading lecture materials...</div>
+              ) : materials.length === 0 ? (
+                <div className="py-12 text-center bg-card rounded-xl border border-border/50 text-muted-foreground">
+                  No lecture materials uploaded for this subject yet.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Array.from(new Set(materials.map(m => formatUnitLabel(m.unit || (m.unitNumber ? `Unit ${m.unitNumber}` : 'General'))))).map(unitName => {
+                    const unitMaterials = materials.filter(m => formatUnitLabel(m.unit || (m.unitNumber ? `Unit ${m.unitNumber}` : 'General')) === unitName);
+                    return (
+                      <div key={String(unitName)} className="space-y-3">
+                        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pl-1">{String(unitName)} Materials</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {unitMaterials.map(m => (
+                            <Card key={m.id} className="border border-border/50 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                              <CardContent className="p-4 flex flex-col justify-between gap-4 h-full">
+                                <div className="flex items-start gap-4">
+                                  <div className="w-12 h-12 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                    {(m.fileName || '').toLowerCase().match(/\.(jpg|jpeg|png|webp)$/) ? <ImageIcon className="w-6 h-6" /> : <File className="w-6 h-6" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-sm text-foreground truncate" title={m.title}>{m.title}</h4>
+                                    <p className="text-xs font-medium text-indigo-600 truncate mt-0.5" title={m.fileName || 'document.pdf'}>{m.fileName || 'document.pdf'}</p>
+                                    <p className="text-xs text-muted-foreground mt-1.5 flex flex-wrap items-center gap-1.5">
+                                      <span>By {m.facultyName || m.uploadedByName || 'Assigned Faculty'}</span>
+                                      <span>•</span>
+                                      <span>{m.uploadedAt ? new Date(m.uploadedAt).toLocaleDateString() : 'Recently'}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+                                  <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs font-medium gap-1.5" onClick={() => handleViewMaterial(m)}>
+                                    <Eye className="w-3.5 h-3.5" /> View
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs font-medium gap-1.5" onClick={() => handleDownloadMaterial(m)}>
+                                    <Download className="w-3.5 h-3.5" /> Download
+                                  </Button>
+                                  {role === 'faculty' && (
+                                    <Button size="sm" variant="destructive" className="h-8 px-2.5 text-xs font-medium gap-1.5" onClick={() => setDeleteMaterialId(m.id)}>
+                                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                                    </Button>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -267,40 +557,43 @@ export const ClassesModule = () => {
         </div>
 
         {/* Upload Material Modal */}
-        <Dialog open={isUploadMaterialOpen} onOpenChange={setIsUploadMaterialOpen}>
+        <Dialog open={isUploadMaterialOpen} onOpenChange={(open) => { setIsUploadMaterialOpen(open); if (!open) { setMaterialTitle(''); setMaterialUnit(''); setMaterialFile(null); } }}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Upload Lecture Material</DialogTitle>
-              <DialogDescription>Share PDF, PPT, or links with the students.</DialogDescription>
+              <DialogDescription>Share documents (PDF, DOC, PPT) or images (JPG, PNG, WEBP) with students.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Document Title</Label>
-                <Input placeholder="e.g. Unit 1 Complete Notes" />
+                <Input placeholder="e.g. Unit 1 Complete Notes" value={materialTitle} onChange={(e) => setMaterialTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Select Unit/Topic</Label>
-                <Select defaultValue="1">
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select value={materialUnit} onValueChange={setMaterialUnit}>
+                  <SelectTrigger><SelectValue placeholder="Select unit..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Unit 1</SelectItem>
-                    <SelectItem value="2">Unit 2</SelectItem>
-                    <SelectItem value="3">Unit 3</SelectItem>
+                    {getSyllabusUnits().map((unit, idx) => (
+                      <SelectItem key={idx} value={unit}>{unit}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Upload File</Label>
-                <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer">
+                <input type="file" ref={materialFileInputRef} accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.webp" onChange={(e) => setMaterialFile(e.target.files?.[0] || null)} className="hidden" />
+                <div onClick={() => materialFileInputRef.current?.click()} className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer">
                   <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium text-foreground">Click to upload or drag and drop</p>
-                  <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, PPTX up to 10MB</p>
+                  <p className="text-sm font-medium text-foreground">{materialFile ? materialFile.name : "Click to upload or drag and drop"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, DOC, PPT, JPG, PNG, WEBP up to 10MB</p>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsUploadMaterialOpen(false)}>Cancel</Button>
-              <Button onClick={() => setIsUploadMaterialOpen(false)} className="bg-indigo-600 hover:bg-indigo-700 text-white">Upload Material</Button>
+              <Button variant="outline" onClick={() => { setIsUploadMaterialOpen(false); setMaterialTitle(''); setMaterialUnit(''); setMaterialFile(null); }}>Cancel</Button>
+              <Button onClick={handleUploadMaterialSubmit} disabled={isUploadingMaterial} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                {isUploadingMaterial ? "Uploading..." : "Upload Material"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -315,11 +608,11 @@ export const ClassesModule = () => {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Announcement Title</Label>
-                <Input placeholder="Enter title..." />
+                <Input placeholder="Enter title..." value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Priority</Label>
-                <Select defaultValue="Normal">
+                <Select value={announcementPriority} onValueChange={setAnnouncementPriority}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Normal">Normal</SelectItem>
@@ -333,12 +626,46 @@ export const ClassesModule = () => {
                 <textarea 
                   className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Type your message here..." 
+                  value={announcementContent}
+                  onChange={(e) => setAnnouncementContent(e.target.value)}
                 />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsPostAnnouncementOpen(false)}>Cancel</Button>
-              <Button onClick={() => setIsPostAnnouncementOpen(false)}>Post Announcement</Button>
+              <Button onClick={handlePostAnnouncement}>Post Announcement</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Announcement Confirmation Modal */}
+        <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete Announcement</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this announcement? This action cannot be undone and will remove the announcement for all students immediately.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleConfirmDelete}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Material Confirmation Modal */}
+        <Dialog open={!!deleteMaterialId} onOpenChange={(open) => !open && setDeleteMaterialId(null)}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete Lecture Material</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this lecture material? It will be immediately removed from both faculty and student views. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteMaterialId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleConfirmDeleteMaterial}>Delete</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

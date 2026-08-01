@@ -22,4 +22,14 @@ public class LectureMaterialResponseDto {
     private String fileName;
     private String uploadedByName;
     private Instant uploadedAt;
+
+    private String unit;
+    private String department;
+    private String batch;
+    private String year;
+    private String semester;
+    private String className;
+    private String facultyName;
+    private Instant updatedAt;
+    private Boolean isDeleted;
 }

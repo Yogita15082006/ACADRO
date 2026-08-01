@@ -33,4 +33,7 @@ public interface LectureMaterialRepository extends JpaRepository<LectureMaterial
 
     @Query("SELECT COUNT(lm) FROM LectureMaterial lm WHERE lm.isDeleted = false AND lm.isActive = true AND lm.classSubject.acroClass.department.id = :departmentId")
     long countByDepartmentId(@Param("departmentId") UUID departmentId);
+
+    @Query("SELECT lm FROM LectureMaterial lm LEFT JOIN FETCH lm.file LEFT JOIN FETCH lm.classSubject cs LEFT JOIN FETCH cs.subject LEFT JOIN FETCH cs.acroClass LEFT JOIN FETCH lm.uploadedBy WHERE lm.classSubject.id = :classSubjectId AND lm.isDeleted = false ORDER BY lm.uploadedAt DESC")
+    List<LectureMaterial> findByClassSubjectIdAndIsDeletedFalse(@Param("classSubjectId") UUID classSubjectId);
 }

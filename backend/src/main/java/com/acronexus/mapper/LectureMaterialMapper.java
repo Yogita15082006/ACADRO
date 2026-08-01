@@ -53,6 +53,22 @@ public class LectureMaterialMapper {
         
         dto.setUploadedAt(entity.getUploadedAt());
         
+        dto.setUnit(entity.getUnit() != null ? entity.getUnit() : (entity.getUnitNumber() != null ? "Unit " + entity.getUnitNumber() : "General"));
+        dto.setDepartment(entity.getDepartment());
+        dto.setBatch(entity.getBatch());
+        dto.setYear(entity.getYear());
+        dto.setSemester(entity.getSemester());
+        dto.setClassName(entity.getClassName() != null ? entity.getClassName() : dto.getAcroClassName());
+        dto.setFacultyName(entity.getFacultyName() != null ? entity.getFacultyName() : dto.getUploadedByName());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setIsDeleted(entity.getIsDeleted());
+        if (entity.getFileName() != null && !entity.getFileName().isEmpty()) {
+            dto.setFileName(entity.getFileName());
+        }
+        if (entity.getFileUrl() != null && !entity.getFileUrl().isEmpty()) {
+            dto.setDocumentUrl(entity.getFileUrl());
+        }
+        
         return dto;
     }
 }
