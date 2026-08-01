@@ -28,7 +28,7 @@ public class AcademicResourceController {
     private final AcademicResourceService service;
 
     @PostMapping(value = "/scheme", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Upload Academic Scheme", description = "Uploads a Scheme PDF file. Requires ADMIN or HOD role.")
     public ResponseEntity<ApiResponse<AcademicResourceDto>> uploadScheme(
             @Parameter(description = "Scheme PDF file", required = true)
@@ -49,7 +49,7 @@ public class AcademicResourceController {
     }
 
     @PostMapping(value = "/syllabus", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Upload Academic Syllabus", description = "Uploads a Syllabus PDF file. Requires ADMIN or HOD role.")
     public ResponseEntity<ApiResponse<AcademicResourceDto>> uploadSyllabus(
             @Parameter(description = "Syllabus PDF file", required = true)
@@ -67,7 +67,7 @@ public class AcademicResourceController {
 
 
     @PostMapping(value = "/timetable", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     @Operation(summary = "Upload Timetable", description = "Uploads a Timetable PDF file. Requires ADMIN, HOD, or COORDINATOR role.")
     public ResponseEntity<ApiResponse<AcademicResourceDto>> uploadTimetable(
             @Parameter(description = "Timetable PDF file", required = true)
@@ -83,14 +83,14 @@ public class AcademicResourceController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR', 'STUDENT')")
     @Operation(summary = "Get All Academic Resources", description = "Retrieves all Scheme and Syllabus documents")
     public ResponseEntity<ApiResponse<List<AcademicResourceDto>>> getAllResources() {
         return ResponseEntity.ok(ApiResponse.success("Academic resources retrieved", service.getAllResources()));
     }
 
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR', 'STUDENT')")
     @Operation(summary = "Download Academic Resource", description = "Downloads a Scheme or Syllabus document")
     public ResponseEntity<byte[]> downloadResource(@PathVariable UUID id) {
         byte[] fileBytes = service.downloadResource(id);
@@ -98,7 +98,20 @@ public class AcademicResourceController {
         
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"");
-        headers.setContentType(MediaType.APPLICATION_PDF);
+        String mimeType = "application/pdf";
+        if (fileName != null) {
+            String lower = fileName.toLowerCase();
+            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+                mimeType = "image/jpeg";
+            } else if (lower.endsWith(".png")) {
+                mimeType = "image/png";
+            } else if (lower.endsWith(".csv")) {
+                mimeType = "text/csv";
+            } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+                mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            }
+        }
+        headers.setContentType(MediaType.parseMediaType(mimeType));
         
         return ResponseEntity.ok()
                 .headers(headers)
@@ -106,7 +119,7 @@ public class AcademicResourceController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     @Operation(summary = "Delete Academic Resource", description = "Deletes a Scheme or Syllabus document")
     public ResponseEntity<ApiResponse<Void>> deleteResource(@PathVariable UUID id) {
         service.deleteResource(id);

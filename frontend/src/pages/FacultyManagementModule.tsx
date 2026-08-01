@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -13,6 +13,7 @@ import { Users, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search,
 import { Label } from '../components/ui/label';
 
 import { ChevronLeft } from 'lucide-react';
+import { AcademicResourceDialog } from '../components/modals/AcademicResourceDialog';
 
 type Tab = 'faculty-coordinators' | 'syllabus' | 'scheme' | 'timetable';
 
@@ -161,124 +162,6 @@ const MakeCoordinatorDialog = ({ open, faculty, onClose, onSave }: any) => {
   );
 };
 
-const AcademicResourceDialog = ({ open, type, onClose, onUpload }: any) => {
-  const [data, setData] = useState({ department: '', degree: '', batch: '', year: '', semester: '', className: '', remarks: '' });
-  const [file, setFile] = useState<File | null>(null);
-
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [degrees, setDegrees] = useState<string[]>([]);
-  const [batches, setBatches] = useState<string[]>([]);
-  const [years, setYears] = useState<string[]>([]);
-  const [semesters, setSemesters] = useState<string[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (open) {
-      setData({ department: '', degree: '', batch: '', year: '', semester: '', className: '', remarks: '' });
-      setFile(null);
-      api.get('/v1/metadata/departments').then(res => setDepartments(res.data.data || []));
-      api.get('/v1/metadata/degrees').then(res => setDegrees(res.data.data || []));
-      api.get('/v1/metadata/batches').then(res => setBatches(res.data.data || []));
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (data.batch) {
-      api.get(`/v1/metadata/academic-years?batch=${data.batch}`).then(res => setYears(res.data.data || []));
-    } else { setYears([]); setSemesters([]); setClasses([]); }
-  }, [data.batch]);
-
-  useEffect(() => {
-    if (data.year) {
-      api.get(`/v1/metadata/semesters?year=${data.year}`).then(res => setSemesters(res.data.data || []));
-    } else { setSemesters([]); setClasses([]); }
-  }, [data.year]);
-
-  useEffect(() => {
-    if (data.batch && data.semester) {
-      api.get(`/v1/metadata/classes?batch=${data.batch}&semester=${data.semester}`).then(res => setClasses(res.data.data || []));
-    } else { setClasses([]); }
-  }, [data.batch, data.semester]);
-
-  if (!open) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Upload size={18} className="text-primary" /> Upload {type.charAt(0).toUpperCase() + type.slice(1)}</DialogTitle>
-          <DialogDescription>Upload the official PDF document. AI will automatically extract the structure if applicable.</DialogDescription>
-        </DialogHeader>
-        
-        <div className="grid grid-cols-2 gap-4 py-4">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Department</label>
-            <select value={data.department} onChange={e => setData({...data, department: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-              <option value="">Select</option>
-              {departments.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Degree Program</label>
-            <select value={data.degree} onChange={e => setData({...data, degree: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-              <option value="">Select</option>
-              {degrees.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Batch</label>
-            <select value={data.batch} onChange={e => setData({...data, batch: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-              <option value="">Select</option>
-              {batches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Year</label>
-            <select value={data.year} onChange={e => setData({...data, year: e.target.value})} disabled={!data.batch} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
-              <option value="">Select</option>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Semester</label>
-            <select value={data.semester} onChange={e => setData({...data, semester: e.target.value})} disabled={!data.year} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
-              <option value="">Select</option>
-              {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Class</label>
-            <select value={data.className} onChange={e => setData({...data, className: e.target.value})} disabled={!data.semester} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
-              <option value="">Select</option>
-              {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          
-          <div className="col-span-2">
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">{type === 'syllabus' ? 'Syllabus PDF' : (type === 'timetable' ? 'Timetable Document (PDF/Image)' : 'Scheme PDF')}</label>
-            <div className="border-2 border-dashed border-border rounded-lg p-6 bg-muted/20 flex flex-col items-center justify-center relative cursor-pointer hover:bg-muted/40 transition-colors">
-              <Upload size={24} className="text-muted-foreground mb-2" />
-              <p className="text-sm font-medium">{file ? file.name : "Drag & drop or click to browse"}</p>
-              <input type="file" accept={type === 'timetable' ? ".pdf,.jpg,.jpeg,.png" : ".pdf"} className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files && setFile(e.target.files[0])} />
-            </div>
-          </div>
-          
-          <div className="col-span-2">
-            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Remarks</label>
-            <Input placeholder="Optional remarks..." value={data.remarks} onChange={e => setData({...data, remarks: e.target.value})} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button disabled={!file} onClick={() => onUpload(type, data, file)}>{type === 'syllabus' ? 'Confirm Upload' : 'Upload & Extract AI'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
 export const FacultyManagementModule = () => {
 
   const navigate = useNavigate();
@@ -300,7 +183,6 @@ export const FacultyManagementModule = () => {
 
   const [localSyllabus, setLocalSyllabus] = useState<any[]>([]);
   const [localSchemes, setLocalSchemes] = useState<any[]>([]);
-  const [uploadingContext, setUploadingContext] = useState<any>(null);
 
   const fetchAcademicResources = async () => {
     try {
@@ -314,23 +196,189 @@ export const FacultyManagementModule = () => {
     }
   };
 
-  const handleViewPdf = async (url: string) => {
+  const handleViewPdf = async (url: string, providedFileName?: string) => {
     if (!url) return;
     const newWindow = window.open('', '_blank');
     if (!newWindow) {
-      toast.error('Please allow popups to view the PDF');
+      toast.error('Please allow popups to view the file');
       return;
     }
-    newWindow.document.write('Loading PDF...');
+    newWindow.document.write('Loading document preview...');
     try {
       const endpoint = url.startsWith('/api') ? url.substring(4) : url;
       const response = await api.get(endpoint, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const objectUrl = URL.createObjectURL(blob);
-      newWindow.location.href = objectUrl;
+      
+      const contentType = response.headers['content-type'] || response.data?.type || '';
+      const contentDisposition = response.headers['content-disposition'] || '';
+      let detectedName = providedFileName || '';
+      if (!detectedName && contentDisposition.includes('filename=')) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) detectedName = match[1];
+      }
+      
+      const lowerName = detectedName.toLowerCase();
+      const isImage = contentType.includes('image/') || 
+                      lowerName.endsWith('.jpg') || 
+                      lowerName.endsWith('.jpeg') || 
+                      lowerName.endsWith('.png') ||
+                      url.toLowerCase().endsWith('.jpg') ||
+                      url.toLowerCase().endsWith('.jpeg') ||
+                      url.toLowerCase().endsWith('.png');
+
+      if (isImage) {
+        let imageMime = 'image/jpeg';
+        if (lowerName.endsWith('.png') || contentType.includes('png')) {
+          imageMime = 'image/png';
+        }
+        const blob = new Blob([response.data], { type: imageMime });
+        const objectUrl = URL.createObjectURL(blob);
+        
+        newWindow.document.open();
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${detectedName || 'Image Preview'}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                margin: 0;
+                padding: 0;
+                background-color: #0f172a;
+                color: #f8fafc;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                min-height: 100vh;
+                box-sizing: border-box;
+                overflow-x: auto;
+                overflow-y: auto;
+              }
+              .header {
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                background-color: #1e293b;
+                border-bottom: 1px solid #334155;
+                padding: 12px 24px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+              }
+              .title {
+                font-weight: 600;
+                font-size: 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              .badge {
+                background-color: #3b82f6;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 11px;
+                text-transform: uppercase;
+                font-weight: 700;
+              }
+              .viewer-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 24px;
+                width: 100%;
+                box-sizing: border-box;
+              }
+              .image-wrapper {
+                width: 100%;
+                max-width: 100%;
+                display: flex;
+                justify-content: center;
+              }
+              img {
+                width: 100%;
+                height: auto;
+                object-fit: contain;
+                border-radius: 6px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+                display: none;
+                background-color: #1e293b;
+              }
+              .loading-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 60px 20px;
+                color: #94a3b8;
+              }
+              .spinner {
+                border: 3px solid rgba(255, 255, 255, 0.1);
+                border-top: 3px solid #3b82f6;
+                border-radius: 50%;
+                width: 32px;
+                height: 32px;
+                animation: spin 1s linear infinite;
+                margin-bottom: 16px;
+              }
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              .error-state {
+                display: none;
+                background-color: rgba(239, 68, 68, 0.1);
+                border: 1px solid #ef4444;
+                border-radius: 8px;
+                padding: 24px 32px;
+                color: #fca5a5;
+                max-width: 500px;
+                text-align: center;
+                margin: 40px auto;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="title">
+                <span>🖼️ ${detectedName || 'Uploaded Timetable Image'}</span>
+              </div>
+              <span class="badge">Image Preview</span>
+            </div>
+            <div class="viewer-container">
+              <div id="loading" class="loading-state">
+                <div class="spinner"></div>
+                <span>Loading high-resolution image...</span>
+              </div>
+              <div id="error" class="error-state">
+                <h3 style="margin-top: 0; color: #ef4444;">Failed to Load Image</h3>
+                <p style="margin-bottom: 0; font-size: 14px;">The image file genuinely cannot be loaded. It may be corrupted or inaccessible.</p>
+              </div>
+              <div class="image-wrapper">
+                <img 
+                  id="target-image" 
+                  src="${objectUrl}" 
+                  alt="${detectedName || 'Timetable Preview'}"
+                  onload="document.getElementById('loading').style.display='none'; this.style.display='block';"
+                  onerror="document.getElementById('loading').style.display='none'; document.getElementById('error').style.display='block';"
+                />
+              </div>
+            </div>
+          </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } else {
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const objectUrl = URL.createObjectURL(blob);
+        newWindow.location.href = objectUrl;
+      }
     } catch (error) {
       newWindow.close();
-      toast.error('Failed to load PDF');
+      toast.error('Failed to load document');
     }
   };
 
@@ -392,21 +440,6 @@ export const FacultyManagementModule = () => {
     return localFaculty.filter(f => f.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q));
   }, [localFaculty, search]);
 
-  const handleAssignmentAction = (ttId: string, id: string, action: 'Approved' | 'Rejected') => {
-    setTtAssignments(prev => {
-      const arr = prev[ttId] || [];
-      return { ...prev, [ttId]: arr.map(a => a.id === id ? { ...a, status: action } : a) };
-    });
-    toast.success(`Assignment ${action.toLowerCase()}`);
-  };
-  const handleApproveAll = (ttId: string) => {
-    setTtAssignments(prev => {
-      const arr = prev[ttId] || [];
-      return { ...prev, [ttId]: arr.map(a => ({ ...a, status: 'Approved' })) };
-    });
-    setFinalConfirmOpen(ttId);
-  };
-
   const handleDeleteSyllabus = async () => {
     if (!syllabusToDelete) return;
     try {
@@ -431,16 +464,6 @@ export const FacultyManagementModule = () => {
     } finally {
       setSchemeToDelete(null);
     }
-  };
-
-
-
-  const handleRejectAll = (ttId: string) => {
-    setTtAssignments(prev => {
-      const arr = prev[ttId] || [];
-      return { ...prev, [ttId]: arr.map(a => ({ ...a, status: 'Rejected' })) };
-    });
-    toast.success('All assignments rejected.');
   };
 
   const handleFinalConfirm = () => {
@@ -567,8 +590,10 @@ export const FacultyManagementModule = () => {
       }
     } else if (type === 'timetable') {
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Invalid file type. Please upload a PDF, JPG, or PNG.');
+      const fileName = file.name ? file.name.toLowerCase() : '';
+      const validExt = fileName.endsWith('.pdf') || fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg');
+      if (!allowedTypes.includes(file.type) && !validExt) {
+        toast.error('Invalid file type. Please upload a PDF, PNG, JPG, or JPEG file.');
         setIsUploading(false);
         return;
       }
@@ -722,15 +747,29 @@ export const FacultyManagementModule = () => {
       return;
     }
     
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    const fileName = file.name ? file.name.toLowerCase() : '';
+    const validExt = fileName.endsWith('.pdf') || fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg');
+    if (!allowedTypes.includes(file.type) && !validExt) {
+      toast.error('Unsupported file format. Please upload a PDF, PNG, JPG, or JPEG file.');
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(50);
     const formData = new FormData();
+    const dept = existingTt.metadata?.department || existingTt.department || 'Computer Science & Engineering';
+    const cls = existingTt.metadata?.className || existingTt.className || 'CS-1';
+    const batch = existingTt.metadata?.batch || existingTt.batch || '';
+    const sem = existingTt.metadata?.semester || existingTt.semester || '1';
+    const yr = existingTt.metadata?.academicYear || existingTt.academicYear || '1';
+
     formData.append('file', file);
-    formData.append('academicYear', existingTt.metadata?.academicYear || '1');
-    if (existingTt.metadata?.batch) formData.append('batchName', existingTt.metadata.batch);
-    if (existingTt.metadata?.className) formData.append('className', existingTt.metadata.className);
-    if (existingTt.metadata?.department) formData.append('departmentName', existingTt.metadata.department);
-    formData.append('semesterName', existingTt.metadata?.semester || '1');
+    formData.append('academicYear', yr);
+    if (batch) formData.append('batchName', batch);
+    formData.append('className', cls);
+    formData.append('departmentName', dept);
+    formData.append('semesterName', sem);
     
     try {
       await api.post(`/v1/timetables/${replaceId}/replace`, formData, {
@@ -739,8 +778,10 @@ export const FacultyManagementModule = () => {
       toast.success('Timetable replaced successfully.');
       setUploadDialog({ isOpen: false, type: null });
       fetchAcademicResources();
-    } catch(e) {
-      toast.error('Failed to replace timetable');
+    } catch(e: any) {
+      const msg = e.response?.data?.message || e.message || 'Failed to replace timetable';
+      console.error("Timetable replacement failed:", e);
+      toast.error(`Error: ${msg}`);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -1283,7 +1324,7 @@ export const FacultyManagementModule = () => {
                           {(s.metadata?.status || s.status) === 'Processed' && <CheckCircle size={12} className="mr-1" />}{(s.metadata?.status || s.status || 'Processed')}
                         </Badge>
                         <div className="flex gap-2 mt-2">
-                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => s.documentUrl ? handleViewPdf(s.documentUrl) : toast.error('PDF not available')}>
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => s.documentUrl ? handleViewPdf(s.documentUrl, s.fileName || s.title || s.name) : toast.error('Document not available')}>
                             <Eye size={14} className="mr-1" /> View
                           </Button>
                           <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => setSyllabusToDelete(s.id)}>
@@ -1357,7 +1398,7 @@ export const FacultyManagementModule = () => {
                         {(s.metadata?.status || s.status) === 'Processed' && <CheckCircle size={12} className="mr-1" />}{(s.metadata?.status || s.status || 'Processed')}
                       </Badge>
                       <div className="flex gap-2 mt-2">
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => s.documentUrl ? handleViewPdf(s.documentUrl) : toast.error('PDF not available')}>
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => s.documentUrl ? handleViewPdf(s.documentUrl, s.fileName || s.title || s.name) : toast.error('Document not available')}>
                           <Eye size={14} className="mr-1" /> View
                         </Button>
                         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setUploadDialog({ isOpen: true, type: 'scheme', replaceId: s.id })}>
@@ -1430,7 +1471,7 @@ export const FacultyManagementModule = () => {
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleViewPdf(tt.documentUrl)}>
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => handleViewPdf(tt.documentUrl, tt.fileName || tt.name)}>
                           <Eye size={14} /> View
                         </Button>
                         <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => setUploadDialog({ isOpen: true, type: 'timetable', replaceId: tt.id })}>
@@ -1569,10 +1610,12 @@ export const FacultyManagementModule = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 capitalize">
               <FileUp size={18} className="text-primary" /> 
-              Upload {uploadDialog.type}
+              {uploadDialog.replaceId ? 'Replace' : 'Upload'} {uploadDialog.type}
             </DialogTitle>
             <DialogDescription>
-              Select a .csv, .xlsx, or .pdf file to upload.
+              {uploadDialog.type === 'timetable'
+                ? `Select a .pdf, .png, .jpg, or .jpeg file to ${uploadDialog.replaceId ? 'replace' : 'upload'}.`
+                : 'Select a .csv, .xlsx, or .pdf file to upload.'}
             </DialogDescription>
           </DialogHeader>
           <div className="py-6 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/20">
@@ -1591,10 +1634,10 @@ export const FacultyManagementModule = () => {
                 <Upload size={32} className="text-muted-foreground mb-3" />
                 <p className="text-sm font-medium">Drag & drop or click to browse</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {uploadDialog.type === 'timetable' ? 'Supports PDF, JPG, PNG (Max 10MB)' : 'Supports PDF, XLSX, CSV (Max 10MB)'}
+                  {uploadDialog.type === 'timetable' ? 'Supports PDF, PNG, JPG, JPEG (Max 10MB)' : 'Supports PDF, XLSX, CSV (Max 10MB)'}
                 </p>
                 <input type="file" 
-                  accept={uploadDialog.type === 'timetable' ? '.pdf,.jpg,.jpeg,.png' : '.xlsx,.csv,.pdf'}
+                  accept={uploadDialog.type === 'timetable' ? '.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg,image/jpg' : '.xlsx,.csv,.pdf'}
                   className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     if (uploadDialog.type === 'timetable' && uploadDialog.replaceId) {
@@ -1954,7 +1997,7 @@ export const FacultyManagementModule = () => {
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                     Faculty Upload Review
                   </h2>
-                  <p className="text-sm text-muted-foreground">{uploadingContext?.file?.name || uploadFile?.name || 'document.pdf'}</p>
+                  <p className="text-sm text-muted-foreground">{uploadFile?.name || 'document.pdf'}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">

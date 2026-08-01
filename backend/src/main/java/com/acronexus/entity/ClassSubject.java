@@ -5,6 +5,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "class_subjects")
+@EntityListeners(ClassSubjectEntityListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class ClassSubject extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
@@ -28,6 +29,17 @@ public class ClassSubject extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "syllabus_subject_id")
+    private SyllabusSubject syllabusSubject;
+
+    public SyllabusSubject getSyllabusSubject() {
+        return this.syllabusSubject;
+    }
+    public void setSyllabusSubject(SyllabusSubject syllabusSubject) {
+        this.syllabusSubject = syllabusSubject;
+    }
 
 
     public AcroClass getAcroClass() {

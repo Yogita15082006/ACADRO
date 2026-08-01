@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
@@ -144,9 +145,42 @@ public class ClassSubjectController {
                     });
             }
             
+            try {
+                dto.setLinkedSyllabus(classSubjectService.getSubjectSyllabus(cs.getId()));
+            } catch (Exception ignored) {}
+
             return dto;
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success("Subject cards retrieved successfully", dtos));
+    }
+
+    @GetMapping("/{id}/syllabus")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT', 'COORDINATOR')")
+    @Operation(summary = "Get Subject Syllabus", description = "Returns the linked syllabus for a specific subject card.")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSubjectSyllabus(@PathVariable UUID id) {
+        Map<String, Object> result = classSubjectService.getSubjectSyllabus(id);
+        if (result == null) {
+            return ResponseEntity.ok(ApiResponse.success("No syllabus available for this subject.", null));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Syllabus retrieved successfully", result));
+    }
+
+    @GetMapping("/match-syllabus")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT', 'COORDINATOR')")
+    @Operation(summary = "Match Subject Syllabus", description = "Returns the matched syllabus given subject parameters.")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> matchSyllabus(
+            @RequestParam(required = false) String subjectCode,
+            @RequestParam(required = false) String subjectName,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String batch,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String semester,
+            @RequestParam(required = false) String className) {
+        Map<String, Object> result = classSubjectService.getMatchedSyllabusByParams(subjectCode, subjectName, department, batch, year, semester, className);
+        if (result == null) {
+            return ResponseEntity.ok(ApiResponse.success("No syllabus available for this subject.", null));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Syllabus matched successfully", result));
     }
 }

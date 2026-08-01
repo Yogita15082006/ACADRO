@@ -26,8 +26,8 @@ public class TimetableUploadController {
     private final TimetableUploadService timetableUploadService;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
-    @Operation(summary = "Upload Timetable File", description = "Uploads a PDF or Image file (JPG/PNG). Requires ADMIN or HOD role.")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    @Operation(summary = "Upload Timetable File", description = "Uploads a PDF or Image file (JPG/PNG). Requires ADMIN, HOD, FACULTY, or COORDINATOR role.")
     public ResponseEntity<ApiResponse<?>> uploadTimetable(
             @Parameter(description = "Timetable PDF file", required = true)
             @RequestParam("file") MultipartFile file,
@@ -49,7 +49,7 @@ public class TimetableUploadController {
     }
 
     @PostMapping(value = "/{versionId}/replace", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Replace Timetable File", description = "Replaces a timetable file by soft deleting the old version and creating a new one.")
     public ResponseEntity<ApiResponse<?>> replaceTimetable(
             @PathVariable UUID versionId,
@@ -77,7 +77,7 @@ public class TimetableUploadController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR', 'STUDENT')")
     @Operation(summary = "Get All Timetables", description = "Retrieves all timetables")
     public ResponseEntity<ApiResponse<?>> getAllTimetables() {
         return ResponseEntity.ok(timetableUploadService.getAllTimetables());
@@ -95,7 +95,7 @@ public class TimetableUploadController {
     }
 
     @GetMapping("/{versionId}/download")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR', 'STUDENT')")
     @Operation(summary = "Download a specific version", description = "Downloads the file for a specific version")
     public ResponseEntity<byte[]> downloadVersion(@PathVariable UUID versionId) {
         byte[] fileBytes = timetableUploadService.downloadVersion(versionId);
@@ -103,7 +103,15 @@ public class TimetableUploadController {
         String mimeType = timetableUploadService.getFileMimeType(versionId);
         
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"");
+        if (mimeType == null || mimeType.trim().isEmpty()) {
+            mimeType = "application/pdf";
+            if (fileName != null) {
+                String lower = fileName.toLowerCase();
+                if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) mimeType = "image/jpeg";
+                else if (lower.endsWith(".png")) mimeType = "image/png";
+            }
+        }
         headers.setContentType(MediaType.parseMediaType(mimeType));
         
         return ResponseEntity.ok()
@@ -112,14 +120,14 @@ public class TimetableUploadController {
     }
 
     @PutMapping("/{versionId}/active")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Set Active Version", description = "Sets the specified version as active, deactivating others")
     public ResponseEntity<ApiResponse<?>> setActiveVersion(@PathVariable UUID versionId) {
         return ResponseEntity.ok(timetableUploadService.setActiveVersion(versionId));
     }
 
     @DeleteMapping("/{versionId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Delete Version", description = "Soft deletes a specific version (cannot be the active version)")
     public ResponseEntity<ApiResponse<?>> softDeleteVersion(@PathVariable UUID versionId) {
         return ResponseEntity.ok(timetableUploadService.softDeleteVersion(versionId));

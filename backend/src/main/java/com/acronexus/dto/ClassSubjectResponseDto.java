@@ -22,4 +22,5 @@ public class ClassSubjectResponseDto {
     private String department;
     private String batch;
     private String classSection;
+    private java.util.Map<String, Object> linkedSyllabus;
 }

@@ -296,7 +296,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     @Override
     @Transactional
     public ApiResponse<AcademicResourceDto> uploadTimetable(MultipartFile file, String academicYear, String batch, String className, String department, String semester, UUID uploadedBy) {
-        validatePdf(file);
+        validateTimetableFile(file);
         User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         Map<String, Object> metadataMap = new HashMap<>();
@@ -402,6 +402,21 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
         if (!originalFilename.endsWith(".pdf")) {
             throw new IllegalArgumentException("Only PDF files are supported");
+        }
+    }
+
+    private void validateTimetableFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be empty");
+        }
+        String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+        String contentType = file.getContentType() != null ? file.getContentType().toLowerCase() : "";
+        
+        boolean validExtension = originalFilename.endsWith(".pdf") || originalFilename.endsWith(".jpg") || originalFilename.endsWith(".jpeg") || originalFilename.endsWith(".png");
+        boolean validMimeType = contentType.equals("application/pdf") || contentType.equals("image/jpeg") || contentType.equals("image/jpg") || contentType.equals("image/png") || contentType.isEmpty() || contentType.equals("application/octet-stream");
+
+        if (!validExtension && !validMimeType) {
+            throw new IllegalArgumentException("Unsupported file format. Please upload a PDF, JPG, JPEG, or PNG (application/pdf, image/png, image/jpeg).");
         }
     }
 

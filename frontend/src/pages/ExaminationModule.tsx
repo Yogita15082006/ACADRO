@@ -673,7 +673,7 @@ export const ExaminationModule = () => {
               <label className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
                 <Upload size={24} className="text-muted-foreground mb-2" />
                 <p className="text-sm font-bold text-foreground">Click to upload or drag & drop</p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, DOC, JPG, PNG (Max 5MB)</p>
+                <p className="text-xs text-muted-foreground mt-1">PDF, DOC, PNG, JPG, JPEG (Max 5MB)</p>
                 <input type="file" className="hidden" accept=".pdf,image/*,.doc,.docx" onChange={(e) => e.target.files && setCreateTimetableFile(e.target.files[0])} />
               </label>
             )}

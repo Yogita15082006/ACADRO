@@ -109,11 +109,21 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
         }
 
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
-        if (!originalFilename.endsWith(".pdf") && 
-            !originalFilename.endsWith(".jpg") && 
-            !originalFilename.endsWith(".jpeg") && 
-            !originalFilename.endsWith(".png")) {
-            throw new IllegalArgumentException("Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG.");
+        String contentType = file.getContentType() != null ? file.getContentType().toLowerCase() : "";
+        
+        boolean validExtension = originalFilename.endsWith(".pdf") || 
+                                 originalFilename.endsWith(".jpg") || 
+                                 originalFilename.endsWith(".jpeg") || 
+                                 originalFilename.endsWith(".png");
+                                 
+        boolean validMimeType = contentType.equals("application/pdf") || 
+                                contentType.equals("image/jpeg") || 
+                                contentType.equals("image/jpg") || 
+                                contentType.equals("image/png") || 
+                                contentType.isEmpty() || contentType.equals("application/octet-stream");
+
+        if (!validExtension && !validMimeType) {
+            throw new IllegalArgumentException("Unsupported file format. Please upload a PDF, JPG, JPEG, or PNG (application/pdf, image/png, image/jpeg).");
         }
 
         if (originalFilename.endsWith(".pdf")) {
@@ -227,7 +237,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     @Override
     @Transactional(readOnly = true)
     public byte[] downloadVersion(UUID versionId) {
-        Timetable version = timetableRepository.findById(versionId)
+        Timetable version = timetableRepository.findById(versionId).or(() -> timetableRepository.findByFileId(versionId))
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
 
         if (version.getFile() == null || version.getFile().getDocumentUrl() == null) {
@@ -245,7 +255,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     @Override
     @Transactional(readOnly = true)
     public String getFileName(UUID versionId) {
-        Timetable version = timetableRepository.findById(versionId)
+        Timetable version = timetableRepository.findById(versionId).or(() -> timetableRepository.findByFileId(versionId))
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
         if (version.getFile() != null && version.getFile().getFileName() != null) {
             return version.getFile().getFileName();
@@ -256,7 +266,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     @Override
     @Transactional(readOnly = true)
     public String getFileMimeType(UUID versionId) {
-        Timetable version = timetableRepository.findById(versionId)
+        Timetable version = timetableRepository.findById(versionId).or(() -> timetableRepository.findByFileId(versionId))
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
         if (version.getFile() != null && version.getFile().getMimeType() != null) {
             return version.getFile().getMimeType();
@@ -272,7 +282,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     @Override
     @Transactional
     public ApiResponse<?> setActiveVersion(UUID versionId) {
-        Timetable versionToActivate = timetableRepository.findById(versionId)
+        Timetable versionToActivate = timetableRepository.findById(versionId).or(() -> timetableRepository.findByFileId(versionId))
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
 
         List<Timetable> allVersions = timetableRepository
@@ -299,7 +309,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
     @Override
     @Transactional
     public ApiResponse<?> softDeleteVersion(UUID versionId) {
-        Timetable version = timetableRepository.findById(versionId)
+        Timetable version = timetableRepository.findById(versionId).or(() -> timetableRepository.findByFileId(versionId))
                 .orElseThrow(() -> new IllegalArgumentException("Version not found"));
 
         // Hard delete slots and timetable
@@ -327,7 +337,14 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
             fs.setFileName(file.getOriginalFilename());
             fs.setDocumentUrl(filePath.toString());
             fs.setFileType("TIMETABLE");
-            fs.setMimeType(file.getContentType());
+            String mime = file.getContentType();
+            if (mime == null || mime.isBlank() || mime.equals("application/octet-stream")) {
+                String fname = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+                if (fname.endsWith(".png")) mime = "image/png";
+                else if (fname.endsWith(".jpg") || fname.endsWith(".jpeg")) mime = "image/jpeg";
+                else mime = "application/pdf";
+            }
+            fs.setMimeType(mime);
             fs.setUploadedBy(user);
             fs.setUploadedAt(ZonedDateTime.now());
             fs.setIsActive(true);

@@ -14,9 +14,10 @@ import { AssignmentModule } from './AssignmentModule';
 import { QuizModule } from './QuizModule';
 import { SubjectAttendancePanel } from './SubjectAttendancePanel';
 import { SubjectAnalyticsPanel } from './SubjectAnalyticsPanel';
+import { SubjectSyllabusView } from './SubjectSyllabusView';
 
 export const ClassesModule = () => {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
 
@@ -137,41 +138,7 @@ export const ClassesModule = () => {
         {/* Tab Content */}
         <div className="mt-6">
           {activeTab === 'overview' && (
-            <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
-              <Card className="border border-border/50 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Course Objectives</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    To understand the fundamental concepts of {ws.subjectName}.
-                    Students will learn about core principles, practical applications, and advanced theoretical aspects of {ws.subjectCode}. By the end of the course, students will be able to apply these concepts to solve real-world problems and develop scalable solutions using modern paradigms.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="border border-border/50 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Subject Syllabus</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {[1, 2, 3, 4, 5].map(unit => (
-                      <div key={unit} className="flex gap-5 items-start p-4 rounded-lg hover:bg-muted/30 transition-colors border border-transparent hover:border-border/50">
-                        <div className="w-16 shrink-0 pt-0.5">
-                          <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5">Unit {unit}</Badge>
-                        </div>
-                        <div className="flex-1 space-y-1.5">
-                          <h4 className="text-sm font-semibold text-foreground">Introduction to Core Concepts {unit}</h4>
-                          <p className="text-muted-foreground text-sm leading-relaxed">
-                            Detailed study of methodologies, practical examples, architecture, and deployment strategies specific to module {unit} of the syllabus. Covers fundamentals, advanced techniques, and real-world case studies.
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <SubjectSyllabusView ws={ws} />
           )}
           
           {activeTab === 'announcements' && (

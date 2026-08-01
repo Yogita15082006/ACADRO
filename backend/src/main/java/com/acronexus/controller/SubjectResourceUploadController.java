@@ -68,8 +68,21 @@ public class SubjectResourceUploadController {
         String fileName = subjectResourceUploadService.getFileName(versionId);
         
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"");
+        String mimeType = "application/pdf";
+        if (fileName != null) {
+            String lower = fileName.toLowerCase();
+            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+                mimeType = "image/jpeg";
+            } else if (lower.endsWith(".png")) {
+                mimeType = "image/png";
+            } else if (lower.endsWith(".csv")) {
+                mimeType = "text/csv";
+            } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+                mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            }
+        }
+        headers.setContentType(MediaType.parseMediaType(mimeType));
         
         return ResponseEntity.ok()
                 .headers(headers)
