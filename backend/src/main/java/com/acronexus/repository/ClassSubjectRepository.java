@@ -24,4 +24,13 @@ public interface ClassSubjectRepository extends JpaRepository<ClassSubject, UUID
     List<ClassSubject> findByFacultyId(UUID facultyId);
     
     List<ClassSubject> findByAcroClassIdAndIsActiveTrue(UUID classId);
+    List<ClassSubject> findByAcroClassId(UUID classId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM ClassSubject cs WHERE cs.id IN :csIds")
+    void deleteByIdIn(@Param("csIds") List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE ClassSubject cs SET cs.syllabusSubject = null WHERE cs.syllabusSubject.academicSyllabus.id = :syllabusId")
+    void unlinkSyllabusSubjectsByAcademicSyllabusId(@Param("syllabusId") UUID syllabusId);
 }

@@ -104,4 +104,8 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
 
     @Query("SELECT COUNT(sa) FROM StudentAttendance sa WHERE sa.classSubject.acroClass.department.id = :departmentId")
     long countByDepartmentId(@Param("departmentId") UUID departmentId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM StudentAttendance sa WHERE sa.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
 }

@@ -142,7 +142,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
                     }
                     StudentRowData rowData = new StudentRowData(
                             getSafeCsv(record, "Student Name", "Name", "Student", "Full Name", "StudentName"),
-                            getSafeCsv(record, "Enrollment No", "Enrollment Number", "Enrollment", "EnrollmentNo", "Roll No"),
+                            getSafeCsv(record, "Enrollment No", "Enrollment Number", "Enrollment", "EnrollmentNo"),
                             getSafeCsv(record, "College Email", "Email", "Email ID", "College Email ID", "Email Address", "EmailId", "CollegeEmail"),
                             getSafeCsv(record, "Gender", "Sex"),
                             getSafeCsv(record, "Batch", "Batch Year", "BatchYear"),
@@ -152,8 +152,20 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
                             getSafeCsv(record, "Section", "Sec", "Batch Section"),
                             getSafeCsv(record, "Mobile Number", "Phone", "Mobile", "Contact", "Phone Number", "MobileNumber", "Contact Number"),
                             getSafeCsv(record, "Status", "IsActive", "Active"),
-                            getSafeCsv(record, "Department", "Dept", "Branch"),
-                            getSafeCsv(record, "Degree", "Degree Program", "DegreeProgram")
+                            getSafeCsv(record, "Department", "Dept", "Branch", "Stream", "Discipline"),
+                            getSafeCsv(record, "Degree", "Degree Program", "DegreeProgram"),
+                            getSafeCsv(record, "Roll Number", "Roll No", "Roll", "RollNo", "Class Roll No"),
+                            getSafeCsv(record, "Admission Year", "Year of Admission", "AdmissionYear", "Institute Enrollment", "Institute Enrollment No"),
+                            getSafeCsv(record, "Personal Email", "Alternate Email", "PersonalEmail"),
+                            getSafeCsv(record, "Whatsapp Number", "Whatsapp", "WhatsappNo"),
+                            getSafeCsv(record, "Date of Birth", "DOB", "Birth Date", "DateOfBirth"),
+                            getSafeCsv(record, "Category", "Caste Category", "Caste"),
+                            getSafeCsv(record, "Religion", "Community"),
+                            getSafeCsv(record, "Nationality", "Country"),
+                            getSafeCsv(record, "Residence Type", "Residence", "Hosteller", "Day Scholar", "Stay Type"),
+                            getSafeCsv(record, "Blood Group", "BloodGroup", "Blood"),
+                            getSafeCsv(record, "Hobbies", "Interests"),
+                            getSafeCsv(record, "Clubs", "Communities")
                     );
                     log.info("[STEP 4] Mapped CSV Row {}: {}", rowNumber, rowData);
                     executeRowInTransaction(rowNumber, rowData, uploadedBy, stats);
@@ -226,7 +238,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
                     StudentRowData rowData = new StudentRowData(
                             getSafeExcel(row, headerMap, "Student Name", "Name", "Student", "Full Name", "StudentName"),
-                            getSafeExcel(row, headerMap, "Enrollment No", "Enrollment Number", "Enrollment", "EnrollmentNo", "Roll No"),
+                            getSafeExcel(row, headerMap, "Enrollment No", "Enrollment Number", "Enrollment", "EnrollmentNo"),
                             getSafeExcel(row, headerMap, "College Email", "Email", "Email ID", "College Email ID", "Email Address", "EmailId", "CollegeEmail"),
                             getSafeExcel(row, headerMap, "Gender", "Sex"),
                             getSafeExcel(row, headerMap, "Batch", "Batch Year", "BatchYear"),
@@ -236,8 +248,20 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
                             getSafeExcel(row, headerMap, "Section", "Sec", "Batch Section"),
                             getSafeExcel(row, headerMap, "Mobile Number", "Phone", "Mobile", "Contact", "Phone Number", "MobileNumber", "Contact Number"),
                             getSafeExcel(row, headerMap, "Status", "IsActive", "Active"),
-                            getSafeExcel(row, headerMap, "Department", "Dept", "Branch"),
-                            getSafeExcel(row, headerMap, "Degree", "Degree Program", "DegreeProgram")
+                            getSafeExcel(row, headerMap, "Department", "Dept", "Branch", "Stream", "Discipline"),
+                            getSafeExcel(row, headerMap, "Degree", "Degree Program", "DegreeProgram"),
+                            getSafeExcel(row, headerMap, "Roll Number", "Roll No", "Roll", "RollNo", "Class Roll No"),
+                            getSafeExcel(row, headerMap, "Admission Year", "Year of Admission", "AdmissionYear", "Institute Enrollment", "Institute Enrollment No"),
+                            getSafeExcel(row, headerMap, "Personal Email", "Alternate Email", "PersonalEmail"),
+                            getSafeExcel(row, headerMap, "Whatsapp Number", "Whatsapp", "WhatsappNo"),
+                            getSafeExcel(row, headerMap, "Date of Birth", "DOB", "Birth Date", "DateOfBirth"),
+                            getSafeExcel(row, headerMap, "Category", "Caste Category", "Caste"),
+                            getSafeExcel(row, headerMap, "Religion", "Community"),
+                            getSafeExcel(row, headerMap, "Nationality", "Country"),
+                            getSafeExcel(row, headerMap, "Residence Type", "Residence", "Hosteller", "Day Scholar", "Stay Type"),
+                            getSafeExcel(row, headerMap, "Blood Group", "BloodGroup", "Blood"),
+                            getSafeExcel(row, headerMap, "Hobbies", "Interests"),
+                            getSafeExcel(row, headerMap, "Clubs", "Communities")
                     );
                     log.info("[STEP 4] Mapped Excel Row {}: {}", rowNumber, rowData);
                     executeRowInTransaction(rowNumber, rowData, uploadedBy, stats);
@@ -309,7 +333,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
                 stats.totalRecords++;
                 
                 String rawName = getFieldValue(recordMap, "studentName", "name", "student", "fullName");
-                String rawEnrollment = getFieldValue(recordMap, "enrollmentNumber", "enrollmentNo", "enrollment", "rollNo");
+                String rawEnrollment = getFieldValue(recordMap, "enrollmentNumber", "enrollmentNo", "enrollment");
                 String rawEmail = getFieldValue(recordMap, "collegeEmail", "email", "emailId", "collegeEmailId", "emailAddress");
                 String rawGender = getFieldValue(recordMap, "gender", "sex");
                 String rawBatch = getFieldValue(recordMap, "batchYear", "batch");
@@ -319,12 +343,25 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
                 String rawSection = getFieldValue(recordMap, "section", "sec", "batchSection");
                 String rawMobile = getFieldValue(recordMap, "mobileNumber", "phone", "mobile", "contact", "phoneNumber");
                 String rawStatus = getFieldValue(recordMap, "status", "isActive", "active");
-                String rawDepartment = getFieldValue(recordMap, "department", "dept", "branch");
+                String rawDepartment = getFieldValue(recordMap, "department", "dept", "branch", "stream", "discipline");
                 String rawDegree = getFieldValue(recordMap, "degree", "degreeProgram");
+                String rawRollNo = getFieldValue(recordMap, "rollNumber", "rollNo", "roll", "classRollNo");
+                String rawAdmissionYear = getFieldValue(recordMap, "admissionYear", "yearOfAdmission", "instituteEnrollment", "instituteEnrollmentNo");
+                String rawPersonalEmail = getFieldValue(recordMap, "personalEmail", "alternateEmail");
+                String rawWhatsapp = getFieldValue(recordMap, "whatsappNumber", "whatsapp", "whatsappNo");
+                String rawDob = getFieldValue(recordMap, "dob", "dateOfBirth", "birthDate");
+                String rawCategory = getFieldValue(recordMap, "category", "casteCategory", "caste");
+                String rawReligion = getFieldValue(recordMap, "religion", "community");
+                String rawNationality = getFieldValue(recordMap, "nationality", "country");
+                String rawResidenceType = getFieldValue(recordMap, "residenceType", "residence", "stayType", "hosteller", "dayScholar");
+                String rawBloodGroup = getFieldValue(recordMap, "bloodGroup", "blood");
+                String rawHobbies = getFieldValue(recordMap, "hobbies", "interests");
+                String rawClubs = getFieldValue(recordMap, "clubs", "communities", "groups");
 
                 StudentRowData rowData = new StudentRowData(
                         rawName, rawEnrollment, rawEmail, rawGender, rawBatch,
-                        rawAcademicYear, rawSemester, rawAcroClass, rawSection, rawMobile, rawStatus, rawDepartment, rawDegree
+                        rawAcademicYear, rawSemester, rawAcroClass, rawSection, rawMobile, rawStatus, rawDepartment, rawDegree,
+                        rawRollNo, rawAdmissionYear, rawPersonalEmail, rawWhatsapp, rawDob, rawCategory, rawReligion, rawNationality, rawResidenceType, rawBloodGroup, rawHobbies, rawClubs
                 );
 
                 log.info("[STEP 4 CONFIRM] Record {}: {}", rowNumber, rowData);
@@ -380,6 +417,18 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 if (entry.getKey() != null && normalizeHeader(entry.getKey()).equals(normKey)) {
                     if (entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
+                        return entry.getValue().trim();
+                    }
+                }
+            }
+        }
+        // Flexible substring matching for headers with description descriptions (e.g., "Batch (e.g. 2024-2028)")
+        for (String key : keys) {
+            String normKey = normalizeHeader(key);
+            for (Map.Entry<String, String> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    String normEntry = normalizeHeader(entry.getKey());
+                    if ((normEntry.contains(normKey) || normKey.contains(normEntry)) && entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
                         return entry.getValue().trim();
                     }
                 }
@@ -473,6 +522,11 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
     private AcademicYear resolveAcademicYear(String yearStr) {
         String cleanYear = yearStr != null ? yearStr.trim() : "";
+        if ("1".equals(cleanYear) || "1st".equalsIgnoreCase(cleanYear)) cleanYear = "1st Year";
+        else if ("2".equals(cleanYear) || "2nd".equalsIgnoreCase(cleanYear)) cleanYear = "2nd Year";
+        else if ("3".equals(cleanYear) || "3rd".equalsIgnoreCase(cleanYear)) cleanYear = "3rd Year";
+        else if ("4".equals(cleanYear) || "4th".equalsIgnoreCase(cleanYear)) cleanYear = "4th Year";
+
         if (!cleanYear.isEmpty()) {
             Optional<AcademicYear> opt = academicYearRepository.findByYear(cleanYear);
             if (opt.isPresent()) return opt.get();
@@ -487,8 +541,9 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             }
         }
 
-        int startYear = 2023;
-        int endYear = 2024;
+        java.time.LocalDate now = java.time.LocalDate.now();
+        int startYear = now.getMonthValue() >= 7 ? now.getYear() : (now.getYear() - 1);
+        int endYear = startYear + 1;
         if (!cleanYear.isEmpty()) {
             String[] parts = cleanYear.split("[-/ ]");
             try {
@@ -550,25 +605,68 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         Semester s = new Semester();
         s.setSemesterNumber(semNum);
         s.setAcademicYear(ay);
-        s.setStartDate(java.time.LocalDate.of(2023, 7, 1));
-        s.setEndDate(java.time.LocalDate.of(2024, 6, 30));
+        s.setStartDate(ay != null && ay.getStartDate() != null ? ay.getStartDate() : java.time.LocalDate.now());
+        s.setEndDate(ay != null && ay.getEndDate() != null ? ay.getEndDate() : java.time.LocalDate.now().plusYears(1));
         s.setIsActive(true);
         s = semesterRepository.save(s);
         log.info("Dynamically created Semester {} in PostgreSQL for AcademicYear ID {}", semNum, academicYearId);
         return s;
     }
 
+    private String[] calculateYearAndSemFromBatch(String batch) {
+        String academicYearStr = "";
+        int semNum = 1;
+        if (batch != null && !batch.trim().isEmpty()) {
+            String cleanBatch = batch.trim();
+            int startYear = 0;
+            String[] parts = cleanBatch.split("[-/ ]");
+            if (parts.length > 0) {
+                try {
+                    String digits = parts[0].replaceAll("[^0-9]", "");
+                    if (digits.length() >= 4) {
+                        startYear = Integer.parseInt(digits.substring(0, 4));
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            if (startYear > 0) {
+                java.time.LocalDate now = java.time.LocalDate.now();
+                int currentYear = now.getYear();
+                int currentMonth = now.getMonthValue();
+                int yearsElapsed = currentYear - startYear;
+                int academicYearNum = currentMonth >= 7 ? yearsElapsed + 1 : yearsElapsed;
+                int sem = currentMonth >= 7 ? (academicYearNum - 1) * 2 + 1 : (academicYearNum - 1) * 2;
+                sem = Math.max(1, Math.min(8, sem));
+                semNum = sem;
+                int ayStart = currentMonth >= 7 ? currentYear : (currentYear - 1);
+                academicYearStr = ayStart + "-" + (ayStart + 1);
+            }
+        }
+        if (academicYearStr.isEmpty()) {
+            java.time.LocalDate now = java.time.LocalDate.now();
+            int ayStart = now.getMonthValue() >= 7 ? now.getYear() : (now.getYear() - 1);
+            academicYearStr = ayStart + "-" + (ayStart + 1);
+        }
+        return new String[]{academicYearStr, String.valueOf(semNum)};
+    }
+
     private void processRow(int rowNumber, StudentRowData data, User uploadedBy, UploadStats stats) {
         log.info("--------------------------------------------------------------------------");
         log.info("--- [DATA TRACE ROW {}] START PROCESSING ---", rowNumber);
-        if (data.enrollmentNo == null || data.enrollmentNo.trim().isEmpty() || data.collegeEmail == null || data.collegeEmail.trim().isEmpty()) {
-            throw new IllegalArgumentException("Enrollment Number and College Email are strictly required.");
+        if (data.enrollmentNo == null || data.enrollmentNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Enrollment Number is strictly required.");
         }
         
         if (data.studentName == null || data.studentName.trim().isEmpty()) {
             throw new IllegalArgumentException("Student Name is strictly required.");
         }
         
+        String email = data.collegeEmail != null ? data.collegeEmail.trim() : "";
+        if (email.isEmpty()) {
+            email = data.enrollmentNo.trim().toLowerCase() + "@acropolis.in";
+        }
+
         String[] nameParts = data.studentName.trim().split(" ", 2);
         String firstName = nameParts[0];
         String lastName = nameParts.length > 1 ? nameParts[1] : "";
@@ -576,13 +674,22 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         AcroClass acroClass = resolveAcroClass(data.acroClass, data.section);
         Department department = resolveDepartment(acroClass, data.department);
         DegreeProgram degreeProgram = resolveDegreeProgram(acroClass, data.degree, department);
-        AcademicYear academicYear = resolveAcademicYear(data.academicYear);
-        Semester semester = resolveSemester(data.semester, academicYear.getId());
+        
+        String academicYearInput = data.academicYear != null ? data.academicYear.trim() : "";
+        String semesterInput = data.semester != null ? data.semester.trim() : "";
+        if (academicYearInput.isEmpty() || semesterInput.isEmpty()) {
+            String[] calc = calculateYearAndSemFromBatch(data.batchYear);
+            if (academicYearInput.isEmpty()) academicYearInput = calc[0];
+            if (semesterInput.isEmpty()) semesterInput = calc[1];
+        }
+
+        AcademicYear academicYear = resolveAcademicYear(academicYearInput);
+        Semester semester = resolveSemester(semesterInput, academicYear.getId());
 
         // TRACE LOG FOR ALL 13 FIELDS BEFORE AND AFTER MAPPING
         log.info("=== [MAPPING TRACE ROW {}] ===", rowNumber);
         log.info("1. Enrollment Number: raw='{}' -> mapped='{}'", data.enrollmentNo, data.enrollmentNo);
-        log.info("2. College Email:    raw='{}' -> mapped='{}'", data.collegeEmail, data.collegeEmail);
+        log.info("2. College Email:    raw='{}' -> mapped='{}'", data.collegeEmail, email);
         log.info("3. First Name:       rawName='{}' -> mapped='{}'", data.studentName, firstName);
         log.info("4. Last Name:        rawName='{}' -> mapped='{}'", data.studentName, lastName);
         log.info("5. Department:       rawClass='{}' -> resolved='{}'", data.acroClass, department.getName());
@@ -599,10 +706,10 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         boolean isUpdate = false;
         
         // Duplicate Checks
-        User user = userRepository.findByEmail(data.collegeEmail).orElse(null);
+        User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
             user = new User();
-            user.setEmail(data.collegeEmail);
+            user.setEmail(email);
             user.setPasswordHash(passwordEncoder.encode("AcroNexus@123")); // Default password
             user.setRole(UserRole.STUDENT);
             user.setCreatedBy(uploadedBy.getId());
@@ -631,9 +738,45 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         
         if (data.gender != null && !data.gender.trim().isEmpty()) {
             try {
-                user.setGender(Gender.valueOf(data.gender.trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                user.setGender(Gender.MALE); // Safe fallback if unparseable
+                String gen = data.gender.trim().toUpperCase();
+                if (gen.startsWith("M")) user.setGender(Gender.MALE);
+                else if (gen.startsWith("F")) user.setGender(Gender.FEMALE);
+                else user.setGender(Gender.OTHER);
+            } catch (Exception e) {
+                // Keep existing gender or leave null if unparseable
+            }
+        }
+        if (data.personalEmail != null && !data.personalEmail.trim().isEmpty()) {
+            user.setPersonalEmail(data.personalEmail.trim());
+        }
+        if (data.whatsappNumber != null && !data.whatsappNumber.trim().isEmpty()) {
+            user.setWhatsappNumber(data.whatsappNumber.trim());
+        }
+        if (data.category != null && !data.category.trim().isEmpty()) {
+            user.setCategory(data.category.trim());
+        }
+        if (data.religion != null && !data.religion.trim().isEmpty()) {
+            user.setReligion(data.religion.trim());
+        }
+        if (data.nationality != null && !data.nationality.trim().isEmpty()) {
+            user.setNationality(data.nationality.trim());
+        }
+        if (data.residenceType != null && !data.residenceType.trim().isEmpty()) {
+            user.setResidenceType(data.residenceType.trim());
+        }
+        if (data.bloodGroup != null && !data.bloodGroup.trim().isEmpty()) {
+            try {
+                String bg = data.bloodGroup.trim().toUpperCase().replace("+", "_PLUS").replace("-", "_MINUS");
+                user.setBloodGroup(BloodGroup.valueOf(bg));
+            } catch (Exception e) {
+                // Ignore unparseable blood group
+            }
+        }
+        if (data.dob != null && !data.dob.trim().isEmpty()) {
+            try {
+                user.setDob(java.time.LocalDate.parse(data.dob.trim()));
+            } catch (Exception e) {
+                // Ignore unparseable dob
             }
         }
 
@@ -653,10 +796,25 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         }
         student.setEnrollmentNo(data.enrollmentNo);
         student.setDegreeProgram(degreeProgram);
-        student.setBatchYear(data.batchYear != null && !data.batchYear.trim().isEmpty() ? data.batchYear.trim() : "2024");
+        student.setBatchYear(data.batchYear != null && !data.batchYear.trim().isEmpty() ? data.batchYear.trim() : String.valueOf(java.time.LocalDate.now().getYear()));
         student.setCourse(acroClass.getName());
         student.setSection(acroClass.getSection());
         student.setCurrentSemester(String.valueOf(semester.getSemesterNumber()));
+        if (data.rollNumber != null && !data.rollNumber.trim().isEmpty()) {
+            student.setRollNo(data.rollNumber.trim());
+        }
+        if (data.admissionYear != null && !data.admissionYear.trim().isEmpty()) {
+            student.setAdmissionYear(data.admissionYear.trim());
+            student.setInstituteEnrollment(data.admissionYear.trim());
+        } else if (data.batchYear != null && !data.batchYear.trim().isEmpty() && student.getAdmissionYear() == null) {
+            student.setAdmissionYear(data.batchYear.trim());
+        }
+        if (data.hobbies != null && !data.hobbies.trim().isEmpty()) {
+            student.setHobbies(data.hobbies.trim());
+        }
+        if (data.clubs != null && !data.clubs.trim().isEmpty()) {
+            student.setClubs(data.clubs.trim());
+        }
         student = studentRepository.save(student);
 
         // Student Enrollment Entity
@@ -903,25 +1061,41 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
     private String mapToStandardKey(String header) {
         String normalized = normalizeHeader(header);
-        if (List.of("studentname", "name", "student", "fullname").contains(normalized)) return "studentName";
-        if (List.of("enrollmentno", "enrollmentnumber", "enrollment", "rollno").contains(normalized)) return "enrollmentNumber";
-        if (List.of("collegeemail", "email", "emailid", "emailaddress").contains(normalized)) return "collegeEmail";
-        if (List.of("gender", "sex").contains(normalized)) return "gender";
-        if (List.of("batch", "batchyear").contains(normalized)) return "batchYear";
-        if (List.of("academicyear", "year").contains(normalized)) return "academicYear";
-        if (List.of("semester", "sem", "currentsemester").contains(normalized)) return "semester";
-        if (List.of("class", "course", "acroclass", "program").contains(normalized)) return "acroClass";
-        if (List.of("section", "sec", "batchsection").contains(normalized)) return "section";
-        if (List.of("mobilenumber", "phone", "mobile", "contact", "phonenumber", "contactnumber").contains(normalized)) return "mobileNumber";
-        if (List.of("status", "isactive", "active", "currentstatus", "studentstatus", "userstatus").contains(normalized)) return "status";
-        if (List.of("department", "dept", "branch").contains(normalized)) return "department";
-        if (List.of("degree", "degreeprogram").contains(normalized)) return "degree";
+        if (normalized.isEmpty()) return null;
+        if (List.of("studentname", "name", "student", "fullname").contains(normalized) || normalized.contains("studentname") || normalized.equals("student") || normalized.startsWith("name")) return "studentName";
+        if (List.of("enrollmentno", "enrollmentnumber", "enrollment", "rgpvenrollment").contains(normalized) || normalized.contains("enrollment")) return "enrollmentNumber";
+        if (List.of("rollno", "rollnumber", "roll", "classrollno").contains(normalized) || normalized.equals("roll") || normalized.equals("rollno")) return "rollNumber";
+        if (List.of("admissionyear", "yearofadmission", "instituteenrollment", "instituteenrollmentno").contains(normalized) || normalized.contains("admission") || normalized.contains("institute")) return "admissionYear";
+        if (List.of("collegeemail", "email", "emailid", "emailaddress").contains(normalized) || normalized.contains("email") && !normalized.contains("personal")) return "collegeEmail";
+        if (List.of("personalemail", "alternateemail", "personalemailid").contains(normalized) || normalized.contains("personalemail")) return "personalEmail";
+        if (List.of("whatsappnumber", "whatsapp", "whatsappno").contains(normalized) || normalized.contains("whatsapp")) return "whatsappNumber";
+        if (List.of("dob", "dateofbirth", "birthdate").contains(normalized) || normalized.equals("dob") || normalized.contains("dateofbirth") || normalized.contains("birth")) return "dob";
+        if (List.of("category", "castecategory", "caste").contains(normalized) || normalized.equals("category")) return "category";
+        if (List.of("religion", "community").contains(normalized) || normalized.equals("religion")) return "religion";
+        if (List.of("nationality", "country").contains(normalized) || normalized.equals("nationality")) return "nationality";
+        if (List.of("residencetype", "residence", "hosteller", "dayscholar", "staytype").contains(normalized) || normalized.contains("residence")) return "residenceType";
+        if (List.of("bloodgroup", "blood").contains(normalized) || normalized.contains("blood")) return "bloodGroup";
+        if (List.of("hobbies", "interests").contains(normalized) || normalized.contains("hobbies") || normalized.contains("interests")) return "hobbies";
+        if (List.of("clubs", "communities", "groups").contains(normalized) || normalized.contains("clubs") || normalized.contains("communities")) return "clubs";
+        if (List.of("gender", "sex").contains(normalized) || normalized.equals("gender") || normalized.equals("sex")) return "gender";
+        if (List.of("batch", "batchyear").contains(normalized) || normalized.contains("batch")) return "batchYear";
+        if (List.of("academicyear", "year").contains(normalized) || normalized.equals("year") || normalized.contains("academicyear")) return "academicYear";
+        if (List.of("semester", "sem", "currentsemester").contains(normalized) || normalized.equals("sem") || normalized.contains("semester")) return "semester";
+        if (List.of("class", "course", "acroclass", "program").contains(normalized) || normalized.equals("class") || normalized.equals("course")) return "acroClass";
+        if (List.of("section", "sec", "batchsection").contains(normalized) || normalized.equals("section") || normalized.equals("sec")) return "section";
+        if (List.of("mobilenumber", "phone", "mobile", "contact", "phonenumber", "contactnumber").contains(normalized) || normalized.contains("mobile") || normalized.contains("phone") || normalized.contains("contact")) return "mobileNumber";
+        if (List.of("status", "isactive", "active", "currentstatus", "studentstatus", "userstatus").contains(normalized) || normalized.contains("status")) return "status";
+        if (List.of("department", "dept", "branch", "stream", "discipline").contains(normalized) || normalized.contains("department") || normalized.equals("dept") || normalized.contains("branch")) return "department";
+        if (List.of("degree", "degreeprogram").contains(normalized) || normalized.contains("degree")) return "degree";
         return null; // Return null if not mapped, so we keep original
     }
 
     private record StudentRowData(
             String studentName, String enrollmentNo, String collegeEmail,
             String gender, String batchYear, String academicYear, String semester,
-            String acroClass, String section, String mobileNumber, String status, String department, String degree
+            String acroClass, String section, String mobileNumber, String status, String department, String degree,
+            String rollNumber, String admissionYear, String personalEmail, String whatsappNumber,
+            String dob, String category, String religion, String nationality, String residenceType,
+            String bloodGroup, String hobbies, String clubs
     ) {}
 }

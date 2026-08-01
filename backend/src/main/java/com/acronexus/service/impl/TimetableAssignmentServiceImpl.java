@@ -7,6 +7,7 @@ import com.acronexus.service.AiService;
 import com.acronexus.service.TimetableAssignmentService;
 import com.acronexus.dto.ai.AiGenericRequest;
 import com.acronexus.dto.ai.AiGenericResponse;
+import com.acronexus.util.NameNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,19 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     private final FileStorageRepository fileStorageRepository;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
+    private final StudentRepository studentRepository;
+    private final AssignmentRepository assignmentRepository;
+    private final AssignmentSubmissionRepository assignmentSubmissionRepository;
+    private final LectureMaterialRepository lectureMaterialRepository;
+    private final SubjectAnnouncementRepository subjectAnnouncementRepository;
+    private final StudentAttendanceRepository studentAttendanceRepository;
+    private final StudentAttendanceHistoryRepository studentAttendanceHistoryRepository;
+    private final AttendanceSessionRepository attendanceSessionRepository;
+    private final QuizRepository quizRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final FacultyActivityRepository facultyActivityRepository;
+    private final com.acronexus.service.ClassSubjectService classSubjectService;
 
     @Override
     public TimetableReviewReportDto performAiMatch(UUID timetableId, UUID requestedBy) {
@@ -248,24 +262,36 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
 
         User creator = userRepository.findById(requestedBy).orElse(null);
 
-        // Deactivate existing slots for this timetable (since they are tightly coupled to the timetable file)
+        AcroClass targetClass = timetable.getAcroClass();
+        AcademicYear targetYear = timetable.getAcademicYear();
+        Semester targetSemester = timetable.getSemester();
+        Integer newSemNumber = targetSemester.getSemesterNumber();
+        String targetBatch = timetable.getBatch();
+        Department targetDepartment = targetClass.getDepartment();
+
+        log.info("--- [AI MATCH CONFIRM & ASSIGN] Starting dynamic workflow for Class: {}, Semester: {}, Batch: {} ---", 
+                 targetClass.getName(), newSemNumber, targetBatch);
+
+        // 1. COMPLETE PREVIOUS SEMESTER CLEANUP
+        cleanupPreviousSemesterWorkspace(targetClass, newSemNumber);
+
+        // 2. DEACTIVATE EXISTING SLOTS FOR THIS TIMETABLE
         List<TimetableSlot> existingSlots = timetableSlotRepository.findByTimetableId(timetableId);
         for (TimetableSlot ts : existingSlots) {
             ts.setIsActive(false);
             timetableSlotRepository.save(ts);
         }
 
-        // Process Subject Cards (ClassSubject) using Upsert
+        // 3. PROCESS SUBJECT CARDS (NEW SEMESTER INITIALIZATION)
         if (reviewDto.getSubjectAssignments() != null) {
             for (ParsedSubjectAssignmentDto sm : reviewDto.getSubjectAssignments()) {
-                Subject resolvedSubject = resolveOrCreateSubject(sm.getOriginalSubjectCode(), sm.getOriginalSubjectName(), timetable.getAcroClass().getDepartment());
+                Subject resolvedSubject = resolveOrCreateSubject(sm.getOriginalSubjectCode(), sm.getOriginalSubjectName(), targetDepartment);
                 
-                // Find existing ClassSubject for this class + subject + academic year + semester
-                List<ClassSubject> existingClassSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(timetable.getAcroClass().getId())
+                List<ClassSubject> existingClassSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(targetClass.getId())
                     .stream()
                     .filter(cs -> cs.getSubject().getId().equals(resolvedSubject.getId()) &&
-                                  cs.getSemester().getId().equals(timetable.getSemester().getId()) &&
-                                  cs.getAcademicYear().getId().equals(timetable.getAcademicYear().getId()))
+                                  cs.getSemester().getId().equals(targetSemester.getId()) &&
+                                  cs.getAcademicYear().getId().equals(targetYear.getId()))
                     .collect(java.util.stream.Collectors.toList());
                 
                 ClassSubject cs;
@@ -274,14 +300,14 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                     log.info("Updating existing ClassSubject for subject={}", resolvedSubject.getName());
                 } else {
                     cs = new ClassSubject();
-                    cs.setAcroClass(timetable.getAcroClass());
-                    cs.setAcademicYear(timetable.getAcademicYear());
-                    cs.setSemester(timetable.getSemester());
+                    cs.setAcroClass(targetClass);
+                    cs.setAcademicYear(targetYear);
+                    cs.setSemester(targetSemester);
                     cs.setSubject(resolvedSubject);
                     cs.setEffectiveFrom(LocalDate.now());
                     cs.setIsActive(true);
                     cs.setCreatedBy(creator);
-                    log.info("Creating new ClassSubject for subject={}", resolvedSubject.getName());
+                    log.info("Initializing fresh ClassSubject for subject={}", resolvedSubject.getName());
                 }
                 
                 Faculty faculty = null;
@@ -289,50 +315,52 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                     faculty = facultyRepository.findById(UUID.fromString(sm.getFacultyId())).orElse(null);
                 }
                 
-                // Save the ClassSubject with the assigned faculty (or null if Unassigned)
                 cs.setFaculty(faculty);
-                classSubjectRepository.save(cs);
+                cs = classSubjectRepository.save(cs);
+
+                // Synchronize with any uploaded Academic Syllabus
+                try {
+                    classSubjectService.linkSyllabusToClassSubject(cs);
+                } catch (Exception e) {
+                    log.warn("Syllabus linking failed for subject {}: {}", resolvedSubject.getName(), e.getMessage());
+                }
             }
         }
 
-        // Process Coordinator Assignments using Upsert
+        // 4. PROCESS COORDINATOR ASSIGNMENT
         if (reviewDto.getCoordinatorAssignments() != null && !reviewDto.getCoordinatorAssignments().isEmpty()) {
-            // ONLY process the explicit Coordinator from the Review Popup Coordinator Section.
-            // If the frontend somehow sent an array of faculties, we discard everything except the first actual explicitly mapped coordinator.
             ParsedCoordinatorAssignmentDto cm = reviewDto.getCoordinatorAssignments().get(0);
-            
             User coordinator = null;
             if (cm.getCoordinatorId() != null && isValidUUID(cm.getCoordinatorId())) {
                 coordinator = userRepository.findById(UUID.fromString(cm.getCoordinatorId())).orElse(null);
             }
             
-            List<CoordinatorAssignment> existingCoords = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(timetable.getAcroClass().getName())
+            List<CoordinatorAssignment> existingCoords = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(targetClass.getName())
                 .stream()
-                .filter(ca -> java.util.Objects.equals(ca.getAcademicYear(), timetable.getAcademicYear().getYear()) &&
-                              java.util.Objects.equals(ca.getSemester(), "Semester " + timetable.getSemester().getSemesterNumber()) &&
-                              java.util.Objects.equals(ca.getBatch(), timetable.getBatch()))
+                .filter(ca -> java.util.Objects.equals(ca.getAcademicYear(), targetYear.getYear()) &&
+                              java.util.Objects.equals(ca.getSemester(), "Semester " + newSemNumber) &&
+                              java.util.Objects.equals(ca.getBatch(), targetBatch))
                 .collect(java.util.stream.Collectors.toList());
                 
             CoordinatorAssignment ca;
             if (!existingCoords.isEmpty()) {
                 ca = existingCoords.get(0);
-                log.info("Updating existing CoordinatorAssignment for class={}, batch={}, existingBatch={}", timetable.getAcroClass().getName(), timetable.getBatch(), ca.getBatch());
+                log.info("Updating existing CoordinatorAssignment for class={}, batch={}", targetClass.getName(), targetBatch);
             } else {
                 ca = new CoordinatorAssignment();
-                ca.setClassName(timetable.getAcroClass().getName());
-                ca.setAcademicYear(timetable.getAcademicYear().getYear());
-                ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
-                ca.setBatch(timetable.getBatch());
+                ca.setClassName(targetClass.getName());
+                ca.setAcademicYear(targetYear.getYear());
+                ca.setSemester("Semester " + newSemNumber);
+                ca.setBatch(targetBatch);
                 ca.setEffectiveFrom(LocalDate.now());
                 ca.setIsActive(true);
-                log.info("Creating NEW CoordinatorAssignment for class={}, batch={}", timetable.getAcroClass().getName(), timetable.getBatch());
                 ca.setCreatedBy(creator);
+                log.info("Creating NEW CoordinatorAssignment for class={}, batch={}", targetClass.getName(), targetBatch);
             }
             
             ca.setCoordinator(coordinator);
             coordinatorAssignmentRepository.save(ca);
 
-            // Promote to COORDINATOR role ONLY for the explicitly selected coordinator
             if (coordinator != null && "FACULTY".equals(coordinator.getRole().name())) {
                 log.info("Promoting explicitly selected faculty {} to COORDINATOR role.", coordinator.getEmail());
                 coordinator.setRole(com.acronexus.entity.UserRole.COORDINATOR);
@@ -340,16 +368,15 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             }
         }
         
-        // Insert new Timetable Slots
+        // 5. INSERT NEW TIMETABLE SLOTS
         if (reviewDto.getTimetableSlots() != null) {
             for (ParsedSlotDto slotDto : reviewDto.getTimetableSlots()) {
                 TimetableSlot ts = new TimetableSlot();
                 ts.setTimetable(timetable);
-                if (slotDto.getFacultyId() != null && isValidUUID(slotDto.getFacultyId()))
+                if (slotDto.getFacultyId() != null && isValidUUID(slotDto.getFacultyId())) {
                     ts.setFaculty(facultyRepository.findById(UUID.fromString(slotDto.getFacultyId())).orElse(null));
-                
-                ts.setSubject(resolveOrCreateSubject(slotDto.getOriginalSubjectCode(), slotDto.getOriginalSubjectName(), timetable.getAcroClass().getDepartment())); 
-                
+                }
+                ts.setSubject(resolveOrCreateSubject(slotDto.getOriginalSubjectCode(), slotDto.getOriginalSubjectName(), targetDepartment)); 
                 ts.setDayOfWeek(slotDto.getDayOfWeek());
                 ts.setTimeSlot(slotDto.getTimeSlot());
                 ts.setRoomNumber(slotDto.getRoomNumber());
@@ -358,9 +385,14 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             }
         }
 
-        // Mark Timetable active
-        List<Timetable> otherTimetables = timetableRepository.findByAcroClassAndAcademicYearAndSemester(
-                timetable.getAcroClass(), timetable.getAcademicYear(), timetable.getSemester());
+        // 6. MARK THIS TIMETABLE AS THE SINGLE ACTIVE SOURCE OF TRUTH FOR THIS CLASS
+        List<Timetable> otherTimetables = timetableRepository.findAll()
+            .stream()
+            .filter(t -> t.getAcroClass() != null && 
+                        (t.getAcroClass().getId().equals(targetClass.getId()) || 
+                         (t.getAcroClass().getName() != null && targetClass.getName() != null && t.getAcroClass().getName().trim().equalsIgnoreCase(targetClass.getName().trim()))) && 
+                         !t.getId().equals(timetable.getId()))
+            .collect(Collectors.toList());
         for (Timetable t : otherTimetables) {
             t.setIsActive(false);
             timetableRepository.save(t);
@@ -368,32 +400,191 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         timetable.setIsActive(true);
         timetableRepository.save(timetable);
 
-        // Automatic Semester Promotion for Students
-        // Find students in the class who are currently enrolled in a previous semester
-        Integer newSemNumber = timetable.getSemester().getSemesterNumber();
-        List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(timetable.getAcroClass().getId());
-        
-        for (StudentEnrollment enrollment : enrollments) {
-            if (enrollment.getSemester().getSemesterNumber() < newSemNumber) {
-                enrollment.setIsActive(false);
-                enrollment.setEffectiveTo(LocalDate.now());
-                studentEnrollmentRepository.save(enrollment);
-                
-                StudentEnrollment newEnrollment = new StudentEnrollment();
-                newEnrollment.setStudent(enrollment.getStudent());
-                newEnrollment.setAcroClass(timetable.getAcroClass());
-                newEnrollment.setAcademicYear(timetable.getAcademicYear());
-                newEnrollment.setSemester(timetable.getSemester());
-                newEnrollment.setEffectiveFrom(LocalDate.now());
-                newEnrollment.setIsActive(true);
-                studentEnrollmentRepository.save(newEnrollment);
-                
-                // Keep the student record up to date
-                Student student = enrollment.getStudent();
-                student.setCurrentSemester(String.valueOf(newSemNumber));
-                // Assume batch doesn't change
+        // 7. AUTOMATIC STUDENT ASSIGNMENT & SEMESTER PROMOTION
+        performDynamicStudentAssignmentAndPromotion(targetDepartment, targetBatch, targetClass, targetYear, targetSemester, creator);
+        log.info("--- [AI MATCH CONFIRM & ASSIGN] Successfully completed workflow for Class: {} ---", targetClass.getName());
+    }
+
+    private void cleanupPreviousSemesterWorkspace(AcroClass targetClass, Integer newSemNumber) {
+        log.info("Cleaning up previous semester and superseded workspaces for Class: {} prior to Semester {}", targetClass.getName(), newSemNumber);
+
+        String targetName = targetClass.getName() != null ? targetClass.getName().trim().toLowerCase() : "";
+        String targetSec = targetClass.getSection() != null ? targetClass.getSection().trim().toLowerCase() : "";
+
+        List<ClassSubject> allOldCards = classSubjectRepository.findAll()
+                .stream()
+                .filter(cs -> cs.getAcroClass() != null)
+                .filter(cs -> {
+                    boolean idMatch = cs.getAcroClass().getId().equals(targetClass.getId());
+                    boolean nameMatch = !targetName.isEmpty() && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().toLowerCase().equals(targetName);
+                    boolean secMatch = !targetSec.isEmpty() && cs.getAcroClass().getSection() != null && cs.getAcroClass().getSection().trim().toLowerCase().equals(targetSec);
+                    return idMatch || nameMatch || secMatch;
+                })
+                .collect(Collectors.toList());
+
+        if (!allOldCards.isEmpty()) {
+            List<UUID> oldCsIds = allOldCards.stream().map(ClassSubject::getId).collect(Collectors.toList());
+            log.info("Deleting complete academic workspace for {} existing/previous Subject Cards of class {}", oldCsIds.size(), targetClass.getName());
+
+            Set<UUID> fileIdsToDelete = new HashSet<>();
+            fileIdsToDelete.addAll(assignmentSubmissionRepository.findFileIdsByClassSubjectIds(oldCsIds));
+            fileIdsToDelete.addAll(assignmentRepository.findFileIdsByClassSubjectIds(oldCsIds));
+            fileIdsToDelete.addAll(lectureMaterialRepository.findFileIdsByClassSubjectIds(oldCsIds));
+
+            assignmentSubmissionRepository.deleteByClassSubjectIds(oldCsIds);
+            assignmentRepository.deleteByClassSubjectIds(oldCsIds);
+            lectureMaterialRepository.deleteByClassSubjectIds(oldCsIds);
+            subjectAnnouncementRepository.deleteByClassSubjectIds(oldCsIds);
+            studentAttendanceHistoryRepository.deleteByClassSubjectIds(oldCsIds);
+            studentAttendanceRepository.deleteByClassSubjectIds(oldCsIds);
+            attendanceSessionRepository.deleteByClassSubjectIds(oldCsIds);
+            quizAttemptRepository.deleteByClassSubjectIds(oldCsIds);
+            quizQuestionRepository.deleteByClassSubjectIds(oldCsIds);
+            quizRepository.deleteByClassSubjectIds(oldCsIds);
+            facultyActivityRepository.deleteByClassSubjectIds(oldCsIds);
+            classSubjectRepository.deleteByIdIn(oldCsIds);
+
+            for (UUID fileId : fileIdsToDelete) {
+                if (fileId != null) {
+                    fileStorageRepository.findById(fileId).ifPresent(file -> {
+                        if (file.getDocumentUrl() != null) {
+                            try {
+                                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(file.getDocumentUrl()));
+                            } catch (Exception e) {
+                                log.warn("Failed to delete physical file: {}", e.getMessage());
+                            }
+                        }
+                        fileStorageRepository.delete(file);
+                    });
+                }
+            }
+            log.info("Finished deleting previous semester Subject Cards and operational data.");
+        }
+
+        List<CoordinatorAssignment> oldCoords = coordinatorAssignmentRepository.findAll()
+                .stream()
+                .filter(ca -> ca.getClassName() != null && !targetName.isEmpty() && ca.getClassName().trim().toLowerCase().equals(targetName))
+                .collect(Collectors.toList());
+        if (!oldCoords.isEmpty()) {
+            coordinatorAssignmentRepository.deleteAll(oldCoords);
+            log.info("Deleted {} previous CoordinatorAssignments for class {}", oldCoords.size(), targetClass.getName());
+        }
+    }
+
+    private void performDynamicStudentAssignmentAndPromotion(Department targetDept, String targetBatch, AcroClass targetClass, 
+                                                             AcademicYear targetYear, Semester targetSemester, User creator) {
+        log.info("Executing dynamic student assignment and promotion for Dept: {}, Batch: {}, Class/Section: {}, New Sem: {}", 
+                 targetDept != null ? targetDept.getName() : "Any", targetBatch, targetClass.getName(), targetSemester.getSemesterNumber());
+
+        List<Student> allStudents = studentRepository.findAll();
+        Integer newSemNumber = targetSemester.getSemesterNumber();
+        int matchedCount = 0;
+        int promotedCount = 0;
+
+        String targetName = targetClass.getName() != null ? targetClass.getName().trim().toLowerCase() : "";
+        String targetSec = targetClass.getSection() != null ? targetClass.getSection().trim().toLowerCase() : "";
+
+        List<StudentEnrollment> existingEnrollments = studentEnrollmentRepository.findAll();
+        Set<UUID> alreadyEnrolledStudentIds = existingEnrollments.stream()
+            .filter(se -> se.getAcroClass() != null)
+            .filter(se -> se.getAcroClass().getId().equals(targetClass.getId()) ||
+                         (se.getAcroClass().getName() != null && !targetName.isEmpty() && se.getAcroClass().getName().trim().toLowerCase().equals(targetName)) ||
+                         (se.getAcroClass().getSection() != null && !targetSec.isEmpty() && se.getAcroClass().getSection().trim().toLowerCase().equals(targetSec)))
+            .map(se -> se.getStudent().getId())
+            .collect(Collectors.toSet());
+
+        for (Student student : allStudents) {
+            boolean classMatches = false;
+
+            if (alreadyEnrolledStudentIds.contains(student.getId())) {
+                classMatches = true;
+            } else {
+                String stCourse = student.getCourse() != null ? student.getCourse().trim().toLowerCase() : "";
+                String stSec = student.getSection() != null ? student.getSection().trim().toLowerCase() : "";
+
+                if (!stCourse.isEmpty() && !targetName.isEmpty() && (stCourse.equals(targetName) || stCourse.contains(targetName) || targetName.contains(stCourse))) {
+                    classMatches = true;
+                } else if (!stSec.isEmpty() && !targetSec.isEmpty() && (stSec.equals(targetSec) || stSec.contains(targetSec) || targetSec.contains(stSec))) {
+                    classMatches = true;
+                } else if (!stSec.isEmpty() && !targetName.isEmpty() && (stSec.equals(targetName) || stSec.contains(targetName) || targetName.contains(stSec))) {
+                    classMatches = true;
+                }
+            }
+
+            if (!classMatches) continue;
+
+            matchedCount++;
+
+            int currentSemNum = 0;
+            try {
+                if (student.getCurrentSemester() != null && !student.getCurrentSemester().isBlank()) {
+                    currentSemNum = Integer.parseInt(student.getCurrentSemester().replaceAll("[^0-9]", ""));
+                }
+            } catch (Exception e) {
+                currentSemNum = 0;
+            }
+
+            if (student.getUser() != null && targetDept != null) {
+                if (student.getUser().getDepartment() == null || !student.getUser().getDepartment().getId().equals(targetDept.getId())) {
+                    student.getUser().setDepartment(targetDept);
+                    userRepository.save(student.getUser());
+                }
+            }
+
+            boolean isPromotion = (newSemNumber > currentSemNum);
+            if (isPromotion) promotedCount++;
+
+            student.setCurrentSemester(String.valueOf(newSemNumber));
+            student.setCourse(targetClass.getName());
+            student.setSection(targetClass.getSection() != null && !targetClass.getSection().isBlank() ? targetClass.getSection() : targetClass.getName());
+            if (targetBatch != null && !targetBatch.isBlank()) {
+                student.setBatchYear(targetBatch);
+            }
+            studentRepository.save(student);
+
+            List<StudentEnrollment> studentEnrolls = existingEnrollments.stream()
+                .filter(se -> se.getStudent() != null && se.getStudent().getId().equals(student.getId()))
+                .collect(Collectors.toList());
+
+            boolean needNewEnrollment = true;
+            for (StudentEnrollment se : studentEnrolls) {
+                if (Boolean.TRUE.equals(se.getIsActive())) {
+                    if (se.getAcroClass().getId().equals(targetClass.getId()) &&
+                        se.getAcademicYear().getId().equals(targetYear.getId()) &&
+                        se.getSemester().getId().equals(targetSemester.getId())) {
+                        needNewEnrollment = false;
+                    } else {
+                        se.setIsActive(false);
+                        se.setEffectiveTo(LocalDate.now());
+                        studentEnrollmentRepository.save(se);
+                    }
+                }
+            }
+
+            if (needNewEnrollment) {
+                Optional<StudentEnrollment> termEnrollment = studentEnrollmentRepository
+                    .findByStudentIdAndAcademicYearIdAndSemesterId(student.getId(), targetYear.getId(), targetSemester.getId());
+                if (termEnrollment.isPresent()) {
+                    StudentEnrollment e = termEnrollment.get();
+                    e.setAcroClass(targetClass);
+                    e.setIsActive(true);
+                    e.setEffectiveTo(null);
+                    studentEnrollmentRepository.save(e);
+                } else {
+                    StudentEnrollment newEnrollment = new StudentEnrollment();
+                    newEnrollment.setStudent(student);
+                    newEnrollment.setAcroClass(targetClass);
+                    newEnrollment.setAcademicYear(targetYear);
+                    newEnrollment.setSemester(targetSemester);
+                    newEnrollment.setEffectiveFrom(LocalDate.now());
+                    newEnrollment.setIsActive(true);
+                    newEnrollment.setCreatedBy(creator);
+                    studentEnrollmentRepository.save(newEnrollment);
+                }
             }
         }
+        log.info("Dynamic Student Automation complete! Checked={}, Matched & Synchronized={}, Promoted={}", 
+                 allStudents.size(), matchedCount, promotedCount);
     }
 
 
@@ -403,7 +594,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         for (Faculty f : faculties) {
             if (f.getUser() == null) continue;
             String dbName = f.getUser().getFirstName() + " " + f.getUser().getLastName();
-            if (com.acronexus.util.NameNormalizer.fuzzyMatch(extractedName, dbName)) {
+            if (NameNormalizer.fuzzyMatch(extractedName, dbName)) {
                 return f.getUser().getId().toString();
             }
         }

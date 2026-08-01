@@ -38,4 +38,8 @@ public interface FacultyActivityRepository extends JpaRepository<FacultyActivity
                                                       @Param("semesterId") UUID semesterId,
                                                       @Param("classId") UUID classId,
                                                       @Param("subjectId") UUID subjectId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM FacultyActivity fa WHERE fa.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
 }

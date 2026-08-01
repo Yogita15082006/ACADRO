@@ -12,4 +12,8 @@ import java.util.UUID;
 public interface SubjectAnnouncementRepository extends JpaRepository<SubjectAnnouncement, UUID> {
     List<SubjectAnnouncement> findByClassSubjectIdAndIsDeletedFalseOrderByCreatedAtDesc(UUID classSubjectId);
     Optional<SubjectAnnouncement> findByIdAndIsDeletedFalse(UUID id);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM SubjectAnnouncement sa WHERE sa.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") List<UUID> csIds);
 }

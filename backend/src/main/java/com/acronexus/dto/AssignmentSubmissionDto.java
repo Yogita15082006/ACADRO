@@ -22,13 +22,23 @@ public class AssignmentSubmissionDto {
         private UUID studentId;
         private String studentName;
         private String studentEnrollmentNo;
+        private String name;
+        private String enrollmentNumber;
+        private String avatar;
         private UUID fileId;
         private String fileUrl;
         private String fileName;
         private Instant submittedAt;
+        private String submitDate;
         private BigDecimal marksAwarded;
+        private BigDecimal marks;
         private String feedback;
         private Boolean isLate;
+        private String status;
+        private String aiSimilarity;
+        private String grade;
+        private Instant evaluatedAt;
+        private String evaluationDate;
     }
 
     @Data
@@ -43,9 +53,9 @@ public class AssignmentSubmissionDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class EvaluateRequest {
-        @NotNull(message = "Marks awarded is required")
         private BigDecimal marksAwarded;
         
         private String feedback;
+        private String grade;
     }
 }

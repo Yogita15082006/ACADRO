@@ -7,7 +7,6 @@ import java.util.List;
 
 @Entity
 @Table(name = "academic_syllabus")
-@EntityListeners(AcademicSyllabusEntityListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class AcademicSyllabus extends BaseEntity {
 

@@ -36,4 +36,12 @@ public class AssignmentSubmission {
 
     private Boolean isLate = false;
 
+    @Column(length = 30)
+    private String status;
+
+    @Column(length = 10)
+    private String grade;
+
+    private java.time.Instant evaluatedAt;
+
 }

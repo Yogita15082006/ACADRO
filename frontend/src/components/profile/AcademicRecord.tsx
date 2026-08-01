@@ -19,6 +19,8 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
     year: data.year || '',
     semester: data.semester || '',
     batch: data.batch || '',
+    course: data.course || '',
+    section: data.section || (data.className !== 'Unassigned' ? data.className : '') || '',
     cgpa: data.cgpa || '',
     activeBacklogs: data.activeBacklogs || 0,
     historyBacklogs: data.historyBacklogs || 0,
@@ -36,11 +38,11 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
     },
     subjects: data.subjects || [],
     tenthSchoolName: data.tenthSchoolName || '',
-    tenthBoard: data.tenthBoard || 'CBSE',
+    tenthBoard: data.tenthBoard || '',
     tenthPercentage: data.tenthPercentage || '',
     tenthYear: data.tenthYear || '',
     twelfthSchoolName: data.twelfthSchoolName || '',
-    twelfthBoard: data.twelfthBoard || 'CBSE',
+    twelfthBoard: data.twelfthBoard || '',
     twelfthPercentage: data.twelfthPercentage || '',
     twelfthYear: data.twelfthYear || '',
   });
@@ -269,6 +271,14 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
 
             {/* Current Stats Read-Only */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b border-border/40 bg-muted/10">
+              <div className="space-y-1 min-w-0">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider truncate" title="Class / Course">Class / Course</p>
+                <p className="text-lg font-semibold text-foreground truncate" title={formData.course}>{formData.course || 'N/A'}</p>
+              </div>
+              <div className="space-y-1 min-w-0">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider truncate" title="Section">Section</p>
+                <p className="text-lg font-semibold text-foreground truncate" title={formData.section}>{formData.section || 'N/A'}</p>
+              </div>
               <div className="space-y-1 min-w-0">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider truncate">Academic Year</p>
                 <p className="text-lg font-semibold text-foreground truncate" title={formData.year}>{formData.year || 'N/A'}</p>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -7,13 +7,14 @@ import {
   Download, X, File, FileCode, Archive, 
   BarChart3, TrendingUp, AlertTriangle, ChevronRight, Activity,
   Eye, ZoomIn, ZoomOut, Maximize, Printer, ExternalLink,
-  FileArchive
+  FileArchive, Edit2, Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
+import api from '../services/api';
 import { ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Tooltip, AreaChart, Area, XAxis, YAxis, BarChart, Bar } from 'recharts';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -45,8 +46,29 @@ export function AssignmentModule({ workspaceContext }: { workspaceContext?: any 
   const [assignments, setAssignments] = useState<Assignment[]>(mockData.assignments);
   const [submissions, setSubmissions] = useState<Submission[]>(mockData.assignmentSubmissions);
 
+  useEffect(() => {
+    const fetchRealData = async () => {
+      try {
+        const targetUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}` : `/v1/assignments/all`;
+        const res = await api.get(targetUrl);
+        if (res?.data?.data && Array.isArray(res.data.data)) {
+          setAssignments(res.data.data);
+        }
+        
+        const subUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}/my-submissions` : `/v1/assignments/subject/00000000-0000-0000-0000-000000000000/my-submissions`;
+        const subRes = await api.get(subUrl);
+        if (subRes?.data?.data && Array.isArray(subRes.data.data)) {
+          setSubmissions(subRes.data.data);
+        }
+      } catch (e) {
+        console.error("Error loading real dynamic assignments:", e);
+      }
+    };
+    fetchRealData();
+  }, [workspaceContext]);
+
   if (['faculty', 'hod', 'coordinator', 'both'].includes(role)) {
-    return <AdminAssignmentDashboard assignments={assignments} setAssignments={setAssignments} submissions={submissions} workspaceContext={workspaceContext} />;
+    return <AdminAssignmentDashboard assignments={assignments} setAssignments={setAssignments} submissions={submissions} setSubmissions={setSubmissions} workspaceContext={workspaceContext} />;
   }
   
   return <StudentAssignmentDashboard assignments={assignments} submissions={submissions} setSubmissions={setSubmissions} workspaceContext={workspaceContext} />;
@@ -55,16 +77,27 @@ export function AssignmentModule({ workspaceContext }: { workspaceContext?: any 
 // ==========================================
 // ADMIN DASHBOARD
 // ==========================================
-function AdminAssignmentDashboard({ assignments, setAssignments, submissions, workspaceContext }: { assignments: Assignment[], setAssignments: any, submissions: Submission[], workspaceContext?: any }) {
+function AdminAssignmentDashboard({ assignments, setAssignments, submissions, setSubmissions, workspaceContext }: { assignments: Assignment[], setAssignments: any, submissions: Submission[], setSubmissions?: any, workspaceContext?: any }) {
   const { classes, students } = mockData;
   const [activeClassId, setActiveClassId] = useState(workspaceContext?.classId || classes[0].id);
   const [activeTab, setActiveTab] = useState('overview');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewSubmissionsAssignment, setViewSubmissionsAssignment] = useState<Assignment | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+
+  const handleDeleteAssignment = async (id: string) => {
+    try {
+      await api.delete(`/v1/assignments/${id}`);
+      setAssignments((prev: any[]) => prev.filter(a => a.id !== id));
+    } catch (e) {
+      console.error("Error deleting assignment:", e);
+      setAssignments((prev: any[]) => prev.filter(a => a.id !== id));
+    }
+  };
 
   const stats = useMemo(() => {
-    const classAssignments = workspaceContext ? assignments.filter(a => a.classId === activeClassId && a.subjectId === workspaceContext.subjectId) : assignments.filter(a => a.classId === activeClassId);
+    const classAssignments = workspaceContext ? assignments : assignments.filter(a => a.classId === activeClassId || !a.classId || a.className === 'All Classes');
     const active = classAssignments.filter(a => a.status === 'Open' || a.status === 'Upcoming').length;
     const completed = classAssignments.filter(a => a.status === 'Expired' || a.status === 'Graded').length;
     
@@ -77,29 +110,27 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, wo
   }, [assignments, activeClassId, workspaceContext]);
 
   const submissionStats = useMemo(() => {
-    const classAssignments = workspaceContext ? assignments.filter(a => a.classId === activeClassId && a.subjectId === workspaceContext.subjectId) : assignments.filter(a => a.classId === activeClassId);
-    const classStudents = students.filter(s => s.classId === activeClassId);
+    const classAssignments = workspaceContext ? assignments : assignments.filter(a => a.classId === activeClassId || !a.classId || a.className === 'All Classes');
+    const classStudents = students.filter(s => s.classId === activeClassId || !activeClassId);
     const classSubmissions = submissions.filter(s => classAssignments.some(a => a.id === s.assignmentId));
 
     const totalStudents = classStudents.length;
-    const submitted = classSubmissions.filter(s => s.status === 'Submitted' || s.status === 'Graded').length;
-    const graded = classSubmissions.filter(s => s.status === 'Graded').length;
+    const submitted = classSubmissions.filter(s => s.status === 'Submitted' || s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.marksAwarded != null || s.marks != null || s.evaluatedAt != null).length;
+    const graded = classSubmissions.filter(s => s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.marksAwarded != null || s.marks != null || s.evaluatedAt != null).length;
     const late = classSubmissions.filter(s => s.status === 'Late Submitted').length;
     const totalExpected = totalStudents * classAssignments.length;
-    const avgRate = totalExpected > 0 ? Math.round(((submitted + late) / totalExpected) * 100) : 0;
     
     return {
       totalStudents,
       submitted,
       late,
       graded,
-      avgRate,
       pending: Math.max(0, totalExpected - submitted - late),
-      pendingReviews: (submitted + late) - graded
+      pendingReviews: Math.max(0, (submitted + late) - graded)
     };
   }, [submissions, students, assignments, activeClassId, workspaceContext]);
 
-  const activeAssignments = useMemo(() => workspaceContext ? assignments.filter(a => a.classId === activeClassId && a.subjectId === workspaceContext.subjectId) : assignments.filter(a => a.classId === activeClassId), [assignments, activeClassId, workspaceContext]);
+  const activeAssignments = useMemo(() => workspaceContext ? assignments : assignments.filter(a => a.classId === activeClassId || !a.classId || a.className === 'All Classes'), [assignments, activeClassId, workspaceContext]);
 
   return (
     <motion.div 
@@ -169,7 +200,7 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, wo
           transition={{ duration: 0.2 }}
         >
           <CompactAssignmentStatsBanner stats={stats} submissionStats={submissionStats} />
-          <AdminAssignmentList assignments={activeAssignments} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onViewSubmissions={setViewSubmissionsAssignment} />
+          <AdminAssignmentList assignments={activeAssignments} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onViewSubmissions={setViewSubmissionsAssignment} onEdit={setEditingAssignment} onDelete={handleDeleteAssignment} />
         </motion.div>
       ) : (
         <AnimatePresence mode="wait">
@@ -181,7 +212,7 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, wo
             transition={{ duration: 0.2 }}
           >
             {activeTab === 'overview' && <AdminOverview stats={stats} submissionStats={submissionStats} />}
-            {activeTab === 'assignments' && <AdminAssignmentList assignments={activeAssignments} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onViewSubmissions={setViewSubmissionsAssignment} />}
+            {activeTab === 'assignments' && <AdminAssignmentList assignments={activeAssignments} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onViewSubmissions={setViewSubmissionsAssignment} onEdit={setEditingAssignment} onDelete={handleDeleteAssignment} />}
             {activeTab === 'ai-analytics' && <AdminAIAnalytics activeClassId={activeClassId} submissions={submissions} assignments={assignments} />}
           </motion.div>
         </AnimatePresence>
@@ -191,19 +222,54 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, wo
       {showCreateModal && <CreateAssignmentModal 
         onClose={() => setShowCreateModal(false)} 
         onSuccess={(data) => {
-          setAssignments([...assignments, data]);
+          setAssignments([data, ...assignments]);
           setShowCreateModal(false);
         }}
         activeClassId={activeClassId}
         workspaceContext={workspaceContext}
       />}
 
+      {/* Edit Modal */}
+      {editingAssignment && (
+        <EditAssignmentModal
+          assignment={editingAssignment}
+          onClose={() => setEditingAssignment(null)}
+          onUpdate={(updated: any) => {
+            setAssignments((prev: any[]) => prev.map(a => a.id === updated.id ? updated : a));
+          }}
+        />
+      )}
+
       {/* Submissions Modal */}
       <AnimatePresence>
         {viewSubmissionsAssignment && (
           <AdminSubmissionsModal 
             assignment={viewSubmissionsAssignment} 
-            submissions={submissions} 
+            submissions={submissions}
+            onSubmissionsLoaded={(loadedSubs: any[]) => {
+              if (setSubmissions && Array.isArray(loadedSubs)) {
+                setSubmissions((prev: any[]) => {
+                  const map = new Map();
+                  prev.forEach(s => map.set(s.id || `${s.assignmentId}-${s.studentId}`, s));
+                  loadedSubs.forEach(s => map.set(s.id || `${s.assignmentId}-${s.studentId}`, s));
+                  return Array.from(map.values());
+                });
+              }
+            }}
+            onSubmissionUpdated={(updatedSub: any) => {
+              if (setSubmissions) {
+                setSubmissions((prev: any[]) => {
+                  const idx = prev.findIndex(s => s.id === updatedSub.id || (s.assignmentId === updatedSub.assignmentId && s.studentId === updatedSub.studentId));
+                  const newStatus = updatedSub.status || (updatedSub.marksAwarded != null || updatedSub.marks != null || updatedSub.grade != null ? 'Reviewed' : 'Submitted');
+                  if (idx !== -1) {
+                    const copy = [...prev];
+                    copy[idx] = { ...copy[idx], ...updatedSub, status: newStatus };
+                    return copy;
+                  }
+                  return [...prev, { ...updatedSub, status: newStatus }];
+                });
+              }
+            }}
             onClose={() => setViewSubmissionsAssignment(null)} 
           />
         )}
@@ -214,7 +280,7 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, wo
 
 function CompactAssignmentStatsBanner({ stats, submissionStats }: { stats: any, submissionStats: any }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       <Card className="border-none shadow-sm bg-indigo-50/50">
         <CardContent className="p-4 flex flex-col items-center justify-center text-center">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Assignments</p>
@@ -237,12 +303,6 @@ function CompactAssignmentStatsBanner({ stats, submissionStats }: { stats: any, 
         <CardContent className="p-4 flex flex-col items-center justify-center text-center">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Reviewed</p>
           <h3 className="text-2xl font-bold text-blue-700">{submissionStats.graded}</h3>
-        </CardContent>
-      </Card>
-      <Card className="border-none shadow-sm bg-violet-50/50">
-        <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Avg Submit Rate</p>
-          <h3 className="text-2xl font-bold text-violet-700">{submissionStats.avgRate}%</h3>
         </CardContent>
       </Card>
     </div>
@@ -410,12 +470,134 @@ function AdminOverview({ stats, submissionStats }: { stats: any, submissionStats
   );
 }
 
-function AdminAssignmentList({ assignments, searchQuery, setSearchQuery, onViewSubmissions }: { assignments: Assignment[], searchQuery: string, setSearchQuery: (s: string) => void, onViewSubmissions: (a: Assignment) => void }) {
+export const formatDeadlineDisplay = (isoStr?: string) => {
+  if (!isoStr) return 'No Deadline';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return new Intl.DateTimeFormat('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(d);
+  } catch {
+    return isoStr;
+  }
+};
+
+export const toLocalInputString = (isoStr?: string) => {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr.slice(0, 16);
+    const offset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - offset);
+    return local.toISOString().slice(0, 16);
+  } catch {
+    return isoStr.slice(0, 16);
+  }
+};
+
+export const toUtcISOString = (localStr?: string) => {
+  if (!localStr) return '';
+  try {
+    const d = new Date(localStr);
+    if (isNaN(d.getTime())) return localStr;
+    return d.toISOString();
+  } catch {
+    return localStr;
+  }
+};
+
+export const resolveApiUrl = (url?: string) => {
+  if (!url) return '#';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+  return `http://localhost:8080${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+function EditAssignmentModal({ assignment, onClose, onUpdate }: { assignment: any, onClose: () => void, onUpdate: (updated: any) => void }) {
+  const [deadline, setDeadline] = useState(toLocalInputString(assignment.deadline));
+  const [lateAllowed, setLateAllowed] = useState(assignment.lateSubmissionAllowed !== false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    const utcDeadline = deadline ? toUtcISOString(deadline) : '';
+    try {
+      const res = await api.put(`/v1/assignments/${assignment.id}`, {
+        deadlineStr: utcDeadline,
+        lateSubmissionAllowed: lateAllowed
+      });
+      if (res?.data?.data) {
+        onUpdate(res.data.data);
+      } else {
+        onUpdate({ ...assignment, deadline: utcDeadline, lateSubmissionAllowed: lateAllowed });
+      }
+    } catch (e) {
+      console.error("Error updating assignment:", e);
+      onUpdate({ ...assignment, deadline: utcDeadline, lateSubmissionAllowed: lateAllowed });
+    } finally {
+      setIsSaving(false);
+      onClose();
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-6 border border-slate-100"
+      >
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h3 className="font-bold text-lg text-slate-900">Edit Assignment Settings</h3>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-500" /></button>
+        </div>
+        <p className="text-xs text-slate-500 font-medium">Notice: Per LMS rules, Faculty can modify only Due Date and Allow Late Submission after creation.</p>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1">Due Date & Time</label>
+            <input 
+              type="datetime-local" 
+              value={deadline} 
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <span className="text-sm font-semibold text-slate-700">Allow Late Submission</span>
+            <input 
+              type="checkbox" 
+              checked={lateAllowed} 
+              onChange={(e) => setLateAllowed(e.target.checked)}
+              className="w-5 h-5 accent-indigo-600 rounded cursor-pointer"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl">Cancel</Button>
+            <Button type="submit" disabled={isSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl">
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </div>,
+    document.body
+  );
+}
+
+function AdminAssignmentList({ assignments, searchQuery, setSearchQuery, onViewSubmissions, onEdit, onDelete }: { assignments: Assignment[], searchQuery: string, setSearchQuery: (s: string) => void, onViewSubmissions: (a: Assignment) => void, onEdit?: (a: Assignment) => void, onDelete?: (id: string) => void }) {
   const { subjects } = mockData;
 
   const filtered = assignments.filter(a => 
-    a.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (a.department && a.department.toLowerCase().includes(searchQuery.toLowerCase()))
+    (a.title && a.title.toLowerCase().includes(searchQuery.toLowerCase())) || 
+    (a.department && a.department.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (a.subjectName && a.subjectName.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -447,49 +629,95 @@ function AdminAssignmentList({ assignments, searchQuery, setSearchQuery, onViewS
           const subject = subjects.find(s => s.id === assignment.subjectId);
           return (
             <motion.div key={assignment.id} variants={itemVariants}>
-              <Card className="h-full border-none shadow-sm hover:shadow-md transition-shadow overflow-hidden group cursor-pointer">
-                <div className="h-2 w-full bg-gradient-to-r from-indigo-500 to-violet-500" />
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <Badge variant={
-                      assignment.status === 'Open' ? 'active' : 
-                      assignment.status === 'Upcoming' ? 'event' : 
-                      assignment.status === 'Expired' ? 'rejected' : 'default'
-                    } className="capitalize">
-                      {assignment.status}
-                    </Badge>
-                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                      {assignment.department} • {assignment.academicYear}
-                    </span>
-                  </div>
-                  
-                  <h3 className="font-semibold text-lg text-slate-900 mb-1 line-clamp-1 group-hover:text-indigo-600:text-indigo-400 transition-colors">
-                    {assignment.title}
-                  </h3>
-                  <p className="text-sm text-slate-500 mb-4 line-clamp-1">
-                    {subject?.name || 'Subject Unknown'}
-                  </p>
-
-                  <div className="space-y-2 mb-6">
-                    <div className="flex items-center text-sm text-slate-600">
-                      <FileText className="w-4 h-4 mr-2 text-slate-400" />
-                      {assignment.type}
+              <Card className="h-full border border-slate-200/80 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group cursor-pointer rounded-2xl bg-white hover:-translate-y-1 flex flex-col justify-between">
+                <div>
+                  <div className="h-2 w-full bg-gradient-to-r from-indigo-600 to-violet-600" />
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <Badge variant={
+                        assignment.status === 'Open' ? 'active' : 
+                        assignment.status === 'Upcoming' ? 'event' : 
+                        assignment.status === 'Expired' ? 'rejected' : 'default'
+                      } className="capitalize px-2.5 py-0.5 text-[11px] font-bold tracking-wider uppercase">
+                        {assignment.status || 'Open'}
+                      </Badge>
+                      <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200/60 shadow-xs">
+                        {assignment.academicYear || 'Current Year'} • {assignment.maxMarks || 10} Marks
+                      </span>
                     </div>
-                    <div className="flex items-center text-sm text-slate-600">
-                      <Calendar className="w-4 h-4 mr-2 text-slate-400" />
-                      Deadline: {new Date(assignment.deadline).toLocaleDateString()}
+                    
+                    <h3 className="font-extrabold text-xl text-slate-900 mb-3 line-clamp-1 group-hover:text-indigo-600 transition-colors tracking-tight">
+                      {assignment.title}
+                    </h3>
+
+                    <div className="space-y-2 mb-6">
+                      <div className="flex items-center text-sm text-slate-600 font-medium">
+                        <FileText className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
+                        <span>{assignment.type || 'Document Assignment'}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-slate-600 font-medium">
+                        <Calendar className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
+                        <span>Due: <strong className="text-slate-900 ml-1">{formatDeadlineDisplay(assignment.deadline)}</strong></span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </div>
+
+                <div className="px-6 pb-6 pt-0">
+                  <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const rawUrl = assignment.fileUrl || assignment.attachmentUrl || (assignment.id ? `http://localhost:8080/api/v1/assignments/${assignment.id}/view` : '#');
+                          const docUrl = resolveApiUrl(rawUrl).replace('/download', '/view');
+                          window.open(docUrl, '_blank', 'noopener,noreferrer'); 
+                        }} 
+                        className="h-9 px-3 bg-indigo-50/50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 font-semibold"
+                        title="View original uploaded assignment"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1.5" />
+                        View Assignment
+                      </Button>
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={(e) => { e.stopPropagation(); onViewSubmissions(assignment); }} 
+                        className="h-9 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm"
+                      >
+                        View Submissions
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {onEdit && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={(e) => { e.stopPropagation(); onEdit(assignment); }} 
+                          className="h-9 px-2.5 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 font-medium" 
+                          title="Edit Due Date / Late Setting"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 mr-1" />
+                          Edit
+                        </Button>
+                      )}
+                      {onDelete && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={(e) => { e.stopPropagation(); onDelete(assignment.id); }} 
+                          className="h-9 px-2.5 text-rose-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 font-medium" 
+                          title="Delete Assignment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Delete
+                        </Button>
+                      )}
                     </div>
                   </div>
-
-                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-slate-900">
-                      {assignment.maxMarks} Marks
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => onViewSubmissions(assignment)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50:bg-indigo-900/30">
-                      View Submissions
-                    </Button>
-                  </div>
-                </CardContent>
+                </div>
               </Card>
             </motion.div>
           );
@@ -627,22 +855,62 @@ function AdminAIAnalytics({ activeClassId, submissions, assignments }: { activeC
   );
 }
 
-function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignment: Assignment, submissions: Submission[], onClose: () => void }) {
+function AdminSubmissionsModal({ assignment, submissions, onClose, onSubmissionUpdated, onSubmissionsLoaded }: { assignment: Assignment, submissions: Submission[], onClose: () => void, onSubmissionUpdated?: (sub: any) => void, onSubmissionsLoaded?: (subs: any[]) => void }) {
   const { students, subjects, classes } = mockData;
-  const assignmentSubmissions = submissions.filter(s => s.assignmentId === assignment.id);
-  const eligibleStudents = students.filter(s => s.classId === assignment.classId);
+  const [liveSubs, setLiveSubs] = useState<any[]>(submissions.filter(s => s.assignmentId === assignment.id));
+  const [liveStudents, setLiveStudents] = useState<any[]>(students.filter(s => s.classId === assignment.classId || !assignment.classId));
+
+  useEffect(() => {
+    const loadRealData = async () => {
+      try {
+        const [subRes, enrolledRes] = await Promise.all([
+          api.get(`/v1/assignments/${assignment.id}/submissions`),
+          api.get(`/v1/assignments/${assignment.id}/enrolled-students`)
+        ]);
+        if (subRes?.data?.data && Array.isArray(subRes.data.data)) {
+          setLiveSubs(subRes.data.data);
+          if (onSubmissionsLoaded) onSubmissionsLoaded(subRes.data.data);
+        }
+        if (enrolledRes?.data?.data && Array.isArray(enrolledRes.data.data) && enrolledRes.data.data.length > 0) {
+          setLiveStudents(enrolledRes.data.data);
+        } else if (subRes?.data?.data && Array.isArray(subRes.data.data)) {
+          const realStudentIds = new Set(subRes.data.data.map((s: any) => s.studentId));
+          setLiveStudents(prev => {
+            const currentIds = new Set(prev.map(p => p.id));
+            const extra = subRes.data.data
+              .filter((s: any) => s.studentId && !currentIds.has(s.studentId))
+              .map((s: any) => ({
+                id: s.studentId,
+                name: s.studentName || s.name || 'Student',
+                enrollmentNumber: s.studentEnrollmentNo || s.enrollmentNumber || 'STU-' + String(s.studentId).slice(0, 4),
+                avatar: s.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.studentName || 'Student')}`,
+                classId: assignment.classId
+              }));
+            return [...prev, ...extra];
+          });
+        }
+      } catch (e) {
+        console.error("Error loading live submissions:", e);
+      }
+    };
+    loadRealData();
+  }, [assignment.id]);
+
+  const assignmentSubmissions = liveSubs;
+  const eligibleStudents = liveStudents.length > 0 ? liveStudents : students.filter(s => s.classId === assignment.classId || !assignment.classId);
 
   const subject = subjects.find(s => s.id === assignment.subjectId);
   const cls = classes.find(c => c.id === assignment.classId);
 
   const studentData = eligibleStudents.map(student => {
     const sub = assignmentSubmissions.find(s => s.studentId === student.id);
+    const isReviewed = sub && (sub.status === 'Graded' || sub.status === 'Reviewed' || sub.status === 'Reviewed & Graded' || sub.marksAwarded != null || sub.marks != null || sub.evaluatedAt != null);
     return {
       ...student,
       submission: sub,
-      status: sub ? sub.status : 'Pending',
-      marks: sub && sub.status === 'Graded' ? sub.marks : null,
-      aiSimilarity: sub ? Math.floor(Math.random() * 30) + '%' : '-' // Mock AI Similarity
+      status: sub ? (isReviewed ? 'Reviewed' : sub.status) : 'Pending',
+      marks: sub && isReviewed ? (sub.marksAwarded ?? sub.marks ?? null) : null,
+      aiSimilarity: sub ? (sub.aiSimilarity || Math.floor(Math.random() * 30) + '%') : '-'
     };
   });
 
@@ -655,20 +923,23 @@ function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignmen
   const deadline = new Date(assignment.deadline);
   const isPastDeadline = now > deadline;
 
+  const gradedSubs = assignmentSubmissions.filter(s => (s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.marksAwarded != null || s.marks != null || s.evaluatedAt != null) && (s.marksAwarded != null || s.marks != null));
+  const totalSubCount = studentData.filter(s => s.status === 'Submitted' || s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.status === 'Late Submitted' || s.submission != null).length;
+
   const stats = {
     totalStudents: eligibleStudents.length,
-    submitted: studentData.filter(s => s.status === 'Submitted' || s.status === 'Graded').length,
+    submitted: studentData.filter(s => s.status === 'Submitted' || s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.submission != null).length,
     lateSubmitted: studentData.filter(s => s.status === 'Late Submitted').length,
-    pending: studentData.filter(s => s.status === 'Pending' && !isPastDeadline).length,
+    pending: Math.max(0, eligibleStudents.length - totalSubCount),
     notSubmitted: studentData.filter(s => s.status === 'Pending' && isPastDeadline).length,
-    avgMarks: assignmentSubmissions.filter(s => s.status === 'Graded').length > 0 
-      ? Math.round(assignmentSubmissions.filter(s => s.status === 'Graded').reduce((acc, curr) => acc + (curr.marks || 0), 0) / assignmentSubmissions.filter(s => s.status === 'Graded').length) 
+    avgMarks: gradedSubs.length > 0 
+      ? Math.round(gradedSubs.reduce((acc, curr) => acc + Number(curr.marksAwarded ?? curr.marks ?? 0), 0) / gradedSubs.length) 
       : '-',
-    highestMarks: assignmentSubmissions.filter(s => s.status === 'Graded').length > 0
-      ? Math.max(...assignmentSubmissions.filter(s => s.status === 'Graded').map(s => s.marks || 0))
+    highestMarks: gradedSubs.length > 0
+      ? Math.max(...gradedSubs.map(s => Number(s.marksAwarded ?? s.marks ?? 0)))
       : '-',
-    lowestMarks: assignmentSubmissions.filter(s => s.status === 'Graded').length > 0
-      ? Math.min(...assignmentSubmissions.filter(s => s.status === 'Graded').map(s => s.marks || 0))
+    lowestMarks: gradedSubs.length > 0
+      ? Math.min(...gradedSubs.map(s => Number(s.marksAwarded ?? s.marks ?? 0)))
       : '-'
   };
 
@@ -676,7 +947,7 @@ function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignmen
     if (filterStatus !== 'All' && s.status !== filterStatus) {
       if (filterStatus === 'Not Submitted' && s.status === 'Pending' && isPastDeadline) return true;
       if (filterStatus === 'Pending' && s.status === 'Pending' && !isPastDeadline) return true;
-      if (filterStatus === 'Submitted' && (s.status === 'Submitted' || s.status === 'Graded')) return true;
+      if (filterStatus === 'Submitted' && (s.status === 'Submitted' || s.status === 'Graded' || s.status === 'Reviewed' || s.status === 'Reviewed & Graded' || s.submission != null)) return true;
       if (filterStatus === 'Late' && s.status === 'Late Submitted') return true;
       return false;
     }
@@ -713,13 +984,13 @@ function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignmen
               </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-600 font-medium">
-              <span className="flex items-center gap-1.5"><FileText className="w-4 h-4 text-indigo-500"/> {subject?.name || 'Unknown'}</span>
-              <span className="flex items-center gap-1.5"><Activity className="w-4 h-4 text-indigo-500"/> {cls?.name || 'Unknown'}</span>
+              <span className="flex items-center gap-1.5"><FileText className="w-4 h-4 text-indigo-500"/> {assignment.subjectName || subject?.name || 'Subject'}</span>
+              <span className="flex items-center gap-1.5"><Activity className="w-4 h-4 text-indigo-500"/> {assignment.className || cls?.name || 'Class/Section'}</span>
               <span>Year: {assignment.academicYear}</span>
               <span>Total Marks: {assignment.maxMarks}</span>
               <span className="flex items-center gap-1.5 text-slate-700">
                 <Calendar className="w-4 h-4 text-indigo-500"/> 
-                Deadline: <span className="font-semibold">{new Date(assignment.deadline).toLocaleString()}</span>
+                Deadline: <span className="font-semibold">{formatDeadlineDisplay(assignment.deadline)}</span>
               </span>
             </div>
           </div>
@@ -830,8 +1101,8 @@ function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignmen
                     <th className="px-6 py-4 font-semibold">Student</th>
                     <th className="px-6 py-4 font-semibold">Submission Time</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
-                    <th className="px-6 py-4 font-semibold">Marks</th>
-                    <th className="px-6 py-4 font-semibold">AI Similarity</th>
+                    <th className="px-6 py-4 font-semibold">Grade</th>
+                    <th className="px-6 py-4 font-semibold">Marks Awarded</th>
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -868,45 +1139,105 @@ function AdminSubmissionsModal({ assignment, submissions, onClose }: { assignmen
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
-                          {student.marks !== null ? (
-                            <span className="font-bold text-slate-900">{student.marks} <span className="text-slate-400 font-normal">/ {assignment.maxMarks}</span></span>
+                          {student.submission ? (
+                            (() => {
+                              const m = student.marks !== null && student.marks !== undefined ? student.marks : (student.submission ? student.submission.marksAwarded : null);
+                              const maxM = assignment.maxMarks || 10;
+                              let g = student.submission.grade;
+                              if (m !== null && m !== undefined && maxM > 0) {
+                                const p = (Number(m) / Number(maxM)) * 100;
+                                if (p >= 90) g = 'A+';
+                                else if (p >= 80) g = 'A';
+                                else if (p >= 70) g = 'B+';
+                                else if (p >= 60) g = 'B';
+                                else if (p >= 50) g = 'C';
+                                else if (p >= 40) g = 'D';
+                                else g = 'F';
+                              }
+                              return g && g !== 'Graded' && g !== 'Reviewed' ? (
+                                <span className="inline-flex items-center justify-center px-2.5 py-1 text-xs font-extrabold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs min-w-[3rem]">
+                                  {g}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-medium text-xs">Pending</span>
+                              );
+                            })()
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
                         <td className="px-6 py-4">
-                           {student.submission ? (
-                             <Badge variant="outline" className="bg-slate-100 text-slate-600 border-none">
-                               <AlertCircle className="w-3 h-3 mr-1 text-slate-400" />
-                               {student.aiSimilarity}
-                             </Badge>
-                           ) : <span className="text-slate-400">-</span>}
+                          {student.submission ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max={assignment.maxMarks || 10}
+                                defaultValue={student.marks !== null ? student.marks : ''}
+                                placeholder="-"
+                                className="w-16 px-2 py-1 text-center rounded border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 shadow-inner"
+                                onBlur={async (e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (!isNaN(val) && val !== student.marks && student.submission) {
+                                    try {
+                                      const res = await api.post(`/v1/assignments/submissions/${student.submission.id}/evaluate`, {
+                                        marksAwarded: val,
+                                        feedback: student.submission.feedback || "Checked and graded"
+                                      });
+                                      const updated = res?.data?.data || { ...student.submission, status: 'Reviewed', marks: val, marksAwarded: val, evaluatedAt: new Date().toISOString() };
+                                      setLiveSubs(prev => prev.map(s => s.id === student.submission.id ? updated : s));
+                                      if (onSubmissionUpdated) onSubmissionUpdated(updated);
+                                    } catch (err) {
+                                      console.error("Error evaluating submission:", err);
+                                      const maxM = assignment.maxMarks || 10;
+                                      let g = 'F';
+                                      if (maxM > 0) {
+                                        const p = (Number(val) / Number(maxM)) * 100;
+                                        if (p >= 90) g = 'A+';
+                                        else if (p >= 80) g = 'A';
+                                        else if (p >= 70) g = 'B+';
+                                        else if (p >= 60) g = 'B';
+                                        else if (p >= 50) g = 'C';
+                                        else if (p >= 40) g = 'D';
+                                      }
+                                      const updated = { ...student.submission, status: 'Reviewed', marks: val, marksAwarded: val, grade: g, evaluatedAt: new Date().toISOString() };
+                                      setLiveSubs(prev => prev.map(s => s.id === student.submission.id ? updated : s));
+                                      if (onSubmissionUpdated) onSubmissionUpdated(updated);
+                                    }
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
+                              />
+                              <span className="text-slate-400 font-medium">/ {assignment.maxMarks || 10}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           {student.submission ? (
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end">
                               <Button 
                                 variant="outline" 
                                 size="sm" 
                                 onClick={() => setPreviewSubmission({ student, assignment, submission: student.submission })}
-                                className="h-8 bg-white"
+                                className="h-8 px-3 bg-white hover:bg-indigo-50 border-slate-200 text-indigo-600 font-medium shadow-sm"
                               >
                                 <Eye className="w-3.5 h-3.5 mr-1.5" />
                                 View
                               </Button>
-                              <Button variant="outline" size="icon" className="h-8 w-8 bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50">
-                                <Download className="w-3.5 h-3.5" />
-                              </Button>
                             </div>
                           ) : (
-                            <Button variant="ghost" size="sm" disabled className="h-8">No File</Button>
+                            <Button variant="ghost" size="sm" disabled className="h-8 text-slate-400">No File</Button>
                           )}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center">
                           <Search className="w-8 h-8 text-slate-300 mb-3" />
                           <p className="font-medium text-slate-900">No students found</p>
@@ -956,10 +1287,9 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
   const fileSize = submission.attachments?.[0]?.size || '2.4 MB';
   
   // A generic fallback for preview URL if it's pointing to example.com
-  const rawFileUrl = submission.fileUrl || assignment.attachmentUrl;
-  const fileUrl = rawFileUrl?.includes('example.com') 
-    ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' 
-    : rawFileUrl;
+  const rawFileUrl = resolveApiUrl(submission.fileUrl || assignment.attachmentUrl);
+  const viewUrl = submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/view` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
+  const downloadUrl = submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/download` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
 
   const isPreviewable = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'png', 'jpg', 'jpeg', 'zip', 'js', 'py', 'java', 'cpp', 'html', 'css'].includes(fileExtension || '');
 
@@ -986,9 +1316,9 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
               <button onClick={() => setIsFullscreen(!isFullscreen)} className={`p-2 hover:bg-slate-800 rounded-lg transition-colors ml-2 ${isFullscreen ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`} title="Toggle Full Screen"><Maximize className="w-4 h-4" /></button>
             </div>
           )}
-          <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Print" onClick={() => window.print()}><Printer className="w-4 h-4" /></button>
-          <a href={fileUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" title="Open in New Tab"><ExternalLink className="w-4 h-4" /></a>
-          <a href={fileUrl} download className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-lg transition-colors ml-2" title="Download"><Download className="w-4 h-4" /></a>
+          <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Print" onClick={() => window.open(viewUrl, '_blank', 'noopener,noreferrer')}><Printer className="w-4 h-4" /></button>
+          <a href={viewUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" title="Open in New Tab"><ExternalLink className="w-4 h-4" /></a>
+          <a href={downloadUrl} download className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-lg transition-colors ml-2" title="Download"><Download className="w-4 h-4" /></a>
           <div className="w-px h-6 bg-slate-700 mx-1 sm:mx-2"></div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Close Preview"><X className="w-5 h-5" /></button>
         </div>
@@ -1022,7 +1352,11 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
               </div>
               <div>
                 <p className="text-slate-400 text-xs">Subject & Class</p>
-                <p className="text-slate-200 text-sm font-medium mt-0.5">{subject?.name} • {cls?.name}</p>
+                <p className="text-slate-200 text-sm font-medium mt-0.5">{assignment.subjectName || subject?.name || 'Subject'} • {assignment.className || cls?.name || 'Class/Section'}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 text-xs">Department & Semester</p>
+                <p className="text-slate-200 text-sm font-medium mt-0.5">{assignment.department || 'GEN'} • {assignment.semester || 'Active Term'}</p>
               </div>
             </div>
 
@@ -1056,10 +1390,10 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
                     style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
                   >
                     {fileExtension === 'pdf' && (
-                      <iframe src={`${fileUrl}#toolbar=0&navpanes=0`} className="w-full h-full min-h-[800px] bg-white shadow-sm" title="PDF Preview" />
+                      <iframe src={`${viewUrl}#toolbar=0&navpanes=0`} className="w-full h-full min-h-[800px] bg-white shadow-sm" title="PDF Preview" />
                     )}
                     {['png', 'jpg', 'jpeg'].includes(fileExtension || '') && (
-                      <img src={fileUrl} alt="Preview" className="max-w-full max-h-full object-contain rounded shadow-sm" />
+                      <img src={viewUrl} alt="Preview" className="max-w-full max-h-full object-contain rounded shadow-sm" />
                     )}
                     {['js', 'py', 'java', 'cpp', 'html', 'css'].includes(fileExtension || '') && (
                       <div className="w-full h-full min-h-[800px] bg-slate-900 p-8 rounded-lg shadow-sm text-slate-300 font-mono text-sm overflow-auto text-left whitespace-pre">
@@ -1070,15 +1404,38 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
                         {'}'}
                       </div>
                     )}
-                    {['doc', 'docx', 'ppt', 'pptx'].includes(fileExtension || '') && (
-                      <div className="w-full h-full flex items-center justify-center bg-white shadow-sm min-h-[800px]">
-                         <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`} className="w-full h-full border-none" title="Office Preview" />
-                      </div>
-                    )}
-                    {fileExtension === 'txt' && (
-                      <div className="w-full max-w-3xl bg-white min-h-[800px] shadow-sm border border-slate-200 p-12 text-slate-800 font-mono text-sm leading-relaxed">
-                        <p>This is a simulated text document preview.</p>
-                        <p>File contents for {fileName} would appear here.</p>
+                    {['doc', 'docx', 'ppt', 'pptx', 'txt', 'zip'].includes(fileExtension || '') && (
+                      <div className="w-full h-full min-h-[600px] flex flex-col items-center justify-center bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center shadow-inner">
+                        <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-indigo-100">
+                          {fileExtension?.includes('doc') ? <FileText className="w-10 h-10" /> : fileExtension?.includes('ppt') ? <Activity className="w-10 h-10" /> : <FileCode className="w-10 h-10" />}
+                        </div>
+                        <h4 className="text-xl font-extrabold text-slate-900 mb-2">{fileName}</h4>
+                        <p className="text-sm font-medium text-slate-500 mb-6 max-w-md">
+                          This file format ({fileExtension?.toUpperCase()}) is stored securely in your campus repository and ready for instant viewing or download.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                          <a 
+                            href={viewUrl} 
+                            target="_blank" 
+                            rel="noopener,noreferrer" 
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                          >
+                            <ExternalLink className="w-4 h-4" /> Open in New Tab / View
+                          </a>
+                          <a 
+                            href={downloadUrl} 
+                            download 
+                            className="px-6 py-3 bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-300 rounded-xl shadow-sm transition-all flex items-center gap-2"
+                          >
+                            <Download className="w-4 h-4" /> Download File
+                          </a>
+                          <button 
+                            onClick={() => window.open(viewUrl, '_blank', 'noopener,noreferrer')} 
+                            className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all flex items-center gap-2"
+                          >
+                            <Printer className="w-4 h-4" /> Print
+                          </button>
+                        </div>
                       </div>
                     )}
                     {fileExtension === 'zip' && (
@@ -1163,6 +1520,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
       lateSubmissionAllowed: false,
       penaltyForLateSubmission: 0,
       maxUploadSize: '10 MB',
+      maxMarks: 10,
       allowedFileTypes: 'PDF, DOCX, ZIP',
       academicYear: defaultAcademicYear,
       semester: workspaceContext?.semester || '',
@@ -1192,17 +1550,53 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
     }
   };
 
-  const onSubmit = (data: AssignmentFormValues) => {
-    const newAssignment = {
-      id: `a-${Date.now()}`,
-      ...data,
-      targetClasses: workspaceContext ? [workspaceContext.className] : targetClasses,
-      classId: workspaceContext ? workspaceContext.classId : (availableClasses[0]?.id || activeClassId),
-      status: 'Open',
-      attachmentUrl: file ? URL.createObjectURL(file) : undefined,
-      createdAt: new Date().toISOString()
-    };
-    onSuccess(newAssignment);
+  const onSubmit = async (data: AssignmentFormValues) => {
+    try {
+      const targetId = workspaceContext?.id || data.subjectId || '00000000-0000-0000-0000-000000000000';
+      const formData = new FormData();
+      if (file) formData.append('file', file);
+      formData.append('title', data.title);
+      if (data.description) formData.append('description', data.description);
+      if (data.instructions) formData.append('instructions', data.instructions);
+      if (data.gradingCriteria) formData.append('gradingCriteria', data.gradingCriteria);
+      if (data.allowedFileTypes) formData.append('allowedFileTypes', data.allowedFileTypes);
+      if (data.maxUploadSize) formData.append('maxUploadSize', data.maxUploadSize);
+      if (data.type) formData.append('type', data.type);
+      formData.append('lateSubmissionAllowed', String(!!data.lateSubmissionAllowed));
+      formData.append('penaltyForLateSubmission', String(data.penaltyForLateSubmission || 0));
+      formData.append('maxMarks', String(data.maxMarks || 10));
+      formData.append('deadlineStr', toUtcISOString(String(data.deadline)));
+
+      const res = await api.post(`/v1/assignments/subject/${targetId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res?.data?.data) {
+        onSuccess(res.data.data);
+      } else {
+        const newAssignment = {
+          id: `a-${Date.now()}`,
+          ...data,
+          targetClasses: workspaceContext ? [workspaceContext.className] : targetClasses,
+          classId: workspaceContext ? workspaceContext.classId : (availableClasses[0]?.id || activeClassId),
+          status: 'Open',
+          attachmentUrl: file ? URL.createObjectURL(file) : undefined,
+          createdAt: new Date().toISOString()
+        };
+        onSuccess(newAssignment);
+      }
+    } catch (e) {
+      console.error("Error submitting real assignment to database:", e);
+      const newAssignment = {
+        id: `a-${Date.now()}`,
+        ...data,
+        targetClasses: workspaceContext ? [workspaceContext.className] : targetClasses,
+        classId: workspaceContext ? workspaceContext.classId : (availableClasses[0]?.id || activeClassId),
+        status: 'Open',
+        attachmentUrl: file ? URL.createObjectURL(file) : undefined,
+        createdAt: new Date().toISOString()
+      };
+      onSuccess(newAssignment);
+    }
     onClose();
   };
 
@@ -1440,11 +1834,8 @@ function StudentAssignmentDashboard({ assignments, submissions, setSubmissions, 
   // Assuming the user is a student, we filter by their class
   // Filter by subject if workspaceContext is provided
   const studentAssignments = useMemo(() => {
-    let filtered = assignments.filter(a => a.classId === user?.classId);
-    if (workspaceContext?.subjectId) {
-      filtered = filtered.filter(a => a.subjectId === workspaceContext.subjectId);
-    }
-    return filtered;
+    if (workspaceContext) return assignments;
+    return assignments.filter(a => !a.classId || !user?.classId || a.classId === user?.classId || a.className === 'All Classes');
   }, [assignments, workspaceContext, user]);
 
   const filtered = studentAssignments.filter(a => 
@@ -1490,71 +1881,93 @@ function StudentAssignmentDashboard({ assignments, submissions, setSubmissions, 
         <AnimatePresence>
           {filtered.map(assignment => {
             const subject = subjects.find(s => s.id === assignment.subjectId);
-            // Mock submission lookup
-            const submission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user?.id);
-            const status = submission ? submission.status : assignment.status;
+            // Robust submission & evaluated status lookup
+            const submission = submissions.find(s => s.assignmentId === assignment.id && (!user?.id || s.studentId === user?.id || (s as any).userId === user?.id || submissions.filter(x => x.assignmentId === assignment.id).length === 1));
+            const isEvaluated = submission && (submission.marksAwarded != null || submission.marks != null || submission.grade != null || submission.status === 'Reviewed' || submission.status === 'Graded' || submission.status === 'Reviewed & Graded');
+            const status = isEvaluated ? 'Reviewed' : (submission ? submission.status : assignment.status);
             
             const daysRemaining = Math.ceil((new Date(assignment.deadline).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
             
             return (
               <motion.div key={assignment.id} variants={itemVariants} layout>
-                <Card className="h-full border-none shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group">
-                  <div className={`h-1.5 w-full ${
-                    status === 'Submitted' || status === 'Graded' ? 'bg-emerald-500' :
+                <Card className="h-full border border-slate-200/80 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group rounded-2xl bg-white hover:-translate-y-1 justify-between">
+                  <div className={`h-2 w-full ${
+                    isEvaluated || status === 'Submitted' || status === 'Graded' ? 'bg-emerald-500' :
                     status === 'Late Submitted' ? 'bg-amber-500' :
-                    status === 'Expired' ? 'bg-rose-500' : 'bg-indigo-500'
+                    status === 'Expired' ? 'bg-rose-500' : 'bg-indigo-600'
                   }`} />
-                  <CardContent className="p-6 flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-3">
-                      <Badge variant={
-                        status === 'Submitted' || status === 'Graded' ? 'active' :
-                        status === 'Late Submitted' ? 'pending' :
-                        status === 'Expired' ? 'rejected' : 'event'
-                      } className="capitalize">
-                        {status}
-                      </Badge>
-                      {daysRemaining > 0 && status !== 'Submitted' && status !== 'Graded' && (
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
-                          daysRemaining <= 2 ? 'bg-rose-100 text-rose-700' : 
-                          'bg-indigo-100 text-indigo-700'
-                        }`}>
-                          {daysRemaining} days left
-                        </span>
+                  <CardContent className="p-6 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <Badge variant={
+                          isEvaluated || status === 'Submitted' || status === 'Graded' ? 'active' :
+                          status === 'Late Submitted' ? 'pending' :
+                          status === 'Expired' ? 'rejected' : 'event'
+                        } className="font-bold uppercase tracking-wider text-[11px] px-2.5 py-0.5">
+                          {isEvaluated ? 'Reviewed & Graded' : status}
+                        </Badge>
+                        {isEvaluated ? (
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {submission?.grade && submission.grade !== 'Graded' && submission.grade !== 'Reviewed' && (
+                              <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-emerald-600 text-white shadow-xs">
+                                Grade: {submission.grade}
+                              </span>
+                            )}
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Marks: {submission?.marksAwarded ?? submission?.marks ?? '-'} / {assignment.maxMarks}
+                            </span>
+                          </div>
+                        ) : daysRemaining > 0 && !isEvaluated && status !== 'Submitted' ? (
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
+                            daysRemaining <= 2 ? 'bg-rose-50 text-rose-700 border border-rose-200' : 
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+                          </span>
+                        ) : null}
+                      </div>
+                      
+                      <h3 className="font-extrabold text-xl text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors tracking-tight">
+                        {assignment.title}
+                      </h3>
+                      {assignment.description && (
+                        <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+                          {assignment.description}
+                        </p>
                       )}
-                    </div>
-                    
-                    <h3 className="font-semibold text-lg text-slate-900 mb-1 line-clamp-1 group-hover:text-indigo-600:text-indigo-400 transition-colors">
-                      {assignment.title}
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 mb-4 line-clamp-1">
-                      {subject?.name} • Faculty Name
-                    </p>
 
-                    <div className="space-y-3 mb-6 flex-1">
-                      <div className="flex items-center text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
-                        <FileText className="w-4 h-4 mr-3 text-indigo-500" />
-                        <span className="truncate">{assignment.type}</span>
-                      </div>
-                      <div className="flex items-center text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
-                        <Calendar className="w-4 h-4 mr-3 text-indigo-500" />
-                        Due: {new Date(assignment.deadline).toLocaleString()}
+                      <div className="space-y-2 mb-6">
+                        <div className="flex items-center text-sm text-slate-600 font-medium">
+                          <Calendar className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
+                          <span>Due: <strong className="text-slate-900 ml-1">{formatDeadlineDisplay(assignment.deadline)}</strong></span>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-600 font-medium">
+                          <Activity className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
+                          <span>Max Marks: <strong className="text-slate-900 ml-1">{assignment.maxMarks}</strong></span>
+                        </div>
+                        {isEvaluated && (submission?.evaluationDate || submission?.evaluatedAt) && (
+                          <div className="flex items-center text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100 mt-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600 shrink-0" />
+                            <span>Evaluated on: <strong className="text-slate-900 ml-1">{submission.evaluationDate || new Date(submission.evaluatedAt).toLocaleString()}</strong></span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center mt-auto">
-                      <span className="text-sm font-bold text-slate-900">
-                        {assignment.maxMarks} Marks
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        {assignment.type || 'Assignment'}
                       </span>
                       <Button 
                         onClick={() => setSelectedAssignment(assignment)}
-                        className={`shadow-sm rounded-xl transition-all ${
+                        className={`px-4 py-2 h-9 rounded-xl text-sm font-semibold shadow-sm transition-all flex items-center gap-1.5 ${
                           status === 'Submitted' || status === 'Graded' 
-                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700:bg-slate-700'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                         }`}
                       >
-                        View Details
-                        <ChevronRight className="w-4 h-4 ml-1" />
+                        {status === 'Submitted' || status === 'Graded' ? 'View Details' : 'Open & Submit'}
+                        <ChevronRight className="w-4 h-4" />
                       </Button>
                     </div>
                   </CardContent>
@@ -1581,18 +1994,52 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
   const { user } = useAuth();
   const { subjects } = mockData;
   const subject = subjects.find(s => s.id === assignment.subjectId);
-  const submission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user?.id);
-  const status = submission ? submission.status : assignment.status;
+  const submission = submissions.find(s => s.assignmentId === assignment.id && (!user?.id || s.studentId === user?.id || (s as any).userId === user?.id || submissions.filter(x => x.assignmentId === assignment.id).length === 1));
+  const isEvaluated = submission && (submission.marksAwarded != null || submission.marks != null || submission.grade != null || submission.status === 'Reviewed' || submission.status === 'Graded' || submission.status === 'Reviewed & Graded');
+  const status = isEvaluated ? 'Reviewed' : (submission ? submission.status : assignment.status);
   
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isReplacing, setIsReplacing] = useState(false);
 
-  const canSubmit = status !== 'Expired' && status !== 'Graded';
+  const canSubmit = status !== 'Expired' && !isEvaluated && status !== 'Graded' && (new Date() <= new Date(assignment.deadline) || assignment.lateSubmissionAllowed !== false);
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
+    if (!file && !submission) return;
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const formData = new FormData();
+      if (file) formData.append('file', file);
+
+      const res = await api.post(`/v1/assignments/${assignment.id}/submit`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res?.data?.data) {
+        setSubmissions((prev: any[]) => {
+          const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && (!s.studentId || s.studentId === user?.id)));
+          return [res.data.data, ...filtered];
+        });
+      } else {
+        const isLate = new Date() > new Date(assignment.deadline);
+        const newSubmission = {
+          id: `sub-${Date.now()}`,
+          assignmentId: assignment.id,
+          studentId: user?.id || 'st-0',
+          submitDate: new Date().toISOString(),
+          status: isLate ? 'Late Submitted' : 'Submitted',
+          fileName: file?.name || 'submission.pdf',
+          fileUrl: file ? URL.createObjectURL(file) : '',
+          marksObtained: null,
+          feedback: null
+        };
+        setSubmissions((prev: any[]) => {
+          const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && s.studentId === user?.id));
+          return [newSubmission, ...filtered];
+        });
+      }
+    } catch (e) {
+      console.error("Failed to submit assignment to backend:", e);
       const isLate = new Date() > new Date(assignment.deadline);
       const newSubmission = {
         id: `sub-${Date.now()}`,
@@ -1605,16 +2052,15 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
         marksObtained: null,
         feedback: null
       };
-
-      setSubmissions((prev: any) => {
-        // replace old submission if exists
+      setSubmissions((prev: any[]) => {
         const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && s.studentId === user?.id));
         return [newSubmission, ...filtered];
       });
-
+    } finally {
       setIsSubmitting(false);
+      setIsReplacing(false);
       setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   return createPortal(
@@ -1627,10 +2073,23 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
       >
         {/* Left Side: Details */}
         <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto border-r border-slate-100 bg-slate-50/50">
-          <div className="flex justify-between items-start mb-6">
-            <Badge variant="date" className="bg-indigo-100 text-indigo-700 border-none">
-              {subject?.name}
-            </Badge>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
+            <div className="flex items-center gap-2 flex-wrap">
+              {subject?.name && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg border border-indigo-100 shadow-xs">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  {subject.name}
+                </span>
+              )}
+              <span className={`inline-flex items-center px-3 py-1 font-extrabold uppercase tracking-wider text-[11px] rounded-lg shadow-xs ${
+                isEvaluated ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                status === 'Submitted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                status === 'Late Submitted' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                status === 'Expired' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}>
+                {isEvaluated ? 'Reviewed & Graded' : status}
+              </span>
+            </div>
             <button onClick={onClose} className="p-2 md:hidden hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full">
               <X className="w-5 h-5 text-slate-500" />
             </button>
@@ -1645,10 +2104,9 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
             </div>
             <div className="p-4 rounded-2xl bg-white shadow-sm border border-slate-100">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Deadline</p>
-              <p className="text-sm font-bold text-rose-600">
-                {new Date(assignment.deadline).toLocaleDateString()}
+              <p className="text-base font-bold text-rose-600">
+                {formatDeadlineDisplay(assignment.deadline)}
               </p>
-              <p className="text-xs text-rose-500">{new Date(assignment.deadline).toLocaleTimeString()}</p>
             </div>
           </div>
 
@@ -1676,23 +2134,34 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
                 <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <Archive className="w-4 h-4 text-indigo-500" /> Attachments
                 </h4>
-                <a 
-                  href={assignment.attachmentUrl} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-50 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-colors overflow-hidden">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="p-2 bg-indigo-50 rounded-lg shrink-0">
                       <File className="w-5 h-5 text-indigo-600" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Assignment_Doc.pdf</p>
-                      <p className="text-xs text-slate-500">1.2 MB</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-extrabold text-slate-900 truncate max-w-[240px] sm:max-w-none">{assignment.fileName || `${assignment.title}_Attachment.pdf`}</p>
+                      <p className="text-xs font-semibold text-slate-500">Document Attachment</p>
                     </div>
                   </div>
-                  <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
-                </a>
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto w-full sm:w-auto justify-end">
+                    <a 
+                      href={resolveApiUrl(assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/view` : '#')).replace('/download', '/view')} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="px-3.5 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 flex-1 sm:flex-none shadow-xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 shrink-0" /> View
+                    </a>
+                    <a 
+                      href={resolveApiUrl(assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/download` : '#')).replace('/view', '/download')} 
+                      download 
+                      className="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 flex-1 sm:flex-none shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" /> Download
+                    </a>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1706,23 +2175,54 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
 
           <h3 className="text-xl font-bold text-slate-900 mb-6">Submission</h3>
           
-          <div className="flex items-center gap-3 mb-8 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="p-2 bg-white rounded-xl shadow-sm">
-              <Activity className="w-5 h-5 text-indigo-500" />
+          <div className="flex items-center justify-between mb-8 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-xl shadow-sm">
+                <Activity className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase">Status</p>
+                <p className={`text-sm font-bold ${
+                  isEvaluated || status === 'Submitted' || status === 'Graded' ? 'text-emerald-600' :
+                  status === 'Late Submitted' ? 'text-amber-600' :
+                  status === 'Expired' ? 'text-rose-600' : 'text-indigo-600'
+                }`}>
+                  {isEvaluated ? 'Reviewed & Graded' : status}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase">Status</p>
-              <p className={`text-sm font-bold ${
-                status === 'Submitted' || status === 'Graded' ? 'text-emerald-600' :
-                status === 'Late Submitted' ? 'text-amber-600' :
-                status === 'Expired' ? 'text-rose-600' : 'text-indigo-600'
-              }`}>
-                {status}
-              </p>
-            </div>
+            {(isEvaluated || status === 'Graded') && (
+              <div className="flex items-center gap-4 text-right pl-4 border-l border-slate-200">
+                {submission?.grade && submission.grade !== 'Graded' && submission.grade !== 'Reviewed' && (
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Grade</p>
+                    <p className="text-xl font-black text-emerald-600">{submission.grade}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Marks Awarded</p>
+                  <p className="text-xl font-black text-indigo-600">
+                    {submission?.marksAwarded ?? submission?.marks ?? '-'} <span className="text-sm text-slate-400 font-normal">/ {assignment.maxMarks}</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
+          {(isEvaluated || status === 'Graded') && (
+            <div className="mb-6 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-sm flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-indigo-900 text-xs uppercase tracking-wider">Evaluation & Feedback</span>
+                {(submission?.evaluationDate || submission?.evaluatedAt) && (
+                  <span className="text-xs font-medium text-slate-500">Evaluated on {submission.evaluationDate || new Date(submission.evaluatedAt).toLocaleString()}</span>
+                )}
+              </div>
+              {submission?.feedback && (
+                <p className="text-slate-700 italic font-medium">"{submission.feedback}"</p>
+              )}
+            </div>
+          )}
 
-          {submission || isSuccess ? (
+          {!isReplacing && (submission || isSuccess) ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1736,11 +2236,25 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
               
               <div className="w-full text-left p-4 rounded-xl bg-white shadow-sm border border-slate-100 mb-6">
                 <p className="text-xs text-slate-500 mb-1">Submitted File</p>
-                <div className="flex items-center gap-2">
-                  <FileCode className="w-4 h-4 text-indigo-500" />
-                  <span className="text-sm font-medium text-slate-900 truncate">
-                    {submission?.fileName || file?.name || 'submission.pdf'}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-indigo-500" />
+                    <span className="text-sm font-medium text-slate-900 truncate max-w-[200px]">
+                      {submission?.fileName || file?.name || 'submission.pdf'}
+                    </span>
+                  </div>
+                  {submission && (
+                    <div className="flex items-center">
+                      <a 
+                        href={submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/view` : resolveApiUrl(submission.fileUrl || '#')} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View
+                      </a>
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
                   Submitted on: {submission ? new Date(submission.submitDate).toLocaleString() : new Date().toLocaleString()}
@@ -1750,8 +2264,8 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
               {canSubmit && (
                 <Button 
                   variant="outline" 
-                  onClick={() => setIsSuccess(false)}
-                  className="w-full rounded-xl border-slate-200"
+                  onClick={() => { setIsSuccess(false); setIsReplacing(true); }}
+                  className="w-full rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold shadow-sm"
                 >
                   Replace Submission
                 </Button>

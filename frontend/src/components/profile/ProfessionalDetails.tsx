@@ -39,7 +39,7 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
     hackerrank: data?.hackerrank || '',
     domains: data?.domains || [],
     jobPreferences: data?.jobPreferences || '',
-    relocation: data?.relocation || 'Yes',
+    relocation: data?.relocation || '',
     resumeFileName: data?.resumeFileName || '',
     resumeUploadedAt: data?.resumeUploadedAt || '',
   });

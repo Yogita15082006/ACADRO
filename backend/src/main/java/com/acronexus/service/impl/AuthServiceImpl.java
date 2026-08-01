@@ -74,13 +74,19 @@ public class AuthServiceImpl implements AuthService {
                 .dob(user.getDob())
                 .bloodGroup(user.getBloodGroup())
                 .profilePictureUrl(user.getProfilePictureUrl())
-                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null);
+                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .department(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .branch(user.getDepartment() != null ? user.getDepartment().getName() : null);
                 
         if (user.getRole() == UserRole.STUDENT) {
             studentRepository.findById(userId).ifPresent(student -> {
                 builder.enrollmentNo(student.getEnrollmentNo());
                 builder.rollNo(student.getRollNo());
                 builder.batchYear(student.getBatchYear());
+                builder.admissionYear(student.getAdmissionYear() != null ? student.getAdmissionYear() : student.getBatchYear());
+                builder.course(student.getCourse());
+                builder.currentSemester(student.getCurrentSemester());
+                builder.section(student.getSection());
             });
         }
         

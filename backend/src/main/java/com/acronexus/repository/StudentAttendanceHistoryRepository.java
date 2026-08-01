@@ -7,4 +7,7 @@ import java.util.UUID;
 
 @Repository
 public interface StudentAttendanceHistoryRepository extends JpaRepository<StudentAttendanceHistory, UUID> {
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM StudentAttendanceHistory h WHERE h.attendance.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") java.util.List<UUID> csIds);
 }

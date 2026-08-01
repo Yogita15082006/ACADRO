@@ -39,6 +39,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     private final AcademicSyllabusRepository academicSyllabusRepository;
     private final TimetableRepository timetableRepository;
     private final TimetableSlotRepository timetableSlotRepository;
+    private final com.acronexus.repository.ClassSubjectRepository classSubjectRepository;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
 
@@ -288,6 +289,15 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         }
         syllabus.setSubjects(subjectEntities);
         academicSyllabusRepository.save(syllabus);
+        academicSyllabusRepository.flush();
+        try {
+            com.acronexus.service.ClassSubjectService service = com.acronexus.config.SpringContext.getBean(com.acronexus.service.ClassSubjectService.class);
+            if (service != null) {
+                service.syncAllClassSubjectsWithSyllabus(syllabus);
+            }
+        } catch (Exception e) {
+            log.warn("Post-upload syllabus card matching synchronization encountered an error: {}", e.getMessage());
+        }
 
         return ApiResponse.success("Syllabus uploaded successfully", mapToDto(fileStorage));
     }
@@ -368,6 +378,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         
         java.util.Optional<com.acronexus.entity.AcademicSyllabus> syllabus = academicSyllabusRepository.findByFileStorageId(id);
         if (syllabus.isPresent()) {
+            classSubjectRepository.unlinkSyllabusSubjectsByAcademicSyllabusId(syllabus.get().getId());
             academicSyllabusRepository.delete(syllabus.get());
         }
 

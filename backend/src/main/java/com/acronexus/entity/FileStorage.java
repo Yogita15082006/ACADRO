@@ -18,6 +18,13 @@ public class FileStorage {
     private String documentUrl;
     private String fileType;
     private String mimeType;
+    private String originalFilename;
+    private String storedFilename;
+    private String storagePath;
+    private Long fileSize;
+    private UUID assignmentId;
+    private UUID studentId;
+    private UUID facultyId;
     private String parsedContent;
     @JdbcTypeCode(SqlTypes.JSON)
     private String aiMetadata;

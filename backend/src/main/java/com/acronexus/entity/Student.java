@@ -31,6 +31,9 @@ public class Student implements Persistable<java.util.UUID> {
     @Column(name = "institute_enrollment")
     private String instituteEnrollment;
     
+    @Column(name = "admission_year")
+    private String admissionYear;
+    
     private String course;
     
     @Column(name = "current_semester")
@@ -171,6 +174,13 @@ public class Student implements Persistable<java.util.UUID> {
     }
     public void setInstituteEnrollment(String instituteEnrollment) {
         this.instituteEnrollment = instituteEnrollment;
+    }
+
+    public String getAdmissionYear() {
+        return this.admissionYear;
+    }
+    public void setAdmissionYear(String admissionYear) {
+        this.admissionYear = admissionYear;
     }
 
     public String getCourse() {

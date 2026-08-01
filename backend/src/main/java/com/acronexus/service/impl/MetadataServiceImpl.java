@@ -50,15 +50,14 @@ public class MetadataServiceImpl implements MetadataService {
     @Override
     public List<String> getClasses() {
         return acroClassRepository.findAll().stream()
-                .filter(c -> c.getName() != null && !c.getName().trim().isEmpty())
                 .map(c -> {
-                    String name = c.getName().trim();
-                    String sec = c.getSection() != null ? c.getSection().trim() : "";
-                    if (!sec.isEmpty() && !name.toLowerCase().endsWith(sec.toLowerCase())) {
-                        return name + "-" + sec;
+                    String sec = c.getSection();
+                    if (sec != null && !sec.trim().isEmpty()) {
+                        return sec.trim();
                     }
-                    return name;
+                    return c.getName() != null ? c.getName().trim() : "";
                 })
+                .filter(name -> !name.isEmpty())
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
@@ -132,15 +131,11 @@ public class MetadataServiceImpl implements MetadataService {
             .map(Optional::get)
             .map(e -> {
                 if (e.getAcroClass() != null) {
-                    String name = e.getAcroClass().getName();
-                    if (name != null) name = name.trim();
-                    else return null;
-                    
                     String sec = e.getAcroClass().getSection() != null ? e.getAcroClass().getSection().trim() : "";
-                    if (!sec.isEmpty() && !name.toLowerCase().endsWith(sec.toLowerCase())) {
-                        return name + "-" + sec;
+                    if (!sec.isEmpty()) {
+                        return sec;
                     }
-                    return name;
+                    return e.getAcroClass().getName() != null ? e.getAcroClass().getName().trim() : null;
                 }
                 return null;
             })

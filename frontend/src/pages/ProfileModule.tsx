@@ -135,11 +135,11 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" />
-                        <span>{profileUser.className || 'Unassigned'}</span>
+                        <span>{profileUser.course && profileUser.section ? `${profileUser.course} (Section: ${profileUser.section})` : profileUser.className || 'Unassigned'}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4" />
-                        <span>{profileUser.department || 'Information Technology'}</span>
+                        <span>{profileUser.department || profileUser.departmentName || profileUser.branch || 'Not Specified'}</span>
                       </div>
                     </>
                   ) : (

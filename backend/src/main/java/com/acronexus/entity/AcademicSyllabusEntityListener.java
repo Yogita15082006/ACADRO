@@ -10,13 +10,7 @@ public class AcademicSyllabusEntityListener {
     @PostPersist
     @PostUpdate
     public void onPostPersistOrUpdate(AcademicSyllabus syllabus) {
-        try {
-            ClassSubjectService service = SpringContext.getBean(ClassSubjectService.class);
-            if (service != null) {
-                service.syncAllClassSubjectsWithSyllabus(syllabus);
-            }
-        } catch (Exception ignored) {
-            // Do not affect transaction if service is unavailable
-        }
+        // Removed mid-flush repository queries to prevent PostgreSQL transaction abortions during OneToMany child inserts.
+        // Syllabus card matching synchronization is executed explicitly after save and flush in AcademicResourceServiceImpl.
     }
 }

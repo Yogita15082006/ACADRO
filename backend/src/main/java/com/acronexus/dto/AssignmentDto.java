@@ -19,56 +19,76 @@ public class AssignmentDto {
     public static class Response {
         private UUID id;
         private UUID classSubjectId;
+        private UUID subjectId;
+        private UUID classId;
         private String subjectName;
+        private String subjectCode;
         private String className;
+        private String department;
+        private String academicYear;
+        private String semester;
         private String title;
         private String description;
+        private String instructions;
+        private String gradingCriteria;
+        private String allowedFileTypes;
+        private String maxUploadSize;
+        private String type;
+        private Boolean lateSubmissionAllowed;
+        private Integer penaltyForLateSubmission;
         private UUID fileId;
         private String fileUrl;
+        private String attachmentUrl;
         private String fileName;
         private Integer maxMarks;
         private ZonedDateTime deadline;
         private ZonedDateTime createdAt;
+        private String createdDate;
         private UUID createdById;
         private String createdByName;
+        private String facultyName;
+        private String status;
+        private String submissionStatus;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateRequest {
-        @NotNull(message = "Class Subject ID is required")
         private UUID classSubjectId;
-        
-        @NotBlank(message = "Title is required")
+        private UUID subjectId;
+        private UUID classId;
         private String title;
-        
         private String description;
-        
+        private String instructions;
+        private String gradingCriteria;
+        private String allowedFileTypes;
+        private String maxUploadSize;
+        private String type;
+        private Boolean lateSubmissionAllowed;
+        private Integer penaltyForLateSubmission;
         private UUID fileId;
-        
-        @NotNull(message = "Max marks are required")
         private Integer maxMarks;
-        
-        @NotNull(message = "Deadline is required")
         private ZonedDateTime deadline;
+        private String deadlineStr;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UpdateRequest {
-        @NotBlank(message = "Title is required")
         private String title;
-        
         private String description;
-        
+        private String instructions;
+        private String gradingCriteria;
+        private String allowedFileTypes;
+        private String maxUploadSize;
+        private String type;
+        private Boolean lateSubmissionAllowed;
+        private Integer penaltyForLateSubmission;
         private UUID fileId;
-        
-        @NotNull(message = "Max marks are required")
         private Integer maxMarks;
-        
-        @NotNull(message = "Deadline is required")
         private ZonedDateTime deadline;
+        private String deadlineStr;
     }
 }

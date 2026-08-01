@@ -28,4 +28,19 @@ public class Assignment {
     private User createdBy;
     @CreationTimestamp
     private ZonedDateTime createdAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String instructions;
+
+    @Column(columnDefinition = "TEXT")
+    private String gradingCriteria;
+
+    private String allowedFileTypes;
+    private String maxUploadSize;
+    private String type;
+
+    @Column(name = "late_submission_allowed")
+    private Boolean lateSubmissionAllowed = false;
+
+    private Integer penaltyForLateSubmission;
 }

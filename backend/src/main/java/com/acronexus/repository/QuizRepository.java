@@ -38,4 +38,8 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
     long countByDepartmentId(@Param("departmentId") UUID departmentId);
 
     long countByCreatedByIdAndIsDeletedFalse(UUID facultyId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Quiz q WHERE q.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
 }

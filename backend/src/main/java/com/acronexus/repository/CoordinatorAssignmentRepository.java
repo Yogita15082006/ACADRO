@@ -10,4 +10,5 @@ public interface CoordinatorAssignmentRepository extends JpaRepository<Coordinat
     java.util.List<CoordinatorAssignment> findByCoordinatorId(UUID coordinatorId);
     
     java.util.List<CoordinatorAssignment> findByClassNameAndIsActiveTrue(String className);
+    java.util.List<CoordinatorAssignment> findByClassName(String className);
 }

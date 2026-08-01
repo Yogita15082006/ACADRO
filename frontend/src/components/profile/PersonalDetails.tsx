@@ -20,34 +20,34 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
   const [formData, setFormData] = useState({
     // Basic Info
     name: data.name || (data.firstName ? `${data.firstName} ${data.lastName}`.trim() : '') || '',
-    gender: data.gender ? data.gender.charAt(0) + data.gender.slice(1).toLowerCase() : 'Male',
+    gender: data.gender ? (data.gender.charAt(0).toUpperCase() + data.gender.slice(1).toLowerCase()) : '',
     dob: data.dob || '',
-    category: data.category || 'General',
+    category: data.category || '',
     bloodGroup: data.bloodGroup ? data.bloodGroup.replace('_PLUS', '+').replace('_MINUS', '-') : '',
-    nationality: data.nationality || 'Indian',
+    nationality: data.nationality || '',
     religion: data.religion || '',
     aadhaarNumber: data.aadhaarNumber || '',
-    residenceType: data.residenceType || 'Local',
+    residenceType: data.residenceType || '',
     
     // Contact Info
     mobileNumber: data.phone || data.mobileNumber || '',
     whatsappNumber: data.whatsappNumber || '',
-    personalEmail: data.personalEmail || data.email || '',
-    collegeEmail: data.collegeEmail || '',
+    personalEmail: data.personalEmail || '',
+    collegeEmail: data.collegeEmail || data.email || '',
 
     // Academic Info
-    rgpvEnrollment: data.enrollmentNo || data.rgpvEnrollment || '',
-    instituteEnrollment: data.instituteEnrollment || '',
-    course: data.course || 'B.Tech',
-    branch: data.departmentName || data.branch || '',
-    batchYear: data.batchYear || '',
-    currentSemester: data.currentSemester || '',
-    section: data.section || '',
+    rgpvEnrollment: data.enrollmentNumber || data.enrollmentNo || data.rgpvEnrollment || '',
+    instituteEnrollment: data.instituteEnrollment || data.admissionYear || data.rollNo || data.rollNumber || '',
+    course: data.course || '',
+    branch: data.department || data.departmentName || data.branch || '',
+    batchYear: data.batchYear || data.batch || '',
+    currentSemester: data.currentSemester || data.semester || '',
+    section: data.section || (data.className !== 'Unassigned' ? data.className : '') || '',
 
     // Skills & Interests
     clubs: data.clubs || '',
     hobbies: data.hobbies || '',
-    skills: data.skills ? data.skills.join(', ') : ''
+    skills: data.skills ? (Array.isArray(data.skills) ? data.skills.join(', ') : data.skills) : ''
   });
 
   const handleSave = () => {

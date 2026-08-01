@@ -22,7 +22,7 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
            "(:search IS NULL OR LOWER(s.enrollmentNo) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) OR LOWER(u.firstName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) AND " +
            "(:batch IS NULL OR s.batchYear = :batch) AND " +
            "(:status IS NULL OR (:status = 'Active' AND u.isActive = true) OR (:status = 'Inactive' AND u.isActive = false)) AND " +
-           "(:className IS NULL OR EXISTS (SELECT e FROM StudentEnrollment e JOIN e.acroClass c WHERE e.student = s AND e.isActive = true AND c.name = :className))")
+           "(:className IS NULL OR EXISTS (SELECT e FROM StudentEnrollment e JOIN e.acroClass c WHERE e.student = s AND e.isActive = true AND (c.section = :className OR c.name = :className OR CONCAT(c.name, '-', c.section) = :className)))")
     Page<Student> findAllWithFilters(
             @Param("search") String search,
             @Param("batch") String batch,

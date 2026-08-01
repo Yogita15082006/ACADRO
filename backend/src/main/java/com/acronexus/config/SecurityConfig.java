@@ -62,6 +62,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> 
@@ -76,6 +77,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/users/admin-setup").permitAll()
                             .requestMatchers("/api/v1/temp-fix").permitAll()
                             .requestMatchers("/api/v1/timetables/*/test-ai-match").permitAll()
+                            .requestMatchers("/api/v1/assignments/*/view", "/api/v1/assignments/*/download", "/api/v1/assignments/submissions/*/view", "/api/v1/assignments/submissions/*/download").permitAll()
+                            .requestMatchers("/favicon.ico", "/error", "/uploads/**").permitAll()
                             .anyRequest().authenticated()
                 );
 

@@ -416,7 +416,7 @@ export const FacultyManagementModule = () => {
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<string | null>(null);
   const [onboardingSuccessCoord, setOnboardingSuccessCoord] = useState<any>(null);
   const { login } = useAuth();
-
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   
   const fetchFaculty = async () => {
     try {
@@ -425,6 +425,8 @@ export const FacultyManagementModule = () => {
       const users = res.data?.data || res.data || [];
       const faculties = Array.isArray(users) ? users.filter((u: any) => ['FACULTY', 'COORDINATOR', 'HOD', 'ADMIN'].includes(u.role)) : [];
       setLocalFaculty(faculties);
+      
+      api.get('/v1/metadata/classes').then(cRes => setAvailableClasses(cRes.data?.data || [])).catch(err => console.error(err));
     } catch (err) {
       console.error('Failed to fetch faculty:', err);
     }
@@ -1735,7 +1737,8 @@ export const FacultyManagementModule = () => {
               <div className="space-y-1">
                 <Label htmlFor="className">Class</Label>
                 <select id="className" name="className" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
-                  {mockData.classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  <option value="">Select Class</option>
+                  {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="space-y-1">

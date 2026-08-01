@@ -19,4 +19,7 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.acroClass.name FROM StudentEnrollment e WHERE e.isActive = true AND e.acroClass IS NOT NULL ORDER BY e.acroClass.name")
     java.util.List<String> findDistinctActiveClasses();
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.acroClass FROM StudentEnrollment e WHERE e.isActive = true AND e.acroClass IS NOT NULL")
+    java.util.List<com.acronexus.entity.AcroClass> findDistinctActiveAcroClasses();
 }

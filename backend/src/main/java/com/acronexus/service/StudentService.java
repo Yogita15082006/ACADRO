@@ -44,7 +44,18 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<String> getClasses() {
-        return enrollmentRepository.findDistinctActiveClasses();
+        return enrollmentRepository.findDistinctActiveAcroClasses().stream()
+                .map(ac -> {
+                    String sec = ac.getSection();
+                    if (sec != null && !sec.trim().isEmpty()) {
+                        return sec.trim();
+                    }
+                    return ac.getName() != null ? ac.getName().trim() : "";
+                })
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Transactional
@@ -124,9 +135,35 @@ public class StudentService {
             dto.setStatus(user.getIsActive() != null && user.getIsActive() ? "Active" : "Inactive");
             dto.setEmail(user.getEmail());
             dto.setPhone(user.getPhone());
+            
+            if (user.getDepartment() != null) {
+                String deptName = user.getDepartment().getName();
+                dto.setDepartment(deptName);
+                dto.setDepartmentName(deptName);
+                dto.setBranch(deptName);
+            }
+            dto.setPersonalEmail(user.getPersonalEmail() != null ? user.getPersonalEmail() : "");
+            dto.setCollegeEmail(user.getCollegeEmail() != null ? user.getCollegeEmail() : (user.getEmail() != null ? user.getEmail() : ""));
+            dto.setWhatsappNumber(user.getWhatsappNumber() != null ? user.getWhatsappNumber() : "");
+            dto.setDob(user.getDob() != null ? user.getDob().toString() : "");
+            dto.setCategory(user.getCategory() != null ? user.getCategory() : "");
+            dto.setReligion(user.getReligion() != null ? user.getReligion() : "");
+            dto.setNationality(user.getNationality() != null ? user.getNationality() : "");
+            dto.setResidenceType(user.getResidenceType() != null ? user.getResidenceType() : "");
+            dto.setBloodGroup(user.getBloodGroup() != null ? user.getBloodGroup().name() : "");
         }
         
-        dto.setBatch(student.getBatchYear());
+        dto.setBatch(student.getBatchYear() != null ? student.getBatchYear() : "");
+        dto.setBatchYear(student.getBatchYear() != null ? student.getBatchYear() : "");
+        dto.setRollNo(student.getRollNo() != null ? student.getRollNo() : "");
+        dto.setAdmissionYear(student.getAdmissionYear() != null ? student.getAdmissionYear() : (student.getBatchYear() != null ? student.getBatchYear() : ""));
+        dto.setInstituteEnrollment(student.getInstituteEnrollment() != null ? student.getInstituteEnrollment() : (student.getRollNo() != null ? student.getRollNo() : ""));
+        dto.setHobbies(student.getHobbies() != null ? student.getHobbies() : "");
+        dto.setClubs(student.getClubs() != null ? student.getClubs() : "");
+        dto.setCourse(student.getCourse() != null ? student.getCourse() : "");
+        dto.setSection(student.getSection() != null ? student.getSection() : "");
+        dto.setSemester(student.getCurrentSemester() != null ? student.getCurrentSemester() : "");
+        dto.setCurrentSemester(student.getCurrentSemester() != null ? student.getCurrentSemester() : "");
 
         // Get latest active enrollment for class info
         enrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(student.getId())
@@ -134,25 +171,36 @@ public class StudentService {
                 if (enrollment.getAcroClass() != null) {
                     String name = enrollment.getAcroClass().getName();
                     String sec = enrollment.getAcroClass().getSection();
-                    if (sec != null && !sec.trim().isEmpty() && !name.toLowerCase().endsWith(sec.toLowerCase())) {
-                        dto.setClassName(name + "-" + sec);
+                    if ((dto.getCourse() == null || dto.getCourse().isEmpty()) && name != null) dto.setCourse(name);
+                    if ((dto.getSection() == null || dto.getSection().isEmpty()) && sec != null) dto.setSection(sec);
+
+                    if (sec != null && !sec.trim().isEmpty()) {
+                        dto.setClassName(sec.trim());
                     } else {
                         dto.setClassName(name);
+                    }
+                    if ((dto.getDepartment() == null || dto.getDepartment().isEmpty()) && enrollment.getAcroClass().getDepartment() != null) {
+                        String deptName = enrollment.getAcroClass().getDepartment().getName();
+                        dto.setDepartment(deptName);
+                        dto.setDepartmentName(deptName);
+                        dto.setBranch(deptName);
                     }
                 }
                 if (enrollment.getAcademicYear() != null) {
                     dto.setYear(enrollment.getAcademicYear().getYear());
                 }
                 if (enrollment.getSemester() != null) {
-                    dto.setSemester(String.valueOf(enrollment.getSemester().getSemesterNumber()));
+                    String semStr = String.valueOf(enrollment.getSemester().getSemesterNumber());
+                    dto.setSemester(semStr);
+                    dto.setCurrentSemester(semStr);
                 }
             });
 
         if (dto.getClassName() == null && student.getCourse() != null) {
             String course = student.getCourse();
             String sec = student.getSection();
-            if (sec != null && !sec.trim().isEmpty() && !course.toLowerCase().endsWith(sec.toLowerCase())) {
-                dto.setClassName(course + "-" + sec);
+            if (sec != null && !sec.trim().isEmpty()) {
+                dto.setClassName(sec.trim());
             } else {
                 dto.setClassName(course);
             }

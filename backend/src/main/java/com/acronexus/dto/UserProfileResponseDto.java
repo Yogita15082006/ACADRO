@@ -22,9 +22,15 @@ public class UserProfileResponseDto {
     private BloodGroup bloodGroup;
     private String profilePictureUrl;
     private String departmentName;
+    private String department;
+    private String branch;
     
     // Student specific fields
     private String enrollmentNo;
     private String rollNo;
     private String batchYear;
+    private String admissionYear;
+    private String course;
+    private String currentSemester;
+    private String section;
 }

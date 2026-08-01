@@ -54,7 +54,10 @@ public class ProfileServiceImpl implements ProfileService {
                 .documents(user.getUploadedDocuments());
                 
         if (user.getDepartment() != null) {
-            builder.departmentName(user.getDepartment().getName());
+            String deptName = user.getDepartment().getName();
+            builder.departmentName(deptName);
+            builder.department(deptName);
+            builder.branch(deptName);
         }
 
         // Family Details
@@ -97,6 +100,7 @@ public class ProfileServiceImpl implements ProfileService {
                 builder.enrollmentNo(student.getEnrollmentNo());
                 builder.rollNo(student.getRollNo());
                 builder.batchYear(student.getBatchYear());
+                builder.admissionYear(student.getAdmissionYear() != null ? student.getAdmissionYear() : student.getBatchYear());
                 builder.instituteEnrollment(student.getInstituteEnrollment());
                 builder.course(student.getCourse());
                 builder.currentSemester(student.getCurrentSemester());

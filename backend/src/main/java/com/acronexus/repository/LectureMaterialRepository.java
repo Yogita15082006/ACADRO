@@ -36,4 +36,11 @@ public interface LectureMaterialRepository extends JpaRepository<LectureMaterial
 
     @Query("SELECT lm FROM LectureMaterial lm LEFT JOIN FETCH lm.file LEFT JOIN FETCH lm.classSubject cs LEFT JOIN FETCH cs.subject LEFT JOIN FETCH cs.acroClass LEFT JOIN FETCH lm.uploadedBy WHERE lm.classSubject.id = :classSubjectId AND lm.isDeleted = false ORDER BY lm.uploadedAt DESC")
     List<LectureMaterial> findByClassSubjectIdAndIsDeletedFalse(@Param("classSubjectId") UUID classSubjectId);
+
+    @Query("SELECT lm.file.id FROM LectureMaterial lm WHERE lm.classSubject.id IN :csIds AND lm.file IS NOT NULL")
+    List<UUID> findFileIdsByClassSubjectIds(@Param("csIds") List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM LectureMaterial lm WHERE lm.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
 }

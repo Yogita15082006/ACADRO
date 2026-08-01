@@ -15,7 +15,11 @@ export const StudentDashboard = () => {
   const navigate = useNavigate();
   
   // KPI Data (Mocked for Student ERP View)
-  const overallAttendance = user.overallAttendance || 78;
+  const studentName = user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Student';
+  const firstName = user?.firstName || (studentName ? studentName.split(' ')[0] : 'Student');
+  const enrollmentNo = user?.enrollmentNo || user?.enrollmentNumber || 'N/A';
+  const avatarUrl = user?.avatar || user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=4F46E5&color=fff`;
+  const overallAttendance = user?.overallAttendance || 78;
   const pendingAssignments = 3;
   const todaysClasses = 4;
   const upcomingQuizzes = 2;
@@ -73,16 +77,16 @@ export const StudentDashboard = () => {
             Student Portal
           </h1>
           <p className="text-sm text-muted-foreground font-medium">
-            Welcome back, {user.name.split(' ')[0]}. Here is your academic overview.
+            Welcome back, {firstName}. Here is your academic overview.
           </p>
         </div>
         <div className="flex items-center gap-4 bg-muted/30 px-4 py-2 rounded-lg border border-border/50">
           <div className="text-right">
             <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Enrollment No.</p>
-            <p className="font-semibold text-foreground text-sm">{user.enrollmentNumber}</p>
+            <p className="font-semibold text-foreground text-sm">{enrollmentNo}</p>
           </div>
           <div className="relative">
-            <img src={user.avatar} alt="Student" className="w-10 h-10 rounded-md shadow-sm border border-border/50 object-cover" />
+            <img src={avatarUrl} alt="Student" className="w-10 h-10 rounded-md shadow-sm border border-border/50 object-cover" />
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-success rounded-full border-2 border-card"></div>
           </div>
         </div>

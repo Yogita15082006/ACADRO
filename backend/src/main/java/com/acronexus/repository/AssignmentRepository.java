@@ -36,4 +36,17 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
     long countByDepartmentId(@Param("departmentId") UUID departmentId);
 
     long countByCreatedByIdAndIsDeletedFalse(UUID facultyId);
+
+    @Query("SELECT a.file.id FROM Assignment a WHERE a.classSubject.id IN :csIds AND a.file IS NOT NULL")
+    List<UUID> findFileIdsByClassSubjectIds(@Param("csIds") List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Assignment a WHERE a.classSubject.id IN :csIds")
+    void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
+
+    @EntityGraph(attributePaths = {"classSubject", "classSubject.subject", "classSubject.acroClass", "file", "createdBy"})
+    List<Assignment> findByClassSubject_IdAndIsDeletedFalseOrderByCreatedAtDesc(UUID classSubjectId);
+
+    @EntityGraph(attributePaths = {"classSubject", "classSubject.subject", "classSubject.acroClass", "file", "createdBy"})
+    List<Assignment> findByIsDeletedFalseOrderByCreatedAtDesc();
 }

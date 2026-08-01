@@ -8,8 +8,10 @@ import com.acronexus.security.UserDetailsImpl;
 import com.acronexus.repository.ClassSubjectRepository;
 import com.acronexus.repository.StudentEnrollmentRepository;
 import com.acronexus.repository.CoordinatorAssignmentRepository;
+import com.acronexus.repository.StudentRepository;
 import com.acronexus.entity.StudentEnrollment;
 import com.acronexus.entity.CoordinatorAssignment;
+import com.acronexus.entity.Student;
 import com.acronexus.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +37,7 @@ public class ClassSubjectController {
     private final ClassSubjectRepository classSubjectRepository;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
+    private final StudentRepository studentRepository;
 
     @GetMapping
     public ResponseEntity<List<ClassSubjectResponseDto>> getAllWorkspaces() {
@@ -80,11 +83,53 @@ public class ClassSubjectController {
             // Faculty sees their assigned subjects
             subjects = classSubjectRepository.findByFacultyIdAndIsActiveTrue(userDetails.getId());
         } else if (role.equals("ROLE_STUDENT")) {
-            // Student sees subjects for their current class/semester
+            // Student sees subjects for their current class and semester (matching dynamically by ID or Name/Number)
             StudentEnrollment enrollment = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(userDetails.getId()).orElse(null);
+            Student st = studentRepository.findByUser_Id(userDetails.getId()).orElse(null);
+            
+            String studentClassName = null;
+            Integer studentSemNum = null;
+            UUID studentClassId = null;
+
             if (enrollment != null) {
-                subjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(enrollment.getAcroClass().getId()).stream()
-                    .filter(cs -> cs.getSemester().getId().equals(enrollment.getSemester().getId()))
+                if (enrollment.getAcroClass() != null) {
+                    studentClassId = enrollment.getAcroClass().getId();
+                    studentClassName = enrollment.getAcroClass().getName();
+                }
+                if (enrollment.getSemester() != null) {
+                    studentSemNum = enrollment.getSemester().getSemesterNumber();
+                }
+            }
+
+            if (st != null) {
+                if ((studentClassName == null || studentClassName.isBlank()) && st.getCourse() != null) {
+                    studentClassName = st.getCourse().trim();
+                }
+                if (studentSemNum == null && st.getCurrentSemester() != null && !st.getCurrentSemester().isBlank()) {
+                    try {
+                        studentSemNum = Integer.parseInt(st.getCurrentSemester().replaceAll("[^0-9]", ""));
+                    } catch (Exception e) {}
+                }
+            }
+
+            final UUID finalClassId = studentClassId;
+            final String finalClassName = studentClassName;
+            final Integer finalSemNum = studentSemNum;
+
+            if (finalClassId != null || (finalClassName != null && !finalClassName.isBlank())) {
+                subjects = classSubjectRepository.findAll().stream()
+                    .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()))
+                    .filter(cs -> {
+                        if (cs.getAcroClass() == null) return false;
+                        boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
+                                             (finalClassName != null && cs.getAcroClass().getName() != null && 
+                                              cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                        boolean matchSem = true;
+                        if (finalSemNum != null && cs.getSemester() != null) {
+                            matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
+                        }
+                        return matchClass && matchSem;
+                    })
                     .collect(Collectors.toList());
             }
         } else if (role.equals("ROLE_COORDINATOR")) {
@@ -94,7 +139,8 @@ public class ClassSubjectController {
             for (CoordinatorAssignment ca : coords) {
                 if (Boolean.TRUE.equals(ca.getIsActive())) {
                     List<ClassSubject> classSubjects = classSubjectRepository.findAll().stream()
-                        .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()) && cs.getAcroClass().getName().equals(ca.getClassName()))
+                        .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()) && cs.getAcroClass() != null && cs.getAcroClass().getName() != null &&
+                                      cs.getAcroClass().getName().trim().equalsIgnoreCase(ca.getClassName() != null ? ca.getClassName().trim() : ""))
                         .collect(Collectors.toList());
                     subjects.addAll(classSubjects);
                 }

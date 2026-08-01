@@ -24,6 +24,8 @@ public class ProfileDto {
     private BloodGroup bloodGroup;
     private String profilePictureUrl;
     private String departmentName;
+    private String department;
+    private String branch;
 
     // New User Details
     private String category;
@@ -39,6 +41,7 @@ public class ProfileDto {
     private String enrollmentNo;
     private String rollNo;
     private String batchYear;
+    private String admissionYear;
 
     // New Student Details
     private String instituteEnrollment;

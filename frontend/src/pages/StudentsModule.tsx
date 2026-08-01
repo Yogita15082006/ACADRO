@@ -111,7 +111,15 @@ export const StudentsModule = () => {
     batches: new Set(students.map(s => s.batch)).size,
   }), [students]);
 
-
+  const availableClasses = useMemo(() => {
+    const set = new Set<string>(classesList);
+    students.forEach(s => {
+      if (s.className && s.className !== 'Unassigned') {
+        set.add(s.className);
+      }
+    });
+    return Array.from(set).sort();
+  }, [classesList, students]);
   const handleUpload = async () => {
     if (!uploadFile) return;
     setIsUploading(true);
@@ -306,7 +314,7 @@ export const StudentsModule = () => {
             <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
               className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-ring">
               <option value="">All Classes</option>
-              {classesList.map(c => <option key={c} value={c}>{c}</option>)}
+              {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             {isHod && (
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
@@ -352,6 +360,20 @@ export const StudentsModule = () => {
                   <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">No students found</td></tr>
                 ) : filtered.map(s => {
                   const { year: calcY, semester: calcS } = calcFromBatch(s.batch);
+                  let displayYear = s.year;
+                  if (displayYear === '1' || displayYear === '1st') displayYear = '1st Year';
+                  else if (displayYear === '2' || displayYear === '2nd') displayYear = '2nd Year';
+                  else if (displayYear === '3' || displayYear === '3rd') displayYear = '3rd Year';
+                  else if (displayYear === '4' || displayYear === '4th') displayYear = '4th Year';
+                  else if (!displayYear) displayYear = calcY;
+
+                  let displaySem = s.semester;
+                  if (displaySem && !String(displaySem).toLowerCase().startsWith('sem')) {
+                    displaySem = `Semester ${displaySem}`;
+                  } else if (!displaySem) {
+                    displaySem = calcS;
+                  }
+
                   return (
                     <tr key={s.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
@@ -361,10 +383,10 @@ export const StudentsModule = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">{s.enrollmentNumber}</td>
-                      <td className="px-4 py-3">{s.gender}</td>
+                      <td className="px-4 py-3">{s.gender ? s.gender.charAt(0).toUpperCase() + s.gender.slice(1).toLowerCase() : '-'}</td>
                       <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{s.batch}</Badge></td>
-                      <td className="px-4 py-3 text-xs">{calcY}</td>
-                      <td className="px-4 py-3 text-xs">{calcS}</td>
+                      <td className="px-4 py-3 text-xs">{displayYear}</td>
+                      <td className="px-4 py-3 text-xs">{displaySem}</td>
                       <td className="px-4 py-3"><Badge variant="secondary" className="text-xs">{s.className}</Badge></td>
                       <td className="px-4 py-3">
                         <Badge variant={s.status === 'Active' ? 'default' : 'destructive'} className="text-xs">
