@@ -10,6 +10,10 @@ import java.util.UUID;
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, UUID> {
     List<QuizQuestion> findByQuiz_Id(UUID quizId);
+    long countByQuiz_Id(UUID quizId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByQuiz_Id(UUID quizId);
 
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM QuizQuestion qq WHERE qq.quiz.classSubject.id IN :csIds")

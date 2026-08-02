@@ -29,6 +29,24 @@ public class Quiz extends BaseEntity {
 
     private Integer totalMarks;
 
+    private Integer passingMarks;
+
+    @Column(length = 50)
+    private String sourceType;
+
+    @Column(length = 1000)
+    private String sourceUrl;
+
+    @Column(length = 100)
+    private String questionType;
+
+    @Column(length = 50)
+    private String difficulty;
+
+    private Integer questionCount = 0;
+
+    private Boolean isGraded = false;
+
     private Boolean isDeleted = false;
 
     @ManyToOne(fetch = FetchType.LAZY)

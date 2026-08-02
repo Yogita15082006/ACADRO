@@ -14,6 +14,8 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
     
     List<Quiz> findByCreatedByIdAndIsDeletedFalse(UUID facultyId);
 
+    List<Quiz> findByClassSubject_IdAndIsDeletedFalseOrderByStartTimeDesc(UUID classSubjectId);
+
     @Query("SELECT q FROM Quiz q " +
            "JOIN q.classSubject cs " +
            "JOIN cs.acroClass c " +

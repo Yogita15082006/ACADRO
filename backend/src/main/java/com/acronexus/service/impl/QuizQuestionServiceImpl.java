@@ -35,10 +35,15 @@ public class QuizQuestionServiceImpl implements QuizQuestionService {
         QuizQuestion question = new QuizQuestion();
         question.setQuiz(quiz);
         question.setQuestionText(request.getQuestionText());
-        question.setOptions(objectMapper.convertValue(request.getOptions(), Object.class));
-        question.setMarks(request.getMarks());
+        question.setOptions(objectMapper.convertValue(request.getOptions() != null ? request.getOptions() : new java.util.ArrayList<>(), new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {}));
+        question.setMarks(request.getMarks() != null ? request.getMarks() : 1);
+        question.setQuestionType(request.getQuestionType() != null ? request.getQuestionType() : "MCQ");
+        question.setCorrectAnswer(request.getCorrectAnswer());
+        question.setExplanation(request.getExplanation());
 
-        return mapper.toResponseDto(questionRepository.save(question));
+        QuizQuestionDto.Response response = mapper.toResponseDto(questionRepository.save(question));
+        updateQuizMetadata(quiz);
+        return response;
     }
 
     @Override
@@ -48,20 +53,43 @@ public class QuizQuestionServiceImpl implements QuizQuestionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
 
         question.setQuestionText(request.getQuestionText());
-        question.setOptions(objectMapper.convertValue(request.getOptions(), Object.class));
-        question.setMarks(request.getMarks());
+        question.setOptions(objectMapper.convertValue(request.getOptions() != null ? request.getOptions() : new java.util.ArrayList<>(), new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {}));
+        question.setMarks(request.getMarks() != null ? request.getMarks() : 1);
+        question.setQuestionType(request.getQuestionType() != null ? request.getQuestionType() : "MCQ");
+        question.setCorrectAnswer(request.getCorrectAnswer());
 
-        return mapper.toResponseDto(questionRepository.save(question));
+        QuizQuestionDto.Response response = mapper.toResponseDto(questionRepository.save(question));
+        updateQuizMetadata(question.getQuiz());
+        return response;
     }
 
     @Override
     @Transactional
     public void deleteQuestion(UUID questionId) {
-        if (!questionRepository.existsById(questionId)) {
-            throw new ResourceNotFoundException("Question not found");
-        }
+        QuizQuestion question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+        Quiz quiz = question.getQuiz();
         questionRepository.deleteById(questionId);
+        updateQuizMetadata(quiz);
     }
+
+    private void updateQuizMetadata(Quiz quiz) {
+        List<QuizQuestion> allQs = questionRepository.findByQuiz_Id(quiz.getId());
+        quiz.setQuestionCount(allQs.size());
+        if (!allQs.isEmpty()) {
+            java.util.Set<String> distinctTypes = allQs.stream()
+                    .map(q -> q.getQuestionType() != null && !q.getQuestionType().trim().isEmpty() ? q.getQuestionType().trim() : "MCQ")
+                    .collect(java.util.stream.Collectors.toSet());
+            if (distinctTypes.size() > 1) {
+                quiz.setQuestionType("Mixed Questions");
+            } else {
+                String type = distinctTypes.iterator().next();
+                quiz.setQuestionType("True/False".equalsIgnoreCase(type) ? "True / False" : type);
+            }
+        }
+        quizRepository.save(quiz);
+    }
+
 
     @Override
     @Transactional(readOnly = true)

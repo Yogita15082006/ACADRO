@@ -57,10 +57,40 @@ async def analyze_data(request: AnalyticsRequest):
         user_prompt = f"Evaluate the quality of this quiz question for clarity, ambiguity, difficulty calibration, and distractor effectiveness: {json.dumps(request.data)}"
     elif request.insightType == "QUIZ_QUESTION_GENERATION":
         user_prompt = (
-            f"Generate {request.data.get('count', 5)} quiz questions for the subject '{request.data.get('subjectName', '')}' "
-            f"on the topic '{request.data.get('topic', '')}'. "
-            f"Include the question text, 4 options, and the correct answer for each. "
-            f"Format the output as a JSON array inside the rawInsights field. Context: {json.dumps(request.data)}"
+            f"Generate {request.data.get('count', 5)} completely fresh, original, and rigorous quiz questions for subject '{request.data.get('subjectName', '')}'. "
+            f"Topic/Unit Syllabus Context: '{request.data.get('topicOrSyllabus', request.data.get('topic', ''))}'. "
+            f"Difficulty Level: '{request.data.get('difficulty', 'Medium')}'. "
+            f"Question Type: '{request.data.get('questionType', 'MCQ')}' (if 'Mixed Questions' is requested, vary the generated questionType across 'MCQ', 'True/False', 'Short Answer', and 'Fill in the Blanks'). "
+            f"Marks Per Question: {request.data.get('marksPerQuestion', 1)}. "
+            f"Generation Nonce/Timestamp: {request.data.get('timestamp', 'initial')} (Ensure this response generates a completely distinct, novel set of questions without repeating typical static patterns). "
+            f"Each object in the 'rawInsights' array MUST strictly contain: 'questionText' (string containing the full question statement), 'questionType' (string such as 'MCQ', 'True/False', 'Short Answer', or 'Fill in the Blanks'), 'marks' (number, default {request.data.get('marksPerQuestion', 1)}), 'correctAnswer' (string solution or correct option ID like 'A' or 'B'), and 'options' (array of option objects). "
+            f"For MCQ and True/False, include 4 options (or 2 for True/False) formatted with 'id' (A, B, C, D), 'text', and 'isCorrect' boolean. "
+            f"For Short Answer and Fill in the Blanks, include a clear 'correctAnswer' solution string and empty options list. "
+            f"IMPORTANT: Return a valid JSON object with 'confidence' (number), 'reasoning' (string), 'recommendations' (array of strings), and 'rawInsights' (a direct JSON array [...] of the generated question objects, NOT a stringified array). Context: {json.dumps(request.data)}"
+        )
+    elif request.insightType == "QUIZ_ANSWER_KEY_GENERATION":
+        user_prompt = (
+            f"Using deep academic analysis, generate an accurate and verified answer key for the following quiz questions or source document: {json.dumps(request.data)}. "
+            f"For each question identified, determine the mathematically and conceptually accurate solution or correct option ID. Do not use random or mock placeholders. "
+            f"IMPORTANT: Return a valid JSON object with 'confidence', 'reasoning', 'recommendations', and 'rawInsights' (a direct JSON array [...] of objects with 'questionId', 'questionText', 'correctAnswer', and 'correctOptionId', NOT a stringified array)."
+        )
+    elif request.insightType == "QUIZ_URL_QUESTION_EXTRACTION":
+        user_prompt = (
+            f"You are a high-precision academic data extractor. Your ONLY task is to extract the EXACT, REAL assessment questions from the source webpage content below extracted from '{request.data.get('sourceUrl', 'a public URL')}'.\n\n"
+            f"--- START WEBPAGE / FORM CONTENT ---\n{request.data.get('webpageContent', '')}\n--- END WEBPAGE / FORM CONTENT ---\n\n"
+            f"CRITICAL PRODUCTION RULES - YOU MUST STRICTLY OBEY EVERY RULE:\n"
+            f"1. NO DUMMY OR SAMPLE DATA: Under NO circumstances should you generate random questions, sample questions, placeholder questions, or fallback questions. You must NEVER invent questions or make up content.\n"
+            f"2. EXACT VERBATIM MATCHING: Extract every question exactly as it appears in the text or embedded form scripts (such as Google Forms arrays, Microsoft Forms JSON, public quiz webpages, or generic question bank HTML). Preserve exact wording, exact options, exact question numbering, and original order.\n"
+            f"3. ZERO QUESTION DETECTION: If the provided webpage content contains zero real quiz questions or assessment items, return an empty JSON array [] for 'rawInsights'. Do not attempt to fabricate questions from general articles or titles.\n"
+            f"4. UNIVERSAL DYNAMIC FORMS & QUESTION BANK PARSING: Regardless of the web platform or link type, dynamically locate every multiple-choice, true/false, short-answer, or fill-in-the-blank item inside the extracted webpage text, JSON state, or JavaScript data arrays and extract their exact question prompt and options verbatim.\n"
+            f"5. OUTPUT SCHEMA: Return a valid JSON object with 'confidence' (number), 'reasoning' (string), 'recommendations' (array of strings), and 'rawInsights' (a direct JSON array [...] of extracted question objects, NOT stringified).\n"
+            f"   Each object in 'rawInsights' must strictly contain:\n"
+            f"     - 'questionText': string (verbatim question text)\n"
+            f"     - 'questionType': string ('MCQ', 'True/False', 'Short Answer', or 'Fill in the Blanks')\n"
+            f"     - 'marks': number (default 2)\n"
+            f"     - 'correctAnswer': string (if correct answer is known/indicated, otherwise default to option ID 'A' or first option)\n"
+            f"     - 'options': array of option objects formatted as {{ 'id': 'A', 'text': '...', 'isCorrect': true/false }} for MCQ/True-False. Provide empty array [] for Short Answer/Fill in the Blanks.\n"
+            f"IMPORTANT: Return a valid JSON object with 'confidence' (number), 'reasoning' (string), 'recommendations' (array of strings), and 'rawInsights' (a direct JSON array [...] of extracted question objects, NOT a stringified array)."
         )
     elif request.insightType == "QUIZ_RECOMMENDATIONS":
         user_prompt = f"Based on the available quizzes, recommend a prioritized study plan and quiz attempt order for this student: {json.dumps(request.data)}"
@@ -112,8 +142,8 @@ async def analyze_data(request: AnalyticsRequest):
     ai_req = AiGenericRequest(
         systemPrompt=system_prompt,
         userPrompt=user_prompt,
-        maxTokens=1500,
-        temperature=0.3
+        maxTokens=2800 if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else 2500,
+        temperature=0.8 if request.insightType in ["QUIZ_QUESTION_GENERATION", "QUIZ_ANSWER_KEY_GENERATION"] else (0.1 if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else 0.3)
     )
     
     try:
@@ -127,19 +157,41 @@ async def analyze_data(request: AnalyticsRequest):
         if content.endswith("```"):
             content = content[:-3]
             
-        result_dict = json.loads(content.strip())
-        
+        parsed = json.loads(content.strip())
+        if isinstance(parsed, list):
+            raw_insights = json.dumps(parsed)
+            confidence = 0.9
+            reasoning = "Analysis complete."
+            recommendations = []
+        else:
+            confidence = parsed.get("confidence", 0.8)
+            reasoning = parsed.get("reasoning", "Analysis complete.")
+            recommendations = parsed.get("recommendations", [])
+            raw_insights = parsed.get("rawInsights")
+            if not raw_insights:
+                for k in ["questions", "quiz", "quizQuestions", "data", "extractedQuestions", "items"]:
+                    if k in parsed and parsed[k]:
+                        raw_insights = parsed[k]
+                        break
+            if raw_insights is None:
+                raw_insights = ""
+            if isinstance(raw_insights, (dict, list)):
+                raw_insights = json.dumps(raw_insights)
+
         return AnalyticsResponse(
-            confidence=result_dict.get("confidence", 0.8),
-            reasoning=result_dict.get("reasoning", "Analysis complete."),
-            recommendations=result_dict.get("recommendations", []),
-            rawInsights=result_dict.get("rawInsights", "")
+            confidence=confidence,
+            reasoning=reasoning,
+            recommendations=recommendations,
+            rawInsights=raw_insights
         )
     except Exception as e:
-        logger.error("Failed to process ANALYTICS request: %s", e)
+        logger.error("Failed to process ANALYTICS request: %s", e, exc_info=True)
+        reasoning_str = f"AI response parsing failed: {str(e)}" if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else "Failed to process AI analytics."
+        if "rate_limit" in str(e).lower() or "413" in str(e) or "too large" in str(e).lower():
+            reasoning_str = "AI response parsing failed: Content size exceeded token limits or service busy."
         return AnalyticsResponse(
             confidence=0.0,
-            reasoning="Failed to process AI analytics.",
+            reasoning=reasoning_str,
             recommendations=[],
-            rawInsights="{}"
+            rawInsights="[]" if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else "{}"
         )

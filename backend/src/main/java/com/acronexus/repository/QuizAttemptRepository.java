@@ -11,13 +11,18 @@ import java.util.UUID;
 
 @Repository
 public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, UUID> {
-    @EntityGraph(attributePaths = {"quiz"})
+    @EntityGraph(attributePaths = {"quiz", "student", "student.user"})
     List<QuizAttempt> findByStudent_User_Id(UUID studentId);
 
-    @EntityGraph(attributePaths = {"student", "student.user"})
+    @EntityGraph(attributePaths = {"quiz", "student", "student.user"})
     List<QuizAttempt> findByQuiz_Id(UUID quizId);
     boolean existsByQuiz_IdAndStudent_User_Id(UUID quizId, UUID studentId);
+
+    @EntityGraph(attributePaths = {"quiz", "student", "student.user"})
     Optional<QuizAttempt> findByQuiz_IdAndStudent_User_Id(UUID quizId, UUID studentId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    void deleteByQuiz_Id(UUID quizId);
 
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM QuizAttempt qa WHERE qa.quiz.classSubject.id IN :csIds")

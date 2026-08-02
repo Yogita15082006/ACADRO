@@ -29,4 +29,32 @@ public class QuizAttempt {
 
     private java.time.Instant completedAt;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private java.util.Map<String, String> submittedAnswers = new java.util.HashMap<>();
+
+    @Column(length = 10)
+    private String grade;
+
+    private Boolean isPassed;
+
+    private java.time.Instant evaluatedAt;
+
+    private Boolean isLate = false;
+
+    private Integer correctAnswers;
+
+    private Integer wrongAnswers;
+
+    private Integer unattemptedQuestions;
+
+    @Column(length = 2000)
+    private String resultSummary;
+
+    @Column(precision = 5, scale = 2)
+    private java.math.BigDecimal percentage;
+
+    @Column(columnDefinition = "TEXT", name = "ai_analysis_json")
+    private String aiAnalysisJson;
+
 }

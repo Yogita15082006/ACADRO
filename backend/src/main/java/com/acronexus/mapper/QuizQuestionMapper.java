@@ -18,17 +18,23 @@ public class QuizQuestionMapper {
     public QuizQuestionDto.Response toResponseDto(QuizQuestion entity) {
         if (entity == null) return null;
         
-        List<QuizQuestionDto.Option> optionsList = null;
+        List<QuizQuestionDto.Option> optionsList = new java.util.ArrayList<>();
         if (entity.getOptions() != null) {
-            optionsList = objectMapper.convertValue(entity.getOptions(), new TypeReference<List<QuizQuestionDto.Option>>() {});
+            try {
+                optionsList = objectMapper.convertValue(entity.getOptions(), new TypeReference<List<QuizQuestionDto.Option>>() {});
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
         return QuizQuestionDto.Response.builder()
                 .id(entity.getId())
-                .quizId(entity.getQuiz().getId())
+                .quizId(entity.getQuiz() != null ? entity.getQuiz().getId() : null)
                 .questionText(entity.getQuestionText())
                 .options(optionsList)
                 .marks(entity.getMarks())
+                .questionType(entity.getQuestionType())
+                .correctAnswer(entity.getCorrectAnswer())
                 .build();
     }
 }

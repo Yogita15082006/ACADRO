@@ -84,15 +84,15 @@ public class QuizController {
         return ResponseEntity.ok(ApiResponse.success("Question deleted successfully", null));
     }
 
-    @GetMapping("/faculty/{quizId}/questions")
-    @PreAuthorize("hasRole('FACULTY')")
+    @GetMapping({ "/faculty/{quizId}/questions", "/{quizId}/questions", "/student/{quizId}/questions" })
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<QuizQuestionDto.Response>>> getQuestionsForFaculty(@PathVariable UUID quizId) {
         return ResponseEntity.ok(ApiResponse.success("Questions fetched successfully", questionService.getQuestionsByQuiz(quizId)));
     }
     
     // --- Result APIs (Faculty) ---
     @GetMapping("/faculty/{quizId}/attempts")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<QuizAttemptDto.Response>>> getAttemptsForQuiz(@PathVariable UUID quizId) {
         return ResponseEntity.ok(ApiResponse.success("Attempts fetched successfully", attemptService.getAttemptsForQuiz(quizId)));
     }
@@ -150,6 +150,12 @@ public class QuizController {
         return ResponseEntity.ok(ApiResponse.success("Results fetched successfully", attemptService.getStudentResults()));
     }
 
+    @GetMapping("/attempts/{id}/analysis")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<QuizAttemptDto.CompleteAnalysisResponse>> getAttemptAnalysis(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success("Attempt analysis fetched successfully", attemptService.getAttemptAnalysis(id)));
+    }
+
     // --- AI Analytics APIs (Student) ---
     @GetMapping("/student/ai/recommendations")
     @PreAuthorize("hasRole('STUDENT')")
@@ -162,8 +168,54 @@ public class QuizController {
     // ==========================================
     
     @GetMapping("/admin/{quizId}/attempts")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<QuizAttemptDto.Response>>> getQuizReports(@PathVariable UUID quizId) {
         return ResponseEntity.ok(ApiResponse.success("Quiz reports fetched successfully", attemptService.getAttemptsForQuizAdmin(quizId)));
     }
+
+    // ==========================================
+    // LMS WORKSPACE & AI ADVANCED ENDPOINTS
+    // ==========================================
+
+    @GetMapping("/subject/{classSubjectId}")
+    public ResponseEntity<ApiResponse<List<QuizDto.Response>>> getQuizzesBySubject(@PathVariable UUID classSubjectId) {
+        return ResponseEntity.ok(ApiResponse.success("Quizzes for subject fetched successfully", quizService.getQuizzesBySubject(classSubjectId)));
+    }
+
+    @PostMapping("/faculty/{quizId}/grade")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<Void>> evaluateQuiz(@PathVariable UUID quizId, @RequestBody(required = false) java.util.Map<UUID, String> answerKeyUpdates) {
+        quizService.evaluateQuiz(quizId, answerKeyUpdates);
+        return ResponseEntity.ok(ApiResponse.success("Quiz evaluated and graded successfully", null));
+    }
+
+    @GetMapping("/faculty/{quizId}/ai/generate-answer-key")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> generateAnswerKey(@PathVariable UUID quizId) {
+        return ResponseEntity.ok(ApiResponse.success("Answer key generated via AI", quizService.generateAnswerKey(quizId)));
+    }
+
+    @GetMapping("/faculty/subjects/{classSubjectId}/ai/generate-questions-advanced")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<AiInsightDto>> generateQuestionsAdvanced(
+            @PathVariable UUID classSubjectId,
+            @RequestParam String topic,
+            @RequestParam(required = false) String unitSyllabus,
+            @RequestParam(defaultValue = "5") int count,
+            @RequestParam(defaultValue = "Medium") String difficulty,
+            @RequestParam(defaultValue = "MCQ") String questionType,
+            @RequestParam(defaultValue = "1") int marksPerQuestion) {
+        return ResponseEntity.ok(ApiResponse.success("Advanced questions generated via AI", 
+                quizService.generateQuestionsAdvanced(classSubjectId, topic, unitSyllabus, count, difficulty, questionType, marksPerQuestion)));
+    }
+
+    @PostMapping(value = "/faculty/extract-source")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<List<QuizQuestionDto.CreateRequest>>> extractFromSource(
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false) String sourceUrl) {
+        return ResponseEntity.ok(ApiResponse.success("Questions extracted from source via AI", 
+                quizService.extractQuestionsFromSource(sourceType, sourceUrl)));
+    }
 }
+

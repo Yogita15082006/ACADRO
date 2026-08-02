@@ -22,8 +22,20 @@ public class QuizQuestion {
 
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
-    private Object options;
+    private java.util.List<java.util.Map<String, Object>> options = new java.util.ArrayList<>();
 
     private Integer marks = 1;
+
+    @Column(length = 50)
+    private String questionType;
+
+    @Column(columnDefinition = "TEXT")
+    private String correctAnswer;
+
+    @Column(columnDefinition = "TEXT")
+    private String explanation;
+
+    @Column(columnDefinition = "TEXT")
+    private String aiExplanation;
 
 }

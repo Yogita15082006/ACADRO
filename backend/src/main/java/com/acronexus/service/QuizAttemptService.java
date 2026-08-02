@@ -11,4 +11,5 @@ public interface QuizAttemptService {
     QuizAttemptDto.Response submitQuiz(UUID quizId, QuizAttemptDto.SubmitRequest request);
     List<QuizAttemptDto.Response> getStudentResults();
     List<QuizAttemptDto.Response> getAttemptsForQuizAdmin(UUID quizId);
+    QuizAttemptDto.CompleteAnalysisResponse getAttemptAnalysis(UUID attemptId);
 }

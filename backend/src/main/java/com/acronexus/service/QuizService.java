@@ -14,5 +14,11 @@ public interface QuizService {
     com.acronexus.dto.ai.AiInsightDto getQuizDifficultyAnalysis(UUID quizId);
     com.acronexus.dto.ai.AiInsightDto getQuestionQualityAnalysis(UUID questionId);
     com.acronexus.dto.ai.AiInsightDto generateQuestions(UUID classSubjectId, String topic, int count);
+    com.acronexus.dto.ai.AiInsightDto generateQuestionsAdvanced(UUID classSubjectId, String topic, String unitSyllabus, int count, String difficulty, String questionType, int marksPerQuestion);
+    com.acronexus.dto.ai.AiInsightDto generateAnswerKey(UUID quizId);
+    void evaluateQuiz(UUID quizId, java.util.Map<UUID, String> answerKeyUpdates);
+    List<QuizDto.Response> getQuizzesBySubject(UUID classSubjectId);
     com.acronexus.dto.ai.AiInsightDto getPersonalizedRecommendations();
+    List<com.acronexus.dto.QuizQuestionDto.CreateRequest> extractQuestionsFromSource(String sourceType, String sourceUrl);
 }
+
