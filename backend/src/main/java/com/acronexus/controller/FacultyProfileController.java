@@ -43,6 +43,7 @@ public class FacultyProfileController {
 
         List<AssignedSubjectDto> dtos = classSubjects.stream().map(cs -> {
             AssignedSubjectDto dto = new AssignedSubjectDto();
+            dto.setId(cs.getId());
             dto.setFacultyId(faculty.getId());
             dto.setSubjectName(cs.getSubject().getName());
             dto.setClassName(cs.getAcroClass().getName());

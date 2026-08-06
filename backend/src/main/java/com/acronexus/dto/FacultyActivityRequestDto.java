@@ -4,5 +4,8 @@ import lombok.Data;
 
 @Data
 public class FacultyActivityRequestDto {
-    // Add validation and fields here
+    private java.util.UUID classSubjectId;
+    private java.time.LocalDate date;
+    private String status; // PRESENT, ABSENT, MISSED, HOLIDAY
+    private String reason;
 }

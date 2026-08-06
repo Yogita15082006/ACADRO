@@ -30,6 +30,19 @@ export const AuthProvider = ({ children }) => {
     };
 
     initializeAuth();
+
+    const handleSync = () => {
+      if (localStorage.getItem('acronexus_token')) {
+        authService.getProfile().then(profileRes => {
+          if (profileRes.success) {
+            setRealUser(profileRes.data);
+          }
+        });
+      }
+    };
+
+    window.addEventListener('sync-attendance-data', handleSync);
+    return () => window.removeEventListener('sync-attendance-data', handleSync);
   }, []);
 
   const login = async (credentials: any) => {

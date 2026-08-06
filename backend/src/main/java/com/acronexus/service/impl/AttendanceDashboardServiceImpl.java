@@ -174,13 +174,12 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
     private StudentAttendanceHistoryDto mapToStudentAttendanceHistoryDto(StudentAttendance sa) {
         return StudentAttendanceHistoryDto.builder()
                 .date(sa.getDate())
-                .subjectName(sa.getClassSubject().getSubject().getName())
-                // Faculty name might need extra fetch, but since StudentAttendance only tracks ClassSubject and student,
-                // getting faculty name requires finding the FacultyActivity or assuming the assigned faculty.
-                // We'll just leave it null for now or fetch assigned faculty if available.
-                .facultyName("N/A") 
+                .subjectName(sa.getClassSubject() != null && sa.getClassSubject().getSubject() != null ? sa.getClassSubject().getSubject().getName() : "")
+                .facultyName(sa.getSession() != null && sa.getSession().getFaculty() != null && sa.getSession().getFaculty().getUser() != null ? sa.getSession().getFaculty().getUser().getFirstName() + " " + sa.getSession().getFaculty().getUser().getLastName() : "N/A") 
                 .status(sa.getStatus())
-                .sessionId(null) // We don't store session id directly in student_attendance in this architecture
+                .sessionId(sa.getSession() != null ? sa.getSession().getId() : null)
+                .classSubjectId(sa.getClassSubject() != null ? sa.getClassSubject().getId() : null)
+                .topic(sa.getSession() != null ? sa.getSession().getTopic() : null)
                 .markedTime(sa.getCreatedAt() != null ? sa.getCreatedAt().toInstant() : null)
                 .build();
     }

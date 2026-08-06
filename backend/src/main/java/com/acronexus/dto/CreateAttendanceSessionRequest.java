@@ -10,6 +10,7 @@ public class CreateAttendanceSessionRequest {
     private UUID classSubjectId;
     private String type;
     private String lectureNumber;
+    private String topic;
     private LocalDate date;
     private LocalTime startTime;
     private LocalTime endTime;
@@ -18,6 +19,7 @@ public class CreateAttendanceSessionRequest {
     private Boolean requireVerification;
     private String verificationQuestion;
     private String expectedAnswer;
+    private Integer uniqueCodeCount;
 
 
     public UUID getClassSubjectId() {
@@ -39,6 +41,13 @@ public class CreateAttendanceSessionRequest {
     }
     public void setLectureNumber(String lectureNumber) {
         this.lectureNumber = lectureNumber;
+    }
+
+    public String getTopic() {
+        return this.topic;
+    }
+    public void setTopic(String topic) {
+        this.topic = topic;
     }
 
     public LocalDate getDate() {
@@ -95,5 +104,12 @@ public class CreateAttendanceSessionRequest {
     }
     public void setExpectedAnswer(String expectedAnswer) {
         this.expectedAnswer = expectedAnswer;
+    }
+
+    public Integer getUniqueCodeCount() {
+        return this.uniqueCodeCount;
+    }
+    public void setUniqueCodeCount(Integer uniqueCodeCount) {
+        this.uniqueCodeCount = uniqueCodeCount;
     }
 }

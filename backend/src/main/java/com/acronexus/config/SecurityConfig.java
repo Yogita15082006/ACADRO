@@ -75,7 +75,6 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/bulk-upload/**").permitAll()
                             .requestMatchers("/api/v1/metadata/**").permitAll()
                             .requestMatchers("/api/v1/users/admin-setup").permitAll()
-                            .requestMatchers("/api/v1/temp-fix").permitAll()
                             .requestMatchers("/api/v1/timetables/*/test-ai-match").permitAll()
                             .requestMatchers("/api/v1/assignments/*/view", "/api/v1/assignments/*/download", "/api/v1/assignments/submissions/*/view", "/api/v1/assignments/submissions/*/download").permitAll()
                             .requestMatchers("/favicon.ico", "/error", "/uploads/**").permitAll()

@@ -13,7 +13,9 @@ import org.springframework.data.repository.query.Param;
 @Repository
 public interface FacultyActivityRepository extends JpaRepository<FacultyActivity, UUID> {
     Optional<FacultyActivity> findByReason(String reason);
+    Optional<FacultyActivity> findByFacultyIdAndClassSubjectIdAndDateAndLectureNumber(UUID facultyId, UUID classSubjectId, LocalDate date, Integer lectureNumber);
     int countByFacultyIdAndClassSubjectIdAndDate(UUID facultyId, UUID classSubjectId, LocalDate date);
+    boolean existsByFacultyIdAndClassSubjectIdAndDate(UUID facultyId, UUID classSubjectId, LocalDate date);
 
     @Query("SELECT fa FROM FacultyActivity fa " +
            "WHERE fa.faculty.id = :facultyId " +
@@ -42,4 +44,18 @@ public interface FacultyActivityRepository extends JpaRepository<FacultyActivity
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM FacultyActivity fa WHERE fa.classSubject.id IN :csIds")
     void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.classSubject.id = :classSubjectId AND fa.date = :date")
+    void deleteByFacultyIdAndClassSubjectIdAndDate(
+        @Param("facultyId") UUID facultyId, 
+        @Param("classSubjectId") UUID classSubjectId, 
+        @Param("date") LocalDate date
+    );
+
+    @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.status = 'HOLIDAY'")
+    long countDaysAbsentByFacultyId(@Param("facultyId") UUID facultyId);
+
+    @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.date <= CURRENT_DATE")
+    long countTotalWorkingDaysByFacultyId(@Param("facultyId") UUID facultyId);
 }

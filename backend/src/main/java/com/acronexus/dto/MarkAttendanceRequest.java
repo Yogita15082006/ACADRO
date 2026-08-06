@@ -8,6 +8,7 @@ public class MarkAttendanceRequest {
     private UUID studentId;
     private String attendanceCode;
     private String verificationAnswer;
+    private Integer uniqueCode;
 
 
     public UUID getStudentId() {
@@ -29,5 +30,12 @@ public class MarkAttendanceRequest {
     }
     public void setVerificationAnswer(String verificationAnswer) {
         this.verificationAnswer = verificationAnswer;
+    }
+
+    public Integer getUniqueCode() {
+        return this.uniqueCode;
+    }
+    public void setUniqueCode(Integer uniqueCode) {
+        this.uniqueCode = uniqueCode;
     }
 }

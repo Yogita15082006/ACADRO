@@ -31,7 +31,19 @@ public class StudentAttendance extends BaseAuditableEntity {
     @JoinColumn(name = "marked_by")
     private User markedBy;
 
+    private Integer uniqueCode;
+    
+    private String verificationAnswer;
+    
+    private String verificationStatus;
+    
+    private java.time.LocalTime submissionTime;
 
+    @Column(name = "approval_source")
+    private String approvalSource;
+
+    @Column(columnDefinition = "TEXT")
+    private String remarks;
 
     public ClassSubject getClassSubject() {
         return this.classSubject;
@@ -73,5 +85,47 @@ public class StudentAttendance extends BaseAuditableEntity {
     }
     public void setMarkedBy(User markedBy) {
         this.markedBy = markedBy;
+    }
+
+    public Integer getUniqueCode() {
+        return this.uniqueCode;
+    }
+    public void setUniqueCode(Integer uniqueCode) {
+        this.uniqueCode = uniqueCode;
+    }
+
+    public String getVerificationAnswer() {
+        return this.verificationAnswer;
+    }
+    public void setVerificationAnswer(String verificationAnswer) {
+        this.verificationAnswer = verificationAnswer;
+    }
+
+    public String getVerificationStatus() {
+        return this.verificationStatus;
+    }
+    public void setVerificationStatus(String verificationStatus) {
+        this.verificationStatus = verificationStatus;
+    }
+
+    public java.time.LocalTime getSubmissionTime() {
+        return this.submissionTime;
+    }
+    public void setSubmissionTime(java.time.LocalTime submissionTime) {
+        this.submissionTime = submissionTime;
+    }
+
+    public String getApprovalSource() {
+        return this.approvalSource;
+    }
+    public void setApprovalSource(String approvalSource) {
+        this.approvalSource = approvalSource;
+    }
+
+    public String getRemarks() {
+        return this.remarks;
+    }
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
     }
 }

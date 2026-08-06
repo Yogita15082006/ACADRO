@@ -17,6 +17,7 @@ public class AttendanceSessionDTO {
     private String className;
     private String type;
     private String lectureNumber;
+    private String topic;
     private LocalDate date;
     private LocalTime startTime;
     private LocalTime endTime;
@@ -29,7 +30,10 @@ public class AttendanceSessionDTO {
     private Integer presentCount;
     private Integer absentCount;
     private Integer totalStudents;
+    private Integer uniqueCodeCount;
     private java.time.Instant createdAt;
+    private Boolean isSystemGenerated;
+    private String facultyReason;
 
 
     public UUID getId() {
@@ -191,5 +195,26 @@ public class AttendanceSessionDTO {
     }
     public void setCreatedAt(java.time.Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getUniqueCodeCount() {
+        return this.uniqueCodeCount;
+    }
+    public void setUniqueCodeCount(Integer uniqueCodeCount) {
+        this.uniqueCodeCount = uniqueCodeCount;
+    }
+
+    public Boolean getIsSystemGenerated() {
+        return this.isSystemGenerated;
+    }
+    public void setIsSystemGenerated(Boolean isSystemGenerated) {
+        this.isSystemGenerated = isSystemGenerated;
+    }
+
+    public String getFacultyReason() {
+        return this.facultyReason;
+    }
+    public void setFacultyReason(String facultyReason) {
+        this.facultyReason = facultyReason;
     }
 }

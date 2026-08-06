@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -11,7 +11,7 @@ import {
   CheckCircle, Calendar, TrendingUp, AlertTriangle,
   Clock, BookOpen, UserCheck, Calculator, Search, Filter, Lock,
   X, Plus, Edit, Trash2, Users, QrCode, Copy, ArrowLeft, BarChart3, Activity, PieChart, Info, Printer, Sparkles,
-  GraduationCap, FileX
+  FileX
 } from 'lucide-react';
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
@@ -19,8 +19,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { MarkAttendanceModal } from './FacultyActivityModule';
-import { mockActivityRecords, subjectAssignments } from '../data/facultyActivityData';
-import { mockData } from '../data/mockData';
+
+import { attendanceService } from '../services/attendanceService';
+import api from '../services/api';
 
 // Define schema
 const attendanceSessionSchema = z.object({
@@ -45,21 +46,11 @@ type AttendanceSessionValues = z.infer<typeof attendanceSessionSchema>;
 
 
 
-const mockAdminSessions = [
-  { id: '1', subject: 'Java Programming', faculty: 'Dr. Rahul Sharma', academicYear: '2025-26', department: 'Information Technology', class: 'IT-1', type: 'Lecture', lectureNumber: 'L-45', date: '2026-07-02', time: '10:00 AM - 11:00 AM', startTime: '10:00 AM', endTime: '11:00 AM', duration: '60 Mins', code: 'JAVA24IT', verificationQuestion: 'What is the output of 2+2 in Java?', expectedAnswer: '4', createdAt: '09:55 AM', status: 'Active', presentCount: 45, absentCount: 15, yetToSubmit: 5, totalStudents: 65, trend: [10, 25, 45, 60, 45, 20] },
-  { id: '2', subject: 'DBMS', faculty: 'Prof. Neha Patel', academicYear: '2025-26', department: 'Information Technology', class: 'IT-2', type: 'Lab', lectureNumber: 'P-12', date: '2026-07-01', time: '02:00 PM - 04:00 PM', startTime: '02:00 PM', endTime: '04:00 PM', duration: '120 Mins', code: 'DBMSIT2', verificationQuestion: 'Primary key ensures what?', expectedAnswer: 'Uniqueness', createdAt: '01:50 PM', status: 'Closed', presentCount: 58, absentCount: 2, yetToSubmit: 0, totalStudents: 60, trend: [5, 15, 30, 40, 58, 55] },
-  { id: '3', subject: 'Operating Systems', faculty: 'Prof. Amit Singh', academicYear: '2025-26', department: 'Data Science', class: 'DS-1', type: 'Lecture', lectureNumber: 'L-28', date: '2026-06-30', time: '09:00 AM - 10:00 AM', startTime: '09:00 AM', endTime: '10:00 AM', duration: '60 Mins', code: 'OS3RD25', verificationQuestion: 'Is Windows open source?', expectedAnswer: 'No', createdAt: '08:55 AM', status: 'Expired', presentCount: 50, absentCount: 10, yetToSubmit: 0, totalStudents: 60, trend: [20, 30, 40, 50, 50, 45] },
-];
 
-const mockSessionStudents = [
-  { id: 'ST001', name: 'Arjun Kumar', enrollment: '0101IT221001', status: 'Present', time: '10:05 AM', verified: true, remarks: '-' },
-  { id: 'ST002', name: 'Priya Sharma', enrollment: '0101IT221002', status: 'Present', time: '10:07 AM', verified: true, remarks: '-' },
-  { id: 'ST003', name: 'Rohan Gupta', enrollment: '0101IT221003', status: 'Absent', time: '-', verified: false, remarks: 'Missed' },
-  { id: 'ST004', name: 'Sneha Patel', enrollment: '0101IT221004', status: 'Present', time: '10:12 AM', verified: false, remarks: 'Late' },
-  { id: 'ST005', name: 'Aman Singh', enrollment: '0101IT221005', status: 'Present', time: '10:01 AM', verified: true, remarks: '-' },
-];
 
-const mockSubjectAttendance = [
+
+
+const [] = [
   { id: 'S1', name: 'Java Programming', faculty: 'Dr. Rahul Sharma', attended: 18, total: 22 },
   { id: 'S2', name: 'Data Structures', faculty: 'Prof. Vikram Rathore', attended: 20, total: 22 },
   { id: 'S3', name: 'Operating Systems', faculty: 'Prof. Amit Singh', attended: 15, total: 20 },
@@ -70,23 +61,9 @@ const mockSubjectAttendance = [
 
 
 
-const mockCoordinatorStudents = [
-  { id: 'ST001', name: 'Arjun Kumar', enrollment: '0101IT221001', photo: 'https://i.pravatar.cc/150?u=11', attendance: 88, status: 'Safe', trend: 'up', section: 'IT-2', semester: 5 },
-  { id: 'ST002', name: 'Priya Sharma', enrollment: '0101IT221002', photo: 'https://i.pravatar.cc/150?u=12', attendance: 72, status: 'Warning', trend: 'down', section: 'IT-2', semester: 5 },
-  { id: 'ST003', name: 'Rohan Gupta', enrollment: '0101IT221003', photo: 'https://i.pravatar.cc/150?u=13', attendance: 65, status: 'Critical', trend: 'down', section: 'IT-2', semester: 5 },
-  { id: 'ST004', name: 'Sneha Patel', enrollment: '0101IT221004', photo: 'https://i.pravatar.cc/150?u=14', attendance: 95, status: 'Safe', trend: 'up', section: 'IT-1', semester: 5 },
-  { id: 'ST005', name: 'Aman Singh', enrollment: '0101IT221005', photo: 'https://i.pravatar.cc/150?u=15', attendance: 78, status: 'Warning', trend: 'up', section: 'IT-2', semester: 5 },
-  { id: 'ST006', name: 'Neha Verma', enrollment: '0101IT221006', photo: 'https://i.pravatar.cc/150?u=16', attendance: 82, status: 'Safe', trend: 'up', section: 'IT-2', semester: 5 },
-  { id: 'ST007', name: 'Vikram Rathore', enrollment: '0101IT221007', photo: 'https://i.pravatar.cc/150?u=17', attendance: 55, status: 'Critical', trend: 'down', section: 'DS-1', semester: 5 },
-];
 
-const mockStudentAbsenceHistory = [
-  { date: '2026-07-10', day: 'Friday', subject: 'Operating Systems', time: '10:00 AM - 11:00 AM', type: 'Lecture', faculty: 'Prof. Amit Singh', absenceType: 'Lecture-wise', status: 'Absent' },
-  { date: '2026-07-08', day: 'Wednesday', subject: 'All', time: 'All Day', type: 'All', faculty: 'Multiple', absenceType: 'Full Day', status: 'Absent' },
-  { date: '2026-07-03', day: 'Friday', subject: 'DBMS', time: '01:00 PM - 02:00 PM', type: 'Lecture', faculty: 'Prof. Neha Patel', absenceType: 'Lecture-wise', status: 'Absent' },
-  { date: '2026-06-25', day: 'Thursday', subject: 'Computer Networks', time: '11:00 AM - 12:00 PM', type: 'Lecture', faculty: 'Prof. Sanjay Kumar', absenceType: 'Lecture-wise', status: 'Absent' },
-  { date: '2026-06-15', day: 'Monday', subject: 'All', time: 'All Day', type: 'All', faculty: 'Multiple', absenceType: 'Full Day', status: 'Absent' },
-];
+
+
 
 const getStatusBadge = (percentage: number) => {
   if (percentage >= 80) return <Badge variant="active">Safe</Badge>;
@@ -100,8 +77,8 @@ const getProgressBarColor = (percentage: number) => {
   return 'bg-rose-500';
 };
 
-const SubjectAttendanceDetails = ({ subject, onBack }: { subject: any, onBack: () => void }) => {
-  const percentage = (subject.attended / subject.total) * 100;
+const SubjectAttendanceDetails = ({ subject, onBack, historyData }: { subject: any, onBack: () => void, historyData?: any[] }) => {
+  const percentage = (subject.totalAttended / subject.totalConducted) * 100 || (subject.attended / subject.total) * 100 || 0;
   
   // mock chart data
   const trendData = [
@@ -170,45 +147,45 @@ const SubjectAttendanceDetails = ({ subject, onBack }: { subject: any, onBack: (
                      </TableRow>
                    </TableHeader>
                    <TableBody>
-                     {subjectHistory.map((h, i) => (
-                       <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b border-border/50">
-                         <TableCell className="py-3">
-                           <div className="flex flex-col">
-                             <span className="font-semibold text-sm">{h.date}</span>
-                             <span className="text-[11px] text-muted-foreground mt-0.5">{h.day}</span>
-                           </div>
-                         </TableCell>
-                         <TableCell>
-                           <div className="flex flex-col">
-                             <span className="font-semibold text-sm">{h.lec}</span>
-                             <span className="text-[11px] text-muted-foreground mt-0.5">{h.type}</span>
-                           </div>
-                         </TableCell>
-                         <TableCell>
-                           <span className="text-sm font-medium">{subject.faculty}</span>
-                         </TableCell>
-                         <TableCell>
-                           <Badge variant={h.status === 'Present' ? 'active' : 'rejected'} className="text-[10px] px-2 py-0.5">{h.status}</Badge>
-                         </TableCell>
-                         <TableCell>
-                           <div className="flex flex-col">
-                             <span className="font-mono text-sm font-medium">{h.time}</span>
-                             <span className="text-[11px] text-muted-foreground font-mono mt-0.5">{h.code}</span>
-                           </div>
-                         </TableCell>
-                         <TableCell>
-                           {h.verified ? (
-                              <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px]">Verified</Badge>
-                           ) : (
-                              <Badge variant="outline" className="text-amber-500 border-amber-500/20 bg-amber-500/10 text-[10px]">Unverified</Badge>
-                           )}
-                           {h.remarks !== '-' && (
-                             <p className="text-[10px] text-muted-foreground mt-1">{h.remarks}</p>
-                           )}
-                         </TableCell>
-                       </TableRow>
-                     ))}
-                   </TableBody>
+                      {(historyData || subjectHistory).map((h, i) => (
+                        <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b border-border/50">
+                          <TableCell className="py-3">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-sm">{h.date}</span>
+                              <span className="text-[11px] text-muted-foreground mt-0.5">{h.day || new Date(h.date).toLocaleDateString('en-US', {weekday: 'short'})}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-sm">{h.lec || h.topic || '-'}</span>
+                              <span className="text-[11px] text-muted-foreground mt-0.5">{h.type || 'Theory'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm font-medium">{subject.facultyName || subject.faculty || '-'}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={h.status === 'Present' || h.status === 'PRESENT' ? 'active' : h.status === 'PENDING' ? 'pending' : 'rejected'} className={`text-[10px] px-2 py-0.5 ${h.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : ''}`}>{h.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-mono text-sm font-medium">{h.time || 'N/A'}</span>
+                              <span className="text-[11px] text-muted-foreground font-mono mt-0.5">{h.code || '-'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {h.verified || h.status === 'PRESENT' ? (
+                               <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px]">Verified</Badge>
+                            ) : (
+                               <Badge variant="outline" className="text-amber-500 border-amber-500/20 bg-amber-500/10 text-[10px]">Unverified</Badge>
+                            )}
+                            {h.remarks && h.remarks !== '-' && (
+                              <p className="text-[10px] text-muted-foreground mt-1">{h.remarks}</p>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
                  </Table>
                </div>
              </CardContent>
@@ -233,15 +210,15 @@ const SubjectAttendanceDetails = ({ subject, onBack }: { subject: any, onBack: (
                 <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-border/50">
                    <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Conducted</p>
-                     <p className="text-xl font-black text-foreground">{subject.total}</p>
+                     <p className="text-xl font-black text-foreground">{subject.totalConducted || subject.total}</p>
                    </div>
                    <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Attended</p>
-                     <p className="text-xl font-black text-emerald-500">{subject.attended}</p>
+                     <p className="text-xl font-black text-emerald-500">{subject.totalAttended !== undefined ? subject.totalAttended : subject.attended}</p>
                    </div>
                    <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Missed</p>
-                     <p className="text-xl font-black text-rose-500">{subject.total - subject.attended}</p>
+                     <p className="text-xl font-black text-rose-500">{(subject.totalConducted || subject.total) - (subject.totalAttended !== undefined ? subject.totalAttended : subject.attended)}</p>
                    </div>
                 </div>
              </CardContent>
@@ -303,8 +280,17 @@ const SubjectAttendanceDetails = ({ subject, onBack }: { subject: any, onBack: (
 const AdminSessionDetails = ({ session, onBack }: { session: any, onBack: () => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [liveStudents, setLiveStudents] = useState<any[]>([]);
 
-  const filteredStudents = mockSessionStudents.filter(s => {
+  useEffect(() => {
+    if (session?.id) {
+      attendanceService.getLiveResponses(session.id)
+        .then(data => setLiveStudents(data))
+        .catch(err => console.error("Failed to fetch live responses", err));
+    }
+  }, [session?.id]);
+
+  const filteredStudents = liveStudents.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || s.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -576,168 +562,181 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
   const [searchQuery, setSearchQuery] = useState("");
 
   // Resolve the current faculty from auth context or readOnlyFacultyId
-  const currentFaculty = useMemo(() => {
-    if (readOnlyFacultyId) {
-      return mockData.admins.find(a => a.id === readOnlyFacultyId) || null;
-    }
-    if (!user) return null;
-    return mockData.admins.find(a => a.id === user.id) || null;
-  }, [user, readOnlyFacultyId]);
+  const facultyId = readOnlyFacultyId || user?.id || '';
+  const facultyName = readOnlyFacultyId ? 'Faculty (View Only)' : (user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Faculty');
+  const facultyEmpId = readOnlyFacultyId ? '' : (user?.empId || '');
+  const facultyDept = readOnlyFacultyId ? '' : (user?.department || 'Information Technology');
 
-  const facultyId = currentFaculty?.id || '';
-  const facultyName = currentFaculty?.name || 'Faculty';
-  const facultyEmpId = currentFaculty?.empId || '';
-  const facultyDept = 'Information Technology';
+  const [facultyActivities, setFacultyActivities] = useState<any[]>([]);
+  const [myAssignments, setMyAssignments] = useState<any[]>([]);
+  const [facultySessions, setFacultySessions] = useState<any[]>([]);
+  const [backendStats, setBackendStats] = useState({ daysPresent: 0, daysAbsent: 0, totalWorkingDays: 0 });
 
-  // Assigned subjects & classes from subjectAssignments
-  const myAssignments = useMemo(() => {
-    return subjectAssignments.filter(a => a.facultyId === facultyId);
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (facultyId) {
+        try {
+          const actRes = await api.get(`/faculty-activities/faculty/${facultyId}`);
+          if (actRes.data && actRes.data.data) {
+            setFacultyActivities(actRes.data.data);
+          }
+          const assignRes = await api.get(`/v1/class-subjects/faculty/${facultyId}`);
+          if (assignRes.data) {
+            setMyAssignments(assignRes.data);
+          }
+          const sessRes = await api.get(`/attendance-sessions/faculty/${facultyId}`);
+          if (sessRes.data) {
+            setFacultySessions(sessRes.data);
+          }
+          const statsRes = await api.get(`/attendance-sessions/faculty/${facultyId}/statistics`);
+          if (statsRes.data) {
+            setBackendStats({
+              daysPresent: statsRes.data.daysPresent || 0,
+              daysAbsent: statsRes.data.daysAbsent || 0,
+              totalWorkingDays: statsRes.data.totalWorkingDays || 0
+            });
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    
+    fetchActivities();
+    
+    window.addEventListener('sync-attendance-data', fetchActivities);
+    return () => window.removeEventListener('sync-attendance-data', fetchActivities);
   }, [facultyId]);
 
   const assignedClasses = useMemo(() => Array.from(new Set(myAssignments.map(a => a.className))), [myAssignments]);
 
   // Compute summary stats
   const stats = useMemo(() => {
-    const facultyOwnRecords = mockActivityRecords.filter(r => r.facultyId === facultyId);
-    const holidays = mockActivityRecords.filter(r => r.status === 'Holiday' && assignedClasses.some(c => r.className === c));
+    const facultyOwnRecords = facultyActivities;
+    const holidays = facultyActivities.filter(r => r.status === 'HOLIDAY');
     const uniqueHolidayDates = new Set(holidays.map(r => r.date));
 
-    const totalScheduled = facultyOwnRecords.length;
-    const conducted = facultyOwnRecords.filter(r => r.status === 'Present').length;
-    const missed = facultyOwnRecords.filter(r => r.status === 'Class Missed').length;
-    const absent = facultyOwnRecords.filter(r => r.status === 'Absent').length;
-    const cancelled = Math.max(0, totalScheduled - conducted - missed - absent);
+    // Stats based on actual SAVED AttendanceSessions
+    const completedSessions = facultySessions.filter(s => s.status === 'COMPLETED' || s.status === 'SAVED' || s.status === 'CLOSED');
+    const totalScheduled = completedSessions.length;
+    const conducted = completedSessions.filter(s => !s.isSystemGenerated).length;
+    const missed = completedSessions.filter(s => s.isSystemGenerated).length;
+    
+    const absent = facultyOwnRecords.filter(r => r.status === 'ABSENT').length;
 
     // Summary Cards stats (day-level aggregation)
-    const allFacultyDates = new Set(facultyOwnRecords.map(r => r.date));
-    const totalWorkingDays = allFacultyDates.size;
-    const absentDates = new Set(facultyOwnRecords.filter(r => r.status === 'Absent' || r.status === 'Class Missed').map(r => r.date));
-    const presentDates = new Set([...allFacultyDates].filter(d => !absentDates.has(d)));
-    const daysPresent = presentDates.size;
-    const daysAbsent = absentDates.size;
-    const overallAttendance = totalWorkingDays > 0 ? Math.round((daysPresent / totalWorkingDays) * 100) : 0;
+    const totalWorkingDays = backendStats.totalWorkingDays;
+    const daysPresent = backendStats.daysPresent;
+    const daysAbsent = backendStats.daysAbsent;
+    const overallAttendance = totalScheduled > 0 ? Math.round((conducted / totalScheduled) * 100) : 0;
 
     return {
-      totalScheduled, conducted, missed, absent, cancelled,
+      totalScheduled, conducted, missed, absent,
       holidays: uniqueHolidayDates.size,
       totalWorkingDays, daysPresent, daysAbsent, overallAttendance,
     };
-  }, [facultyId, assignedClasses]);
+  }, [facultyActivities, facultySessions, assignedClasses, backendStats]);
 
-  const teachingSummaryData = useMemo(() => {
-    return myAssignments.map(asgn => {
-      const records = mockActivityRecords.filter(r => 
-        r.facultyId === facultyId &&
-        r.subjectName === asgn.subjectName &&
-        r.className === asgn.className
+  // Faculty Teaching Record (Subject-wise summary)
+  const teachingRecords = useMemo(() => {
+    return myAssignments.map((assignment, index) => {
+      const relatedSessions = facultySessions.filter(s => 
+        (s.status === 'COMPLETED' || s.status === 'SAVED' || s.status === 'CLOSED') &&
+        s.classSubjectId === assignment.id
       );
-      const scheduled = records.filter(r => r.status !== 'Holiday').length;
-      const conducted = records.filter(r => r.status === 'Present').length;
-      const missed = records.filter(r => r.status === 'Class Missed' || r.status === 'Absent').length;
-      const cancelled = Math.max(0, scheduled - conducted - missed);
       
-      const branch = asgn.className.split('-')[0] || asgn.className;
-      let batch = '2024-2028';
-      if (asgn.academicYear === '2nd Year') batch = '2024-2028';
-      else if (asgn.academicYear === '3rd Year') batch = '2023-2027';
-      else if (asgn.academicYear === '4th Year') batch = '2022-2026';
+      const totalScheduled = relatedSessions.length;
+      const conducted = relatedSessions.filter(s => !s.isSystemGenerated).length;
+      const missed = relatedSessions.filter(s => s.isSystemGenerated).length;
 
+      const batch = assignment.batch || '-'; 
+      const year = assignment.year ? assignment.year.replace('YEAR_', '') : '-';
+      
       return {
-        id: `${asgn.subjectName}-${asgn.className}`,
-        subject: asgn.subjectName,
-        branch,
-        className: asgn.className,
-        semester: asgn.semester,
+        id: assignment.id || `teaching-${index}`,
         batch,
-        scheduled,
+        year,
+        semester: assignment.semester?.replace('SEMESTER_', '') || '-',
+        className: (assignment.className || '-').replace(' - null', ''),
+        subjectName: assignment.subjectName || '-',
+        totalScheduled,
         conducted,
-        missed,
-        cancelled
+        missed
       };
     });
-  }, [facultyId, myAssignments]);
+  }, [facultyActivities, myAssignments]);
 
-
-  // Build absence history entries from records
+  // Faculty Absence Record (Absences only)
   const absenceHistory = useMemo(() => {
-    // Get all non-Present records for this faculty + holidays on their classes
-    const facultyNonPresent = mockActivityRecords.filter(r => r.facultyId === facultyId && r.status !== 'Present');
-    const holidays = mockActivityRecords.filter(r => r.status === 'Holiday' && assignedClasses.some(c => r.className === c));
+    const absences = facultyActivities.filter(r => r.status === 'ABSENT' || r.status === 'CLASS_MISSED' || r.status === 'HOLIDAY');
 
-    // Group by date to detect full-day absences
-    const dateMap = new Map<string, typeof facultyNonPresent>();
-    facultyNonPresent.forEach(r => {
-      if (!dateMap.has(r.date)) dateMap.set(r.date, []);
-      dateMap.get(r.date)!.push(r);
+    // Group by date and status
+    const groups: Record<string, any[]> = {};
+    absences.forEach(r => {
+      const key = `${r.date}_${r.status}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
     });
 
-    // Also group holidays by date
-    const holidayDateMap = new Map<string, typeof holidays>();
-    holidays.forEach(r => {
-      if (!holidayDateMap.has(r.date)) holidayDateMap.set(r.date, []);
-      holidayDateMap.get(r.date)!.push(r);
-    });
-
-    const lectureTimes = ['09:00 AM - 10:00 AM', '10:00 AM - 11:00 AM', '11:00 AM - 12:00 PM', '01:00 PM - 02:00 PM', '02:00 PM - 03:00 PM', '03:00 PM - 04:00 PM'];
-    let idx = 0;
-
-    const entries: {
-      id: string; date: string; day: string; subject: string; className: string;
-      semester: string; batch: string; time: string; absenceType: string; reason: string;
-    }[] = [];
-
-    // Faculty absence/missed records
-    dateMap.forEach((records, date) => {
-      const d = new Date(date + 'T00:00:00');
+    const entries: any[] = [];
+    
+    Object.values(groups).forEach(group => {
+      const first = group[0];
+      const d = new Date(first.date + 'T00:00:00');
       const day = d.toLocaleDateString('en-US', { weekday: 'long' });
-
-      // Check if all assignments on this date were missed/absent
-      const totalAssignmentsOnDate = mockActivityRecords.filter(r => r.facultyId === facultyId && r.date === date).length;
-      const isFullDay = records.length >= totalAssignmentsOnDate && totalAssignmentsOnDate > 1;
-
-      if (isFullDay) {
+      
+      if (first.status === 'HOLIDAY') {
         entries.push({
-          id: `abs-${date}-full`, date, day,
-          subject: 'All Subjects', className: records.map(r => r.className).join(', '),
-          semester: records.map(r => r.semester).filter((v, i, a) => a.indexOf(v) === i).join(', '),
-          batch: records.map(r => r.academicYear).filter((v, i, a) => a.indexOf(v) === i).join(', '),
-          time: 'Full Day',
-          absenceType: 'Full Day Absent',
-          reason: records[0].reason || 'Not specified',
+          id: first.id,
+          date: first.date,
+          day,
+          subject: 'All',
+          className: 'All',
+          semester: 'All',
+          batch: 'All',
+          year: 'All',
+          status: first.status,
+          absenceType: 'Leave / Holiday',
+          reason: first.reason || '-'
         });
       } else {
-        records.forEach(r => {
-          const typeMap: Record<string, string> = { 'Absent': 'Lecture Missed', 'Class Missed': 'Lecture Missed' };
+        const isAllSubjects = myAssignments.length > 0 && group.length >= myAssignments.length;
+        if (isAllSubjects) {
           entries.push({
-            id: r.id, date: r.date, day,
-            subject: r.subjectName, className: r.className,
-            semester: r.semester, batch: r.academicYear,
-            time: lectureTimes[idx++ % lectureTimes.length],
-            absenceType: typeMap[r.status] || r.status,
-            reason: r.reason || 'Not specified',
+            id: `grouped-${first.date}-${first.status}`,
+            date: first.date,
+            day,
+            subject: 'All',
+            className: 'All',
+            semester: 'All',
+            batch: 'All',
+            year: 'All',
+            status: first.status,
+            absenceType: 'Absent',
+            reason: first.reason || '-'
           });
-        });
+        } else {
+          group.forEach(r => {
+            entries.push({
+              id: r.id, 
+              date: r.date, 
+              day,
+              subject: r.subjectName || '-', 
+              className: (r.className || '-').replace(' - null', ''),
+              semester: r.semester?.replace('SEMESTER_', '') || '-', 
+              batch: r.batch || '-',
+              year: r.academicYear?.replace('YEAR_', '') || '-',
+              status: r.status,
+              absenceType: 'Lecture-wise',
+              reason: r.reason || '-',
+            });
+          });
+        }
       }
     });
 
-    // Holiday records
-    holidayDateMap.forEach((records, date) => {
-      const d = new Date(date + 'T00:00:00');
-      const day = d.toLocaleDateString('en-US', { weekday: 'long' });
-      const uniqueClasses = [...new Set(records.map(r => r.className))];
-      entries.push({
-        id: `hol-${date}`, date, day,
-        subject: '-', className: uniqueClasses.join(', '),
-        semester: '-', batch: '-', time: 'Full Day',
-        absenceType: 'Holiday',
-        reason: records[0].reason || 'College Holiday',
-      });
-    });
-
-    // Sort descending by date
-    entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return entries;
-  }, [facultyId, assignedClasses]);
+    return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [facultyActivities, myAssignments]);
 
   // Filter by search
   const filteredHistory = useMemo(() => {
@@ -785,7 +784,7 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
               { label: 'Days Absent', value: stats.daysAbsent, icon: <AlertTriangle className="w-4 h-4" />, color: 'bg-rose-500', textColor: 'text-rose-600 dark:text-rose-400', bgTint: 'bg-rose-500/5' },
               { label: 'Total Classes', value: stats.totalScheduled, icon: <BookOpen className="w-4 h-4" />, color: 'bg-indigo-500', textColor: 'text-indigo-600 dark:text-indigo-400', bgTint: 'bg-indigo-500/5' },
               { label: 'Classes Conducted', value: stats.conducted, icon: <CheckCircle className="w-4 h-4" />, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', bgTint: 'bg-teal-500/5' },
-              { label: 'Missed / Cancelled', value: stats.missed + stats.cancelled, icon: <FileX className="w-4 h-4" />, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', bgTint: 'bg-orange-500/5' },
+              { label: 'Classes Missed', value: stats.missed, icon: <FileX className="w-4 h-4" />, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', bgTint: 'bg-orange-500/5' },
               { label: 'Holidays', value: stats.holidays, icon: <Sparkles className="w-4 h-4" />, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', bgTint: 'bg-amber-500/5' },
             ].map((item, i) => (
               <div key={i} className={`relative overflow-hidden rounded-xl border border-border/50 bg-card ${item.bgTint} p-4 hover:shadow-md transition-all duration-200`}>
@@ -802,13 +801,14 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
       </Card>
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* SECTION 2: Faculty Teaching Summary Card               */}
+      {/* SECTION 2: Teaching History Card                       */}
       {/* ═══════════════════════════════════════════════════════ */}
       <Card className="border border-border/50 shadow-sm bg-card overflow-hidden">
         <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-500" />
-            Faculty Teaching Summary Card
+            <BookOpen className="w-5 h-5 text-indigo-500" />
+            Faculty Teaching Record
+            <Badge variant="outline" className="text-[10px] ml-2">{teachingRecords.length} Assigned Subjects</Badge>
           </CardTitle>
           <div className="text-right sm:text-left flex flex-col items-start sm:items-end">
             <div className="flex items-center gap-2">
@@ -819,42 +819,40 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
             <Table>
-              <TableHeader className="bg-muted/5">
+              <TableHeader className="bg-muted/5 sticky top-0 z-10 backdrop-blur-md">
                 <TableRow className="border-b border-border/50 hover:bg-transparent">
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase">Subject</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Branch</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Class</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Semester</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Batch</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Total Classes Scheduled</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Classes Conducted</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Classes Missed</TableHead>
-                  <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground uppercase text-center">Classes Cancelled</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Batch</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Year</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Semester</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Class</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Subject</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase text-center">Total Scheduled Classes</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase text-center">Classes Conducted</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase text-center">Classes Missed</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teachingSummaryData.length === 0 ? (
+                {teachingRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
-                      No teaching summary data available.
+                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                      No teaching records found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  teachingSummaryData.map((data) => (
-                    <TableRow key={data.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                      <TableCell className="font-semibold text-sm whitespace-nowrap">{data.subject}</TableCell>
-                      <TableCell className="text-center text-sm font-medium">{data.branch}</TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">{data.className}</span>
+                  teachingRecords.map((entry: any) => (
+                    <TableRow key={entry.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <TableCell className="text-sm font-semibold whitespace-nowrap">{entry.batch}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.year}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.semester}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">{entry.className}</span>
                       </TableCell>
-                      <TableCell className="text-center text-sm text-muted-foreground">{data.semester}</TableCell>
-                      <TableCell className="text-center text-sm text-muted-foreground">{data.batch}</TableCell>
-                      <TableCell className="text-center text-sm font-medium text-blue-600 dark:text-blue-400">{data.scheduled}</TableCell>
-                      <TableCell className="text-center text-sm font-bold text-emerald-600 dark:text-emerald-400">{data.conducted}</TableCell>
-                      <TableCell className="text-center text-sm font-bold text-rose-600 dark:text-rose-400">{data.missed}</TableCell>
-                      <TableCell className="text-center text-sm font-medium text-slate-600 dark:text-slate-400">{data.cancelled}</TableCell>
+                      <TableCell className="text-sm font-medium whitespace-nowrap">{entry.subjectName}</TableCell>
+                      <TableCell className="text-center text-sm font-medium text-slate-600 dark:text-slate-400">{entry.totalScheduled}</TableCell>
+                      <TableCell className="text-center text-sm font-medium text-emerald-600 dark:text-emerald-400">{entry.conducted}</TableCell>
+                      <TableCell className="text-center text-sm font-medium text-rose-600 dark:text-rose-400">{entry.missed}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -871,7 +869,7 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
         <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
             <FileX className="w-5 h-5 text-rose-500" />
-            Faculty Absence History Card
+            Faculty Absence Record
             <Badge variant="outline" className="text-[10px] ml-2">{filteredHistory.length} Records</Badge>
           </CardTitle>
           <div className="relative w-full sm:w-64">
@@ -892,11 +890,11 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
                 <TableRow className="border-b border-border/50 hover:bg-transparent">
                   <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Date</TableHead>
                   <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Day</TableHead>
-                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Subject</TableHead>
-                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Class</TableHead>
-                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Semester</TableHead>
                   <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Batch</TableHead>
-                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Time</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Year</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Semester</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Class</TableHead>
+                  <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Subject</TableHead>
                   <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Absence Type</TableHead>
                   <TableHead className="font-semibold text-[10px] tracking-wider text-muted-foreground uppercase">Reason</TableHead>
                 </TableRow>
@@ -913,23 +911,17 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredHistory.map((entry) => (
+                  filteredHistory.map((entry: any) => (
                     <TableRow key={entry.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <TableCell className="font-semibold text-sm whitespace-nowrap">{entry.date}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.day}</TableCell>
-                      <TableCell className="text-sm font-medium whitespace-nowrap">{entry.subject}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.batch}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.year}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.semester}</TableCell>
                       <TableCell className="whitespace-nowrap">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">{entry.className}</span>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.semester}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.batch}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {entry.time === 'Full Day' ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">Full Day</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{entry.time}</span>
-                        )}
-                      </TableCell>
+                      <TableCell className="text-sm font-medium whitespace-nowrap">{entry.subject}</TableCell>
                       <TableCell className="whitespace-nowrap">{getAbsenceTypeBadge(entry.absenceType)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={entry.reason}>{entry.reason}</TableCell>
                     </TableRow>
@@ -1113,17 +1105,16 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
   );
 };
 
-const StudentAttendanceDetails = ({ student, onBack }: { student: any, onBack?: () => void }) => {
+const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, overallData }: { student: any, onBack?: () => void, subjectData?: any[], historyData?: any[], overallData?: any }) => {
   let aiInsight = "";
   if (student.attendance >= 80) aiInsight = `${student.name} is maintaining excellent attendance across all core subjects. The consistency indicates strong engagement. No immediate risks or required interventions detected.`;
   else if (student.attendance >= 75) aiInsight = `${student.name}'s attendance is bordering the minimum requirement of 75%. We observed frequent absences particularly on Mondays and during early morning lab sessions.`;
   else aiInsight = `${student.name} is critically short of attendance. Immediate intervention and counseling are required. High probability of missing the mid-term eligibility if the current trend continues.`;
 
-  const totalConducted = mockSubjectAttendance.reduce((acc, curr) => acc + curr.total, 0);
-  const totalAttended = mockSubjectAttendance.reduce((acc, curr) => {
-    const attended = Math.max(0, Math.floor(curr.total * (student.attendance / 100) + (Math.random() * 4 - 2)));
-    return acc + attended;
-  }, 0);
+  const safeSubjectData = subjectData && subjectData.length > 0 ? subjectData : [];
+  
+  const totalConducted = overallData?.totalConducted || safeSubjectData.reduce((acc: any, curr: any) => acc + (curr.totalConducted || curr.total || 0), 0);
+  const totalAttended = overallData?.totalAttended || safeSubjectData.reduce((acc: any, curr: any) => acc + (curr.totalAttended || Math.max(0, Math.floor(curr.total * (student.attendance / 100) + (Math.random() * 4 - 2)))), 0);
   const totalMissed = totalConducted - totalAttended;
 
   const totalWorkingDays = 45;
@@ -1234,9 +1225,9 @@ const StudentAttendanceDetails = ({ student, onBack }: { student: any, onBack?: 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockSubjectAttendance.map((sub, idx) => {
-                    const total = sub.total;
-                    const attended = Math.max(0, Math.floor(total * (student.attendance / 100) + (Math.random() * 4 - 2)));
+                  {safeSubjectData.map((sub: any, idx: number) => {
+                    const total = sub.totalConducted || sub.total || 0;
+                    const attended = sub.totalAttended !== undefined ? sub.totalAttended : Math.max(0, Math.floor(total * (student.attendance / 100) + (Math.random() * 4 - 2)));
                     const missedCount = total - attended;
                     const pct = (attended / total) * 100;
                     return (
@@ -1280,15 +1271,15 @@ const StudentAttendanceDetails = ({ student, onBack }: { student: any, onBack?: 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {[...mockStudentAbsenceHistory].map((abs, i) => (
+                  {(historyData && historyData.length > 0 ? historyData.filter((r: any) => r.status === 'ABSENT').slice(0, 5) : []).map((abs: any, i: number) => (
                     <TableRow key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <TableCell className="font-semibold text-sm whitespace-nowrap">{abs.date}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.day}</TableCell>
-                      <TableCell className="text-sm font-medium whitespace-nowrap">{abs.subject}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.time}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.day || new Date(abs.date).toLocaleDateString('en-US', {weekday: 'long'})}</TableCell>
+                      <TableCell className="text-sm font-medium whitespace-nowrap">{abs.subjectName || abs.subject}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.time || 'N/A'}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className={`text-[10px] whitespace-nowrap ${abs.absenceType === 'Full Day' ? 'text-rose-500 border-rose-500/20 bg-rose-500/10' : 'text-amber-500 border-amber-500/20 bg-amber-500/10'}`}>
-                          {abs.absenceType}
+                          {abs.absenceType || 'Lecture-wise'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -1435,14 +1426,51 @@ export const AttendanceModule = () => {
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+  // Student Real Data State
+  const [studentOverall, setStudentOverall] = useState<any>(null);
+  const [studentSubjectWise, setStudentSubjectWise] = useState<any[]>([]);
+  const [studentHistory, setStudentHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (role === 'student' && user?.id) {
+      const fetchStudentData = async () => {
+        try {
+          const overall = await attendanceService.getStudentOverallAttendance(user.id);
+          const subjectWise = await attendanceService.getStudentSubjectWiseAttendance(user.id);
+          const history = await attendanceService.getStudentAttendanceHistory(user.id);
+          
+          setStudentOverall(overall);
+          setStudentSubjectWise(subjectWise || []);
+          setStudentHistory(history || []);
+        } catch (error) {
+          console.error('Failed to fetch student attendance data', error);
+        }
+      };
+      fetchStudentData();
+    }
+  }, [role, user?.id]);
   
   // Coordinator specific simulation
   const assignedSection = 'IT-2';
   const assignedSemester = 5;
-  const coordinatorSectionStudents = mockCoordinatorStudents.filter(s => s.section === assignedSection && s.semester === assignedSemester);
+  const coordinatorSectionStudents: any[] = [];
   
   // Admin Session State
-  const [adminSessions, setAdminSessions] = useState(mockAdminSessions);
+  const [adminSessions, setAdminSessions] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (user?.id) {
+        try {
+          const res = await api.get(`/attendance-sessions/faculty/${user.id}`);
+          setAdminSessions(res.data || []);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    fetchSessions();
+  }, [user?.id]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMarkModal, setShowMarkModal] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -1504,9 +1532,9 @@ export const AttendanceModule = () => {
   const [attendanceStatus, setAttendanceStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // Stats Calculations
-  const totalClasses = mockSubjectAttendance.reduce((acc, curr) => acc + curr.total, 0);
-  const totalAttended = mockSubjectAttendance.reduce((acc, curr) => acc + curr.attended, 0);
-  const overallPercentage = ((totalAttended / totalClasses) * 100).toFixed(1);
+  const totalClasses = studentOverall?.totalClasses || 0;
+  const totalAttended = studentOverall?.totalPresent || 0;
+  const overallPercentage = studentOverall?.overallPercentage?.toFixed(1) || ((totalAttended / (totalClasses || 1)) * 100).toFixed(1);
   const totalMissed = totalClasses - totalAttended;
 
   const handleMarkAttendance = () => {
@@ -1601,7 +1629,8 @@ export const AttendanceModule = () => {
             />
           ) : selectedSubjectId && role === 'student' ? (
             <SubjectAttendanceDetails 
-              subject={mockSubjectAttendance.find(s => s.name === selectedSubjectId)}
+              subject={studentSubjectWise?.find((s: any) => s.classSubjectId === selectedSubjectId || s.subjectName === selectedSubjectId || s.name === selectedSubjectId) || null}
+              historyData={studentHistory?.filter(h => h.classSubjectId === selectedSubjectId || h.subjectName === selectedSubjectId)}
               onBack={() => setSelectedSubjectId(null)}
             />
           ) : selectedSessionId && ['faculty', 'hod', 'coordinator', 'both'].includes(role) ? (
@@ -1611,7 +1640,15 @@ export const AttendanceModule = () => {
             />
           ) : role === 'student' ? (
             <StudentAttendanceDetails 
-              student={mockCoordinatorStudents[0]}
+              student={{
+                ...mockCoordinatorStudents[0],
+                name: user?.name,
+                enrollment: user?.email,
+                attendance: studentOverall?.overallPercentage ? Math.round(studentOverall.overallPercentage) : 0
+              }}
+              subjectData={studentSubjectWise}
+              historyData={studentHistory}
+              overallData={studentOverall}
             />
           ) : (
             <motion.div 
@@ -1859,9 +1896,12 @@ export const AttendanceModule = () => {
             {/* Subject-wise Cards / Admin Sessions */}
             {role === 'student' ? (
               <div className="lg:col-span-2 grid-cols-1 md:grid-cols-2 grid gap-6">
-                {mockSubjectAttendance.map((sub, idx) => {
-                  const subPct = (sub.attended / sub.total) * 100;
-                  const missed = sub.total - sub.attended;
+                {(studentSubjectWise || []).map((sub, idx) => {
+                  const subPct = sub.attendancePercentage || 0;
+                  const attended = sub.classesAttended || sub.attendedClasses || 0;
+                  const total = sub.totalClasses || 1;
+                  const missed = total - attended;
+                  const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
                   return (
                     <Card 
                       key={idx} 
@@ -1870,8 +1910,8 @@ export const AttendanceModule = () => {
                       <CardContent className="p-5 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h4 className="font-bold text-base text-foreground line-clamp-1">{sub.name}</h4>
-                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{sub.faculty}</p>
+                            <h4 className="font-bold text-base text-foreground line-clamp-1">{subjectName}</h4>
+                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{sub.faculty || 'Assigned Faculty'}</p>
                           </div>
                           {getStatusBadge(subPct)}
                         </div>
@@ -1989,17 +2029,20 @@ export const AttendanceModule = () => {
 
       {activeTab === 'calculator' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockSubjectAttendance.map((sub, idx) => {
-            const currentPct = (sub.attended / sub.total) * 100;
+          {(studentSubjectWise || []).map((sub, idx) => {
+            const currentPct = sub.attendancePercentage || 0;
+            const attended = sub.classesAttended || sub.attendedClasses || 0;
+            const total = sub.totalClasses || 1;
+            const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
             // Calculations (simplified logic for demonstration)
-            const neededFor75 = Math.max(0, Math.ceil((0.75 * sub.total - sub.attended) / 0.25));
-            const canMiss = Math.max(0, Math.floor((sub.attended - 0.75 * sub.total) / 0.75));
+            const neededFor75 = Math.max(0, Math.ceil((0.75 * total - attended) / 0.25));
+            const canMiss = Math.max(0, Math.floor((attended - 0.75 * total) / 0.75));
             
             return (
               <Card key={idx} className="border border-border/50 bg-card shadow-sm">
                 <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
                   <CardTitle className="text-base font-semibold flex items-center justify-between">
-                    <span className="truncate pr-2">{sub.name}</span>
+                    <span className="truncate pr-2">{subjectName}</span>
                     <Badge variant="outline" className="shrink-0">{currentPct.toFixed(1)}%</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -2033,6 +2076,7 @@ export const AttendanceModule = () => {
             onClose={() => setShowMarkModal(false)}
             user={user}
             statusBadge={(s: string) => <Badge variant="outline">{s}</Badge>}
+            onSuccess={() => window.dispatchEvent(new Event('sync-attendance-data'))}
           />
         )}
       </AnimatePresence>

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 @Data
 public class AssignedSubjectDto {
+    private UUID id;
     private UUID facultyId;
     private String subjectName;
     private String className;

@@ -10,6 +10,11 @@ import org.springframework.data.repository.query.Param;
 @Repository
 public interface StudentAttendanceRepository extends JpaRepository<StudentAttendance, UUID> {
     boolean existsByStudentIdAndClassSubjectIdAndDate(UUID studentId, UUID classSubjectId, java.time.LocalDate date);
+    List<StudentAttendance> findBySessionId(UUID sessionId);
+    
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM StudentAttendance sa WHERE sa.session.id = :sessionId")
+    void deleteBySessionId(@Param("sessionId") UUID sessionId);
     
     // For Student: My Attendance History
     List<StudentAttendance> findByStudentIdOrderByDateDesc(UUID studentId);

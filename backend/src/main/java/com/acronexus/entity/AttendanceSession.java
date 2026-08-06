@@ -24,6 +24,8 @@ public class AttendanceSession extends BaseAuditableEntity {
 
     @Column(nullable = false)
     private String lectureNumber;
+    
+    private String topic;
 
     @Column(nullable = false)
     private LocalDate date;
@@ -53,7 +55,13 @@ public class AttendanceSession extends BaseAuditableEntity {
     private Integer presentCount = 0;
     private Integer absentCount = 0;
     private Integer totalStudents = 0;
-
+    
+    private Integer uniqueCodeCount;
+    
+    private Boolean isSystemGenerated = false;
+    
+    @Column(columnDefinition = "TEXT")
+    private String facultyReason;
 
 
     public ClassSubject getClassSubject() {
@@ -166,5 +174,26 @@ public class AttendanceSession extends BaseAuditableEntity {
     }
     public void setTotalStudents(Integer totalStudents) {
         this.totalStudents = totalStudents;
+    }
+
+    public Integer getUniqueCodeCount() {
+        return this.uniqueCodeCount;
+    }
+    public void setUniqueCodeCount(Integer uniqueCodeCount) {
+        this.uniqueCodeCount = uniqueCodeCount;
+    }
+
+    public Boolean getIsSystemGenerated() {
+        return this.isSystemGenerated;
+    }
+    public void setIsSystemGenerated(Boolean isSystemGenerated) {
+        this.isSystemGenerated = isSystemGenerated;
+    }
+
+    public String getFacultyReason() {
+        return this.facultyReason;
+    }
+    public void setFacultyReason(String facultyReason) {
+        this.facultyReason = facultyReason;
     }
 }

@@ -17,6 +17,8 @@ import {
 } from '../data/facultyActivityData';
 import { mockData } from '../data/mockData';
 import { AdminTeachingHistory } from './AttendanceModule';
+import { profileService } from '../services/profileService';
+import api from '../services/api';
 
 /* ───── MultiSelect Dropdown ───── */
 const MultiSelect = ({ label, options, selected, onChange }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void }) => {
@@ -71,6 +73,25 @@ export const FacultyActivityModule = () => {
   
   const [selectedFaculty, setSelectedFaculty] = useState<any | null>(null);
   const [showMarkAttendance, setShowMarkAttendance] = useState(false);
+  const [apiFacultyData, setApiFacultyData] = useState<any[]>([]);
+  const [apiActivityRecords, setApiActivityRecords] = useState<any[]>([]);
+
+  const fetchFacultySummary = async () => {
+    try {
+      const res = await api.get('/faculty-summary');
+      setApiFacultyData(res.data);
+      const activityRes = await api.get('/faculty-activities');
+      setApiActivityRecords(activityRes.data?.data || []);
+    } catch (err) {
+      console.error('Failed to fetch faculty summary or activities', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchFacultySummary();
+    window.addEventListener('sync-attendance-data', fetchFacultySummary);
+    return () => window.removeEventListener('sync-attendance-data', fetchFacultySummary);
+  }, []);
 
   useEffect(() => {
     if (showMarkAttendance || selectedFaculty) {
@@ -84,21 +105,20 @@ export const FacultyActivityModule = () => {
     
     // HOD sees all
     if (user.role === 'hod') {
-      return new Set(mockData.admins.filter(a => a.role === 'faculty' || a.role === 'coordinator').map(a => a.id));
+      return new Set(apiFacultyData.map(a => a.id));
     }
     
     // Coordinator sees only faculty assigned to their managed classes
     if (user.role === 'coordinator') {
       const managedClassIds = user.classes || [];
       const managedClassObjects = managedClassIds.map(id => mockData.classes.find(c => c.id === id)).filter(Boolean);
-      
-      const managedYears = managedClassObjects.map(c => c?.year === 'Second Year' ? '2nd Year' : c?.year === 'Third Year' ? '3rd Year' : '4th Year');
       const managedClassNames = managedClassObjects.map(c => c?.name);
       
       const validIds = new Set<string>();
-      subjectAssignments.forEach(sa => {
-        if (managedYears.includes(sa.academicYear) && managedClassNames.includes(sa.className)) {
-          validIds.add(sa.facultyId);
+      apiFacultyData.forEach(faculty => {
+        const hasManagedClass = faculty.assignedClasses.some((c: string) => managedClassNames.includes(c));
+        if (hasManagedClass) {
+          validIds.add(faculty.id);
         }
       });
       // Coordinator can also see their own activity
@@ -107,39 +127,32 @@ export const FacultyActivityModule = () => {
     }
     
     return new Set<string>();
-  }, [user]);
+  }, [user, apiFacultyData]);
 
-  // Derive all possible subjects from subjectAssignments for the filter
-  const allSubjects = useMemo(() => Array.from(new Set(subjectAssignments.map(sa => sa.subjectName))), []);
+  // Derive all possible subjects from apiFacultyData for the filter
+  const allSubjects = useMemo(() => {
+    const subjects = new Set<string>();
+    apiFacultyData.forEach(f => f.assignedSubjects.forEach((s: string) => subjects.add(s)));
+    return Array.from(subjects);
+  }, [apiFacultyData]);
 
   // Compute Faculty Data
   const facultyData = useMemo(() => {
-    return mockData.admins
-      .filter(a => (a.role === 'faculty' || a.role === 'coordinator') && visibleFacultyIds.has(a.id))
+    return apiFacultyData
+      .filter(faculty => visibleFacultyIds.has(faculty.id))
       .map(faculty => {
-        const assignments = subjectAssignments.filter(sa => sa.facultyId === faculty.id);
-        const assignedYears = Array.from(new Set(assignments.map(a => a.academicYear)));
-        const assignedSems = Array.from(new Set(assignments.map(a => a.semester)));
-        const assignedClasses = Array.from(new Set(assignments.map(a => a.className)));
-        const assignedSubjects = Array.from(new Set(assignments.map(a => a.subjectName)));
-        
-        const records = mockActivityRecords.filter(r => r.facultyId === faculty.id);
-        const totalScheduled = records.filter(r => r.status !== 'Holiday').length;
-        const classesTaken = records.filter(r => r.status === 'Present').length;
-        const classesMissed = records.filter(r => r.status === 'Class Missed').length;
-        const absent = records.filter(r => r.status === 'Absent').length;
-        const holidays = records.filter(r => r.status === 'Holiday').length;
+        const records = apiActivityRecords.filter(r => r.facultyId === faculty.id);
+        const totalScheduled = records.filter(r => r.status !== 'HOLIDAY').length;
+        const classesTaken = records.filter(r => r.status === 'PRESENT').length;
+        const classesMissed = records.filter(r => r.status === 'CLASS_MISSED').length;
+        const absent = records.filter(r => r.status === 'ABSENT').length;
+        const holidays = records.filter(r => r.status === 'HOLIDAY').length;
         const teachingAttendance = totalScheduled > 0 ? Math.round((classesTaken / totalScheduled) * 100) : 0;
         
-        // Mock status
         const status = teachingAttendance > 75 ? 'Active' : 'Inactive';
         
         return {
           ...faculty,
-          assignedYears,
-          assignedSems,
-          assignedClasses,
-          assignedSubjects,
           totalScheduled,
           classesTaken,
           classesMissed,
@@ -150,7 +163,7 @@ export const FacultyActivityModule = () => {
           records
         };
       });
-  }, [visibleFacultyIds]);
+  }, [visibleFacultyIds, apiFacultyData]);
 
   // Filter & Sort
   const filteredFaculty = useMemo(() => {
@@ -383,6 +396,7 @@ export const FacultyActivityModule = () => {
             onClose={() => setShowMarkAttendance(false)}
             user={user}
             statusBadge={statusBadge}
+            onSuccess={() => window.dispatchEvent(new Event('sync-attendance-data'))}
           />
         )}
       </AnimatePresence>
@@ -429,53 +443,38 @@ const ActivityModal = ({ faculty, onClose }: { faculty: any, onClose: () => void
 };
 
 /* ───── Mark Attendance Modal ───── */
-export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: () => void, user: any, statusBadge: any }) => {
-  const [step, setStep] = useState(1);
-  const [academicYear, setAcademicYear] = useState('');
-  const [semester, setSemester] = useState('');
-  const [className, setClassName] = useState('');
+export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOpen: boolean, onClose: () => void, user: any, statusBadge?: any, onSuccess?: () => void }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [type, setType] = useState<'Activity' | 'Holiday'>('Activity');
   const [holidayReason, setHolidayReason] = useState('');
+  const [customHolidayReason, setCustomHolidayReason] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Get assignments for this faculty
-  const facultyAssignments = useMemo(() => {
-    if (!user) return [];
-    return subjectAssignments.filter(sa => sa.facultyId === user.id);
-  }, [user]);
-
-  // Subjects to mark
-  const subjectsToMark = useMemo(() => {
-    const assigned = facultyAssignments.filter(a => a.academicYear === academicYear && a.semester === semester && a.className === className);
-    if (assigned.length > 0) return assigned;
-
-    // Fallback mock data to ensure the form always populates
-    if (academicYear && semester && className) {
-      return [
-        { subjectName: 'Software Engineering', academicYear, semester, className, facultyId: user?.id },
-        { subjectName: 'Computer Networks', academicYear, semester, className, facultyId: user?.id },
-      ];
-    }
-    return [];
-  }, [facultyAssignments, academicYear, semester, className, user]);
-
-  // State for subjects
+  // Fetch real assigned subjects
+  const [subjectsToMark, setSubjectsToMark] = useState<any[]>([]);
   const [subjectData, setSubjectData] = useState<any[]>([]);
-
-  // Setup subject data when advancing to step 2
-  const handleNext = () => {
-    if (academicYear && semester && className && date) {
-      setSubjectData(subjectsToMark.map(s => ({
-        ...s,
-        status: 'Present',
-        reason: '',
-        selected: false
-      })));
-      setStep(2);
+  
+  useEffect(() => {
+    if (isOpen) {
+      setSuccessMsg('');
+      setErrorMsg('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setType('Activity');
+      profileService.getFacultyAssignedSubjects().then((data) => {
+        setSubjectsToMark(data);
+        setSubjectData(data.map((s: any) => ({
+          ...s,
+          status: 'Present',
+          reason: '',
+          selected: false
+        })));
+      }).catch(err => {
+        console.error("Failed to fetch assigned subjects", err);
+      });
     }
-  };
+  }, [isOpen]);
 
   const [bulkStatus, setBulkStatus] = useState('Present');
   const [bulkReason, setBulkReason] = useState('');
@@ -485,7 +484,7 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
   };
 
   const toggleSelectAll = () => {
-    const allSelected = subjectData.every(s => s.selected);
+    const allSelected = subjectData.length > 0 && subjectData.every(s => s.selected);
     setSubjectData(prev => prev.map(s => ({ ...s, selected: !allSelected })));
   };
 
@@ -497,62 +496,74 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
     setSubjectData(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
   };
 
-  const handleSave = () => {
-    // Validate reasons
-    if (type === 'Holiday' && !holidayReason) {
-      alert("Please enter a holiday reason.");
-      return;
-    }
+  const handleSave = async () => {
+    setErrorMsg('');
+    
     if (type === 'Activity') {
       const selectedSubjects = subjectData.filter(s => s.selected);
       if (selectedSubjects.length === 0) {
-        alert("Please select at least one subject to mark attendance.");
+        setErrorMsg("Please select at least one subject to mark attendance.");
         return;
       }
       
       const invalid = selectedSubjects.find(s => (s.status === 'Absent' || s.status === 'Class Missed') && !s.reason);
       if (invalid) {
-        alert("Please enter a reason for all Absent or Missed classes.");
+        setErrorMsg("Please enter a reason for all Absent or Missed classes.");
         return;
       }
-    }
-
-    // Check for overlapping/existing records for the same date and class to prevent duplicates
-    if (type === 'Activity') {
-      const existingRecords = mockActivityRecords.filter(r => r.date === date && r.facultyId === user.id);
-      const selectedSubjects = subjectData.filter(s => s.selected);
-      const overlapping = selectedSubjects.find(s => existingRecords.some(r => r.subjectName === s.subjectName && r.className === s.className));
-      if (overlapping) {
-        alert(`An activity record already exists for ${overlapping.subjectName} in ${overlapping.className} on ${date}.`);
+      
+      try {
+        const payload = {
+          activities: selectedSubjects.map(s => ({
+            classSubjectId: s.id,
+            date: date,
+            status: s.status === 'Present' ? 'PRESENT' : s.status === 'Missed' ? 'CLASS_MISSED' : 'ABSENT',
+            reason: s.reason || ''
+          }))
+        };
+        await api.post('/faculty-activities/bulk', payload);
+        setSuccessMsg("Attendance saved successfully!");
+        if (typeof onSuccess === 'function') onSuccess();
+        setTimeout(() => {
+          setSuccessMsg('');
+          onClose();
+        }, 1500);
+      } catch (err: any) {
+        setErrorMsg("Failed to save attendance: " + (err?.response?.data?.message || err.message));
         return;
       }
     }
 
     if (type === 'Holiday') {
-       mockActivityRecords.push({
-            id: `HOL-${date}-${className}-${semester}-${Math.random().toString(36).slice(2,6)}`, 
-            facultyId: '', facultyName: 'All Faculty',
-            subjectName: '-', date: date, status: 'Holiday',
-            reason: holidayReason,
-            className: className, semester: semester, academicYear: academicYear
-       });
-    } else {
-       subjectData.filter(s => s.selected).forEach((s, idx) => {
-         mockActivityRecords.push({
-            id: `ACT-${date}-${idx}-${Math.random().toString(36).slice(2,6)}`,
-            facultyId: user.id, facultyName: user.name,
-            subjectName: s.subjectName, date: date, status: s.status, reason: s.reason,
-            className: s.className, semester: s.semester, academicYear: s.academicYear,
-            avatar: `https://ui-avatars.com/api/?name=${user.name.replace(/ /g,'+')}&background=4F46E5&color=fff`
-          });
-       });
+      if (!holidayReason) {
+        setErrorMsg("Please select a reason for the holiday.");
+        return;
+      }
+      if (holidayReason === 'Other' && !customHolidayReason) {
+        setErrorMsg("Please type a custom reason for the holiday.");
+        return;
+      }
+      try {
+        const payload = {
+          activities: [{
+            classSubjectId: null,
+            date: date,
+            status: 'HOLIDAY',
+            reason: holidayReason === 'Other' ? customHolidayReason : holidayReason
+          }]
+        };
+        await api.post('/faculty-activities/bulk', payload);
+        setSuccessMsg("Holiday marked successfully!");
+        if (typeof onSuccess === 'function') onSuccess();
+        setTimeout(() => {
+          setSuccessMsg('');
+          onClose();
+        }, 1500);
+      } catch (err: any) {
+         setErrorMsg("Failed to save holiday: " + (err?.response?.data?.message || err.message));
+         return;
+      }
     }
-
-    setSuccessMsg("Attendance saved successfully!");
-    setTimeout(() => {
-      setSuccessMsg('');
-      onClose();
-    }, 1500);
   };
 
   if (!isOpen) return null;
@@ -560,9 +571,8 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 sm:p-6">
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden relative">
+        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden relative">
         
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border bg-card">
           <h2 className="text-xl font-bold text-foreground">Mark Attendance</h2>
           <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors"><X size={20} /></Button>
@@ -574,47 +584,24 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
               <CheckCircle size={64} className="text-emerald-500" />
               <h3 className="text-xl font-bold text-foreground">{successMsg}</h3>
             </div>
-          ) : step === 1 ? (
+          ) : (
             <div className="space-y-6">
+              {errorMsg && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  {errorMsg}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-muted-foreground">Date</label>
                   <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted-foreground">Academic Year</label>
-                  <select value={academicYear} onChange={e => { setAcademicYear(e.target.value); setSemester(''); setClassName(''); }} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm">
-                    <option value="">Select Year</option>
-                    {yearOptions.map((y: string) => <option key={y} value={y}>{y}</option>)}
-                  </select>
+                <div className="space-y-2 flex items-end">
+                  <div className="flex gap-4 p-1 bg-muted rounded-lg w-full">
+                    <Button variant={type === 'Activity' ? 'default' : 'ghost'} onClick={() => setType('Activity')} className="flex-1">Mark Activity</Button>
+                    <Button variant={type === 'Holiday' ? 'default' : 'ghost'} onClick={() => setType('Holiday')} className="flex-1">Holiday</Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted-foreground">Semester</label>
-                  <select value={semester} onChange={e => { setSemester(e.target.value); setClassName(''); }} disabled={!academicYear} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm disabled:opacity-50">
-                    <option value="">Select Semester</option>
-                    {semOptions.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted-foreground">Class</label>
-                  <select value={className} onChange={e => setClassName(e.target.value)} disabled={!semester} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm disabled:opacity-50">
-                    <option value="">Select Class</option>
-                    {classOptions.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-border">
-                <Button onClick={handleNext} disabled={!academicYear || !semester || !className || !date} className="w-full md:w-auto">
-                  Continue
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex gap-4 p-1 bg-muted rounded-lg">
-                <Button variant={type === 'Activity' ? 'default' : 'ghost'} onClick={() => setType('Activity')} className="flex-1">Mark Activity</Button>
-                <Button variant={type === 'Holiday' ? 'default' : 'ghost'} onClick={() => setType('Holiday')} className="flex-1">Holiday</Button>
               </div>
 
               {type === 'Holiday' ? (
@@ -624,14 +611,21 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
                     <select value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm">
                       <option value="">Select Reason</option>
                       {holidayReasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                      <option value="Other">Other (Please specify)</option>
                     </select>
                   </div>
+                  {holidayReason === 'Other' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-muted-foreground">Custom Reason</label>
+                      <Input placeholder="Enter custom reason..." value={customHolidayReason} onChange={e => setCustomHolidayReason(e.target.value)} />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-6">
                   {subjectsToMark.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl">
-                      No subjects found for this selection.
+                      Loading assigned subjects...
                     </div>
                   ) : (
                     <>
@@ -662,7 +656,7 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
                               <TableHead className="w-12 text-center">
                                 <input type="checkbox" checked={subjectData.length > 0 && subjectData.every(s => s.selected)} onChange={toggleSelectAll} className="w-4 h-4 rounded border-border" />
                               </TableHead>
-                              <TableHead>Subject</TableHead>
+                              <TableHead>Assigned Subject Details</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead>Reason</TableHead>
                             </TableRow>
@@ -670,25 +664,30 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
                           <TableBody>
                             {subjectData.map((sub, idx) => (
                               <TableRow key={idx}>
-                                <TableCell className="text-center">
+                                <TableCell className="text-center align-top pt-4">
                                   <input type="checkbox" checked={sub.selected} onChange={() => toggleSelect(idx)} className="w-4 h-4 rounded border-border" />
                                 </TableCell>
-                                <TableCell className="font-medium text-sm">{sub.subjectName}</TableCell>
-                                <TableCell>
+                                  <TableCell className="py-3">
+                                    <div className="font-semibold text-sm">{sub.subjectName || sub.subject?.name}</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Year: {sub.academicYear?.replace('YEAR_', '')} | Sem: {sub.semester?.replace('SEMESTER_', '')} | Class: {sub.className || sub.acroClass?.name}
+                                    </div>
+                                  </TableCell>
+                                <TableCell className="align-top pt-3">
                                   <select value={sub.status} onChange={e => updateSubject(idx, 'status', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs">
                                     <option value="Present">Present</option>
                                     <option value="Absent">Absent</option>
                                     <option value="Class Missed">Missed</option>
                                   </select>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="align-top pt-3">
                                   {(sub.status === 'Absent' || sub.status === 'Class Missed') ? (
                                     <select value={sub.reason} onChange={e => updateSubject(idx, 'reason', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs border-red-200">
                                       <option value="">Reason...</option>
                                       {absenceReasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                   ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
+                                    <span className="text-muted-foreground text-xs block py-1.5">—</span>
                                   )}
                                 </TableCell>
                               </TableRow>
@@ -701,8 +700,8 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user }: { isOpen: boolean
                 </div>
               )}
 
-              <div className="flex justify-between pt-4 border-t border-border">
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+              <div className="flex justify-end pt-4 border-t border-border gap-3">
+                <Button variant="outline" onClick={onClose}>Cancel</Button>
                 <Button onClick={handleSave} className="bg-primary text-white">Save Attendance</Button>
               </div>
             </div>

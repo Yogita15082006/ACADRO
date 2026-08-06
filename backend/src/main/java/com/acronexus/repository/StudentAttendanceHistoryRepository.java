@@ -10,4 +10,8 @@ public interface StudentAttendanceHistoryRepository extends JpaRepository<Studen
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM StudentAttendanceHistory h WHERE h.attendance.classSubject.id IN :csIds")
     void deleteByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") java.util.List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM StudentAttendanceHistory h WHERE h.attendance.session.id = :sessionId")
+    void deleteBySessionId(@org.springframework.data.repository.query.Param("sessionId") UUID sessionId);
 }

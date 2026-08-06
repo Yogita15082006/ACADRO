@@ -20,6 +20,8 @@ public class AttendanceDashboardDto {
         private AttendanceStatus status;
         private UUID sessionId;
         private Instant markedTime;
+        private UUID classSubjectId;
+        private String topic;
     }
 
     @Data

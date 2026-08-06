@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -9,6 +9,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import api from '../services/api';
 
 export const StudentDashboard = () => {
   const { user } = useAuth();
@@ -35,13 +36,38 @@ export const StudentDashboard = () => {
     { time: '02:00 PM', subject: 'Web Development', faculty: 'Mr. Davis', type: 'Lecture', status: 'Upcoming', color: 'bg-primary/20 text-primary border-primary/30' },
   ];
 
-  const subjectOverview = [
-    { name: 'Java Programming', code: 'CS301', total: 45, attended: 38, percentage: 84, status: 'Safe' },
-    { name: 'DBMS', code: 'CS302', total: 42, attended: 35, percentage: 83, status: 'Safe' },
-    { name: 'Operating Systems', code: 'CS303', total: 40, attended: 28, percentage: 70, status: 'Warning' },
-    { name: 'Web Development', code: 'CS304', total: 38, attended: 34, percentage: 89, status: 'Safe' },
-    { name: 'Computer Networks', code: 'CS305', total: 35, attended: 22, percentage: 62, status: 'Danger' },
-  ];
+  const [subjectOverview, setSubjectOverview] = useState<any[]>([]);
+  const [liveOverallAttendance, setLiveOverallAttendance] = useState<number>(user?.overallAttendance || 78);
+
+  useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        if (!user?.id) return;
+        const res = await api.get(`/attendance-reports/student/${user.id}`);
+        if (res.data?.data) {
+          const report = res.data.data;
+          setLiveOverallAttendance(Math.round(report.overallAttendancePercentage || 0));
+          
+          if (report.subjectWiseAttendance) {
+            setSubjectOverview(report.subjectWiseAttendance.map((s: any) => ({
+              name: s.subjectName || 'Unknown Subject',
+              code: s.classSubjectId?.substring(0, 8) || '',
+              total: s.totalClasses,
+              attended: s.attendedClasses,
+              percentage: Math.round(s.attendancePercentage),
+              status: s.attendancePercentage >= 75 ? 'Safe' : s.attendancePercentage >= 65 ? 'Warning' : 'Danger'
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch student report', err);
+      }
+    };
+    
+    fetchReport();
+    window.addEventListener('sync-attendance-data', fetchReport);
+    return () => window.removeEventListener('sync-attendance-data', fetchReport);
+  }, [user?.id]);
 
   const upcomingDeadlines = [
     { title: 'DBMS Normalization Assignment', type: 'Assignment', due: 'Tomorrow, 11:59 PM', color: 'text-warning bg-warning/10 border-warning/20', icon: <FileText className="w-4 h-4" /> },
@@ -56,7 +82,7 @@ export const StudentDashboard = () => {
   ];
 
   const summaryCards = [
-    { title: 'Overall Attendance', value: `${overallAttendance}%`, icon: <CheckCircle />, color: overallAttendance >= 75 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500' },
+    { title: 'Overall Attendance', value: `${liveOverallAttendance}%`, icon: <CheckCircle />, color: liveOverallAttendance >= 75 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500' },
     { title: 'Pending Assignments', value: pendingAssignments, icon: <FileText />, color: 'bg-amber-500/10 text-amber-500' },
     { title: "Today's Classes", value: todaysClasses, icon: <CalendarIcon />, color: 'bg-blue-500/10 text-blue-500' },
     { title: 'Upcoming Quizzes', value: upcomingQuizzes, icon: <Target />, color: 'bg-indigo-500/10 text-indigo-500' },

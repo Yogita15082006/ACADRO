@@ -40,4 +40,7 @@ public class FacultyActivity {
     @org.hibernate.annotations.CreationTimestamp
     private java.time.Instant createdAt;
 
+    @Column(name = "session_id")
+    private UUID sessionId;
+
 }
