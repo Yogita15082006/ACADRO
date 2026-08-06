@@ -5,12 +5,17 @@ import com.acronexus.entity.FacultyActivity;
 import com.acronexus.entity.StudentAttendance;
 import com.acronexus.repository.FacultyActivityRepository;
 import com.acronexus.repository.StudentAttendanceRepository;
+import com.acronexus.repository.ClassSubjectRepository;
+import com.acronexus.repository.StudentEnrollmentRepository;
+import com.acronexus.repository.TimetableRepository;
+import com.acronexus.repository.TimetableSlotRepository;
 import com.acronexus.service.AttendanceDashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Month;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -23,51 +28,263 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
 
     private final StudentAttendanceRepository studentAttendanceRepository;
     private final FacultyActivityRepository facultyActivityRepository;
+    private final ClassSubjectRepository classSubjectRepository;
+    private final StudentEnrollmentRepository studentEnrollmentRepository;
+    private final TimetableRepository timetableRepository;
+    private final TimetableSlotRepository timetableSlotRepository;
 
     @Override
     public List<StudentAttendanceHistoryDto> getStudentAttendanceHistory(UUID studentId) {
-        return studentAttendanceRepository.findByStudentIdOrderByDateDesc(studentId).stream()
-                .map(this::mapToStudentAttendanceHistoryDto)
-                .collect(Collectors.toList());
+        List<StudentAttendance> allRecords = studentAttendanceRepository.findByStudentIdOrderByDateDesc(studentId);
+        List<StudentAttendanceHistoryDto> result = new ArrayList<>();
+        
+        // Group by Date
+        java.util.Map<java.time.LocalDate, List<StudentAttendance>> groupedByDate = allRecords.stream()
+                .collect(Collectors.groupingBy(StudentAttendance::getDate));
+                
+        // Process each date in descending order
+        allRecords.stream().map(StudentAttendance::getDate).distinct().forEach(date -> {
+            List<StudentAttendance> recordsForDate = groupedByDate.get(date);
+            boolean hasPresent = recordsForDate.stream()
+                    .anyMatch(r -> com.acronexus.entity.AttendanceStatus.PRESENT.equals(r.getStatus()));
+                    
+            if (hasPresent) {
+                // Lecture-wise: just map them normally and set absenceType to Lecture-wise for non-present
+                for (StudentAttendance sa : recordsForDate) {
+                    StudentAttendanceHistoryDto dto = mapToStudentAttendanceHistoryDto(sa);
+                    if (!com.acronexus.entity.AttendanceStatus.PRESENT.equals(sa.getStatus())) {
+                        dto.setAbsenceType("Lecture-wise");
+                    }
+                    result.add(dto);
+                }
+            } else {
+                // Full Day: collapse all non-present into a single record
+                if (!recordsForDate.isEmpty()) {
+                    StudentAttendance first = recordsForDate.get(0);
+                    StudentAttendanceHistoryDto fullDayDto = mapToStudentAttendanceHistoryDto(first);
+                    fullDayDto.setSubjectName("All");
+                    fullDayDto.setAbsenceType("Full Day");
+                    // Keep status as it is (likely ABSENT or PENDING)
+                    result.add(fullDayDto);
+                }
+            }
+        });
+        
+        return result;
     }
 
     @Override
     public List<SubjectAttendanceDto> getStudentSubjectWiseAttendance(UUID studentId) {
+        java.util.Optional<com.acronexus.entity.StudentEnrollment> enrollmentOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId);
+        
+        java.util.Map<String, SubjectAttendanceDto> subjectMap = new java.util.LinkedHashMap<>();
+        
+        if (enrollmentOpt.isPresent() && enrollmentOpt.get().getAcroClass() != null) {
+            com.acronexus.entity.AcroClass acroClass = enrollmentOpt.get().getAcroClass();
+            List<com.acronexus.entity.ClassSubject> classSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId());
+            
+            com.acronexus.entity.Timetable activeTimetable = null;
+            if (enrollmentOpt.get().getAcademicYear() != null && enrollmentOpt.get().getSemester() != null) {
+                List<com.acronexus.entity.Timetable> timetables = timetableRepository.findByAcroClassIdAndAcademicYearIdAndSemesterIdOrderByVersionNumberDesc(
+                    acroClass.getId(), enrollmentOpt.get().getAcademicYear().getId(), enrollmentOpt.get().getSemester().getId());
+                if (!timetables.isEmpty()) {
+                    activeTimetable = timetables.get(0);
+                }
+            }
+            
+            List<com.acronexus.entity.TimetableSlot> activeSlots = activeTimetable != null ? timetableSlotRepository.findByTimetableId(activeTimetable.getId()) : new ArrayList<>();
+            LocalDate semesterEndDate = enrollmentOpt.get().getSemester() != null ? enrollmentOpt.get().getSemester().getEndDate() : null;
+            
+            for (com.acronexus.entity.ClassSubject cs : classSubjects) {
+                if (cs.getSubject() != null) {
+                    String subjectName = cs.getSubject().getName();
+                    String facultyName = "N/A";
+                    if (cs.getFaculty() != null && cs.getFaculty().getUser() != null) {
+                        String firstName = cs.getFaculty().getUser().getFirstName();
+                        String lastName = cs.getFaculty().getUser().getLastName();
+                        facultyName = (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "");
+                        facultyName = facultyName.trim();
+                    }
+                    
+                    int futureScheduled = calculateFutureScheduledClasses(cs, activeSlots, semesterEndDate);
+                    
+                    subjectMap.put(subjectName, SubjectAttendanceDto.builder()
+                            .subjectName(subjectName)
+                            .facultyName(facultyName)
+                            .totalClasses(0)
+                            .classesAttended(0)
+                            .classesMissed(0)
+                            .attendancePercentage(0.0)
+                            .futureScheduledClasses(futureScheduled)
+                            .neededFor75(0)
+                            .neededFor80(0)
+                            .safeToMiss(0)
+                            .build());
+                }
+            }
+        }
+        
         List<Object[]> results = studentAttendanceRepository.getSubjectWiseAttendance(studentId);
-        return results.stream().map(row -> {
+        for (Object[] row : results) {
             String subjectName = (String) row[0];
-            Integer totalClasses = ((Number) row[1]).intValue();
-            Integer classesAttended = ((Number) row[2]).intValue();
-            Integer classesMissed = ((Number) row[3]).intValue();
+            String facultyFirstName = (String) row[1];
+            String facultyLastName = (String) row[2];
+            String facultyName = (facultyFirstName != null ? facultyFirstName : "") + " " + (facultyLastName != null ? facultyLastName : "");
+            facultyName = facultyName.trim();
+            Integer totalClasses = ((Number) row[3]).intValue();
+            Integer classesAttended = ((Number) row[4]).intValue();
+            Integer classesMissed = ((Number) row[5]).intValue();
             Double percentage = totalClasses == 0 ? 0.0 : (double) classesAttended / totalClasses * 100.0;
-            return SubjectAttendanceDto.builder()
+            
+            SubjectAttendanceDto dto = subjectMap.getOrDefault(subjectName, SubjectAttendanceDto.builder()
                     .subjectName(subjectName)
-                    .totalClasses(totalClasses)
-                    .classesAttended(classesAttended)
-                    .classesMissed(classesMissed)
-                    .attendancePercentage(percentage)
-                    .build();
-        }).collect(Collectors.toList());
+                    .facultyName(facultyName)
+                    .futureScheduledClasses(0)
+                    .build());
+                    
+            dto.setTotalClasses(totalClasses);
+            dto.setClassesAttended(classesAttended);
+            dto.setClassesMissed(classesMissed);
+            dto.setAttendancePercentage(percentage);
+            
+            int futureScheduled = dto.getFutureScheduledClasses() != null ? dto.getFutureScheduledClasses() : 0;
+            if (futureScheduled < 0) {
+                futureScheduled = Math.max(0, -futureScheduled - totalClasses);
+                dto.setFutureScheduledClasses(futureScheduled);
+            }
+            
+            dto.setNeededFor75(calculateNeededFor(0.75, totalClasses, classesAttended, futureScheduled));
+            dto.setNeededFor80(calculateNeededFor(0.80, totalClasses, classesAttended, futureScheduled));
+            dto.setSafeToMiss(calculateSafeToMiss(0.75, totalClasses, classesAttended, futureScheduled));
+            
+            subjectMap.put(subjectName, dto);
+        }
+        
+        for (SubjectAttendanceDto dto : subjectMap.values()) {
+            if (dto.getTotalClasses() == null || dto.getTotalClasses() == 0) {
+                int futureScheduled = dto.getFutureScheduledClasses() != null ? dto.getFutureScheduledClasses() : 0;
+                if (futureScheduled < 0) {
+                    futureScheduled = -futureScheduled;
+                    dto.setFutureScheduledClasses(futureScheduled);
+                }
+                dto.setNeededFor75(calculateNeededFor(0.75, 0, 0, futureScheduled));
+                dto.setNeededFor80(calculateNeededFor(0.80, 0, 0, futureScheduled));
+                dto.setSafeToMiss(calculateSafeToMiss(0.75, 0, 0, futureScheduled));
+            }
+        }
+        
+        return new ArrayList<>(subjectMap.values());
+    }
+
+    private int calculateFutureScheduledClasses(com.acronexus.entity.ClassSubject classSubject, List<com.acronexus.entity.TimetableSlot> allSlots, LocalDate semesterEndDate) {
+        if (allSlots == null || allSlots.isEmpty()) {
+            int theory = classSubject.getSyllabusSubject() != null && classSubject.getSyllabusSubject().getTheoryHours() != null ? classSubject.getSyllabusSubject().getTheoryHours() : 0;
+            int practical = classSubject.getSyllabusSubject() != null && classSubject.getSyllabusSubject().getPracticalHours() != null ? classSubject.getSyllabusSubject().getPracticalHours() : 0;
+            int totalSyllabus = theory + practical > 0 ? theory + practical : 45; 
+            return -totalSyllabus; // Return negative to indicate we need to subtract conducted later
+        }
+        
+        LocalDate now = LocalDate.now();
+        if (semesterEndDate == null) {
+            semesterEndDate = now.plusMonths(4);
+        }
+        if (semesterEndDate.isBefore(now)) {
+            return 0;
+        }
+        
+        int count = 0;
+        for (LocalDate d = now; !d.isAfter(semesterEndDate); d = d.plusDays(1)) {
+            String dayName = d.getDayOfWeek().name();
+            for (com.acronexus.entity.TimetableSlot slot : allSlots) {
+                if (slot.getSubject() != null && slot.getSubject().getId().equals(classSubject.getSubject().getId())) {
+                    if (slot.getDayOfWeek().equalsIgnoreCase(dayName)) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private int calculateNeededFor(double target, int conducted, int attended, int futureScheduled) {
+        if (conducted == 0) return -2;
+        int needed = (int) Math.ceil((target * conducted - attended) / (1.0 - target));
+        if (needed <= 0) return 0;
+        if (needed > futureScheduled) return -1;
+        return needed;
+    }
+
+    private int calculateSafeToMiss(double target, int conducted, int attended, int futureScheduled) {
+        if (conducted == 0) return 0;
+        if (((double) attended / conducted) < target) return 0;
+        int m = (int) Math.floor(attended + futureScheduled - target * (conducted + futureScheduled));
+        if (m < 0) return 0;
+        return Math.min(m, futureScheduled);
     }
 
     @Override
     public OverallAttendanceDto getStudentOverallAttendance(UUID studentId) {
+        String studentName = "Student";
+        String email = "N/A";
+        String semesterStr = "N/A";
+        String className = "N/A";
+        String profilePictureUrl = null;
+
+        java.util.Optional<com.acronexus.entity.StudentEnrollment> enrollmentOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId);
+        if (enrollmentOpt.isPresent()) {
+            com.acronexus.entity.StudentEnrollment enr = enrollmentOpt.get();
+            if (enr.getStudent() != null && enr.getStudent().getUser() != null) {
+                com.acronexus.entity.User u = enr.getStudent().getUser();
+                studentName = (u.getFirstName() != null ? u.getFirstName() : "") + " " + (u.getLastName() != null ? u.getLastName() : "");
+                studentName = studentName.trim();
+                email = u.getEmail() != null ? u.getEmail() : "N/A";
+                if (u.getProfilePictureUrl() != null && !u.getProfilePictureUrl().isEmpty()) {
+                    profilePictureUrl = u.getProfilePictureUrl();
+                }
+            }
+            if (enr.getSemester() != null) {
+                semesterStr = String.valueOf(enr.getSemester().getSemesterNumber());
+            }
+            if (enr.getAcroClass() != null) {
+                className = enr.getAcroClass().getName();
+                if (enr.getAcroClass().getSection() != null && !enr.getAcroClass().getSection().isEmpty()) {
+                    className += "-" + enr.getAcroClass().getSection();
+                }
+            }
+        }
+
         Object result = studentAttendanceRepository.getOverallAttendance(studentId);
         if (result == null) {
             return OverallAttendanceDto.builder()
-                    .totalClasses(0).totalPresent(0).totalAbsent(0).overallPercentage(0.0)
+                    .studentName(studentName).email(email).semester(semesterStr).className(className).profilePictureUrl(profilePictureUrl)
+                    .totalWorkingDays(0).daysPresent(0).daysAbsent(0)
+                    .totalClasses(0).totalPresent(0).totalAbsent(0).classesMissed(0)
+                    .overallPercentage(0.0)
                     .build();
         }
         Object[] row = (Object[]) result;
-        Integer totalClasses = row[0] != null ? ((Number) row[0]).intValue() : 0;
-        Integer totalPresent = row[1] != null ? ((Number) row[1]).intValue() : 0;
-        Integer totalAbsent = row[2] != null ? ((Number) row[2]).intValue() : 0;
+        Integer totalWorkingDays = row[0] != null ? ((Number) row[0]).intValue() : 0;
+        Integer daysPresent = row[1] != null ? ((Number) row[1]).intValue() : 0;
+        Integer totalClasses = row[2] != null ? ((Number) row[2]).intValue() : 0;
+        Integer totalPresent = row[3] != null ? ((Number) row[3]).intValue() : 0;
+        
+        Integer daysAbsent = totalWorkingDays - daysPresent;
+        Integer classesMissed = totalClasses - totalPresent;
         Double percentage = totalClasses == 0 ? 0.0 : (double) totalPresent / totalClasses * 100.0;
         
         return OverallAttendanceDto.builder()
+                .studentName(studentName)
+                .email(email)
+                .semester(semesterStr)
+                .className(className)
+                .profilePictureUrl(profilePictureUrl)
+                .totalWorkingDays(totalWorkingDays)
+                .daysPresent(daysPresent)
+                .daysAbsent(daysAbsent)
                 .totalClasses(totalClasses)
                 .totalPresent(totalPresent)
-                .totalAbsent(totalAbsent)
+                .totalAbsent(classesMissed) // keeping totalAbsent for backward compatibility if needed
+                .classesMissed(classesMissed)
                 .overallPercentage(percentage)
                 .build();
     }
@@ -172,8 +389,18 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
     }
 
     private StudentAttendanceHistoryDto mapToStudentAttendanceHistoryDto(StudentAttendance sa) {
+        String day = sa.getDate() != null ? 
+sa.getDate().getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) : "";
+        String time = "N/A";
+        if (sa.getSession() != null && sa.getSession().getCreatedAt() != null) {
+            time = java.time.format.DateTimeFormatter.ofPattern("hh:mm a")
+                    .format(sa.getSession().getCreatedAt().withZoneSameInstant(java.time.ZoneId.systemDefault()));
+        }
+        
         return StudentAttendanceHistoryDto.builder()
                 .date(sa.getDate())
+                .day(day)
+                .time(time)
                 .subjectName(sa.getClassSubject() != null && sa.getClassSubject().getSubject() != null ? sa.getClassSubject().getSubject().getName() : "")
                 .facultyName(sa.getSession() != null && sa.getSession().getFaculty() != null && sa.getSession().getFaculty().getUser() != null ? sa.getSession().getFaculty().getUser().getFirstName() + " " + sa.getSession().getFaculty().getUser().getLastName() : "N/A") 
                 .status(sa.getStatus())

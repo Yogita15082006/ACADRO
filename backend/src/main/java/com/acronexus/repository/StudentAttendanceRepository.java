@@ -21,18 +21,21 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     
     // For Student: Subject-wise attendance
     @Query("SELECT sa.classSubject.subject.name as subjectName, " +
+           "sa.classSubject.faculty.user.firstName as facultyFirstName, " +
+           "sa.classSubject.faculty.user.lastName as facultyLastName, " +
            "COUNT(sa.id) as totalClasses, " +
            "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as classesAttended, " +
-           "SUM(CASE WHEN sa.status = 'ABSENT' THEN 1 ELSE 0 END) as classesMissed " +
+           "(COUNT(sa.id) - SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END)) as classesMissed " +
            "FROM StudentAttendance sa " +
            "WHERE sa.student.id = :studentId " +
-           "GROUP BY sa.classSubject.subject.name")
+           "GROUP BY sa.classSubject.subject.name, sa.classSubject.faculty.user.firstName, sa.classSubject.faculty.user.lastName")
     List<Object[]> getSubjectWiseAttendance(@Param("studentId") UUID studentId);
 
     // For Student: Overall attendance
-    @Query("SELECT COUNT(sa.id) as totalClasses, " +
-           "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as totalPresent, " +
-           "SUM(CASE WHEN sa.status = 'ABSENT' THEN 1 ELSE 0 END) as totalAbsent " +
+    @Query("SELECT COUNT(DISTINCT sa.date) as totalWorkingDays, " +
+           "COUNT(DISTINCT CASE WHEN sa.status = 'PRESENT' THEN sa.date ELSE NULL END) as daysPresent, " +
+           "COUNT(sa.id) as totalClasses, " +
+           "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as totalPresent " +
            "FROM StudentAttendance sa " +
            "WHERE sa.student.id = :studentId")
     Object getOverallAttendance(@Param("studentId") UUID studentId);

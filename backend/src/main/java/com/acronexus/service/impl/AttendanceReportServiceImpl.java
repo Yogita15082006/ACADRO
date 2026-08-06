@@ -5,6 +5,8 @@ import com.acronexus.repository.*;
 import com.acronexus.service.AttendanceDashboardService;
 import com.acronexus.service.AttendanceReportService;
 import com.acronexus.entity.FacultyActivity;
+import com.acronexus.entity.StudentEnrollment;
+import com.acronexus.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
     private final DepartmentRepository departmentRepository;
     private final AttendanceDashboardService dashboardService;
     private final com.acronexus.service.AiService aiService;
+    private final StudentEnrollmentRepository studentEnrollmentRepository;
 
     // Helper for eligibility calculation
     private EligibilityReportDto calculateEligibility(UUID studentId, String firstName, String lastName, String enrollmentNo, int totalClasses, int presentClasses, double threshold) {
@@ -135,6 +138,13 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
 
     @Override
     public StudentReportDto getStudentReport(UUID studentId, UUID academicYearId, UUID semesterId) {
+        if (academicYearId == null || semesterId == null) {
+            StudentEnrollment enrollment = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("No active enrollment found for student"));
+            if (academicYearId == null) academicYearId = enrollment.getAcademicYear().getId();
+            if (semesterId == null) semesterId = enrollment.getSemester().getId();
+        }
+
         com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = dashboardService.getStudentOverallAttendance(studentId);
         List<com.acronexus.dto.AttendanceDashboardDto.SubjectAttendanceDto> subjectWise = dashboardService.getStudentSubjectWiseAttendance(studentId);
         List<com.acronexus.dto.AttendanceDashboardDto.MonthlyAttendanceDto> monthly = dashboardService.getStudentMonthlyAttendance(studentId, academicYearId, semesterId);

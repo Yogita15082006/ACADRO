@@ -22,25 +22,45 @@ public class AttendanceDashboardDto {
         private Instant markedTime;
         private UUID classSubjectId;
         private String topic;
+        private String absenceType;
+        private String time;
+        private String day;
     }
 
     @Data
     @Builder
     public static class SubjectAttendanceDto {
         private String subjectName;
+        private String facultyName;
         private Integer totalClasses;
         private Integer classesAttended;
         private Integer classesMissed;
         private Double attendancePercentage;
+        
+        // Calculator Prediction Fields
+        private Integer neededFor75;
+        private Integer neededFor80;
+        private Integer safeToMiss;
+        private Integer futureScheduledClasses;
     }
 
     @Data
     @Builder
     public static class OverallAttendanceDto {
+        private String studentName;
+        private String email;
+        private String semester;
+        private String className;
+        private String profilePictureUrl;
+        
         private Double overallPercentage;
         private Integer totalClasses;
         private Integer totalPresent;
         private Integer totalAbsent;
+        private Integer totalWorkingDays;
+        private Integer daysPresent;
+        private Integer daysAbsent;
+        private Integer classesMissed;
     }
 
     @Data

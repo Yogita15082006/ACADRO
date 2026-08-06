@@ -73,8 +73,8 @@ public class AttendanceReportController {
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'HOD')")
     public ResponseEntity<ApiResponse<StudentReportDto>> getStudentReport(
             @PathVariable UUID studentId,
-            @RequestParam UUID academicYearId,
-            @RequestParam UUID semesterId) {
+            @RequestParam(required = false) UUID academicYearId,
+            @RequestParam(required = false) UUID semesterId) {
         
         verifyStudentAccess(studentId);
 

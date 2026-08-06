@@ -1113,13 +1113,13 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
 
   const safeSubjectData = subjectData && subjectData.length > 0 ? subjectData : [];
   
-  const totalConducted = overallData?.totalConducted || safeSubjectData.reduce((acc: any, curr: any) => acc + (curr.totalConducted || curr.total || 0), 0);
-  const totalAttended = overallData?.totalAttended || safeSubjectData.reduce((acc: any, curr: any) => acc + (curr.totalAttended || Math.max(0, Math.floor(curr.total * (student.attendance / 100) + (Math.random() * 4 - 2)))), 0);
-  const totalMissed = totalConducted - totalAttended;
+  const totalConducted = overallData?.totalClasses || 0;
+  const totalAttended = overallData?.totalPresent || 0;
+  const totalMissed = overallData?.classesMissed || 0;
 
-  const totalWorkingDays = 45;
-  const daysPresent = Math.floor(totalWorkingDays * (student.attendance / 100));
-  const daysAbsent = totalWorkingDays - daysPresent;
+  const totalWorkingDays = overallData?.totalWorkingDays || 0;
+  const daysPresent = overallData?.daysPresent || 0;
+  const daysAbsent = overallData?.daysAbsent || 0;
 
   return (
     <motion.div
@@ -1141,7 +1141,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
             <img src={student.photo} alt={student.name} className="w-12 h-12 rounded-full object-cover border-2 border-primary/20" />
             <div>
               <h2 className="text-xl font-bold tracking-tight">{student.name}</h2>
-              <p className="text-sm font-medium text-muted-foreground">{student.enrollment} â€¢ {student.section} (Sem {student.semester})</p>
+              <p className="text-sm font-medium text-muted-foreground">{student.enrollment} &bull; Sem {student.semester} &bull; {student.section}</p>
             </div>
           </div>
         </div>
@@ -1205,13 +1205,13 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="border border-border/50 shadow-sm bg-card">
           <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4 text-primary"/> Subject-wise Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               <Table>
                 <TableHeader className="bg-muted/5">
                   <TableRow className="border-b border-border/50 hover:bg-transparent">
@@ -1226,14 +1226,14 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
                 </TableHeader>
                 <TableBody>
                   {safeSubjectData.map((sub: any, idx: number) => {
-                    const total = sub.totalConducted || sub.total || 0;
-                    const attended = sub.totalAttended !== undefined ? sub.totalAttended : Math.max(0, Math.floor(total * (student.attendance / 100) + (Math.random() * 4 - 2)));
-                    const missedCount = total - attended;
-                    const pct = (attended / total) * 100;
+                    const total = sub.totalClasses || 0;
+                    const attended = sub.classesAttended || 0;
+                    const missedCount = sub.classesMissed || (total - attended);
+                    const pct = total === 0 ? 0 : (attended / total) * 100;
                     return (
                       <TableRow key={idx} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <TableCell className="font-semibold text-sm whitespace-nowrap">{sub.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">Prof. Faculty</TableCell>
+                        <TableCell className="font-semibold text-sm min-w-[150px] whitespace-normal leading-tight">{sub.subjectName || sub.name || "N/A"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground min-w-[120px] whitespace-normal leading-tight">{sub.facultyName || "N/A"}</TableCell>
                         <TableCell className="text-center text-sm">{total}</TableCell>
                         <TableCell className="text-center text-sm font-semibold text-emerald-500">{attended}</TableCell>
                         <TableCell className="text-center text-sm font-semibold text-rose-500">{missedCount}</TableCell>
@@ -1258,7 +1258,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
             <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Filter size={12}/> Filter</Button>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               <Table>
                 <TableHeader className="bg-muted/5">
                   <TableRow className="border-b border-border/50 hover:bg-transparent">
@@ -1271,12 +1271,12 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(historyData && historyData.length > 0 ? historyData.filter((r: any) => r.status === 'ABSENT').slice(0, 5) : []).map((abs: any, i: number) => (
+                  {(historyData && historyData.length > 0 ? historyData.filter((r: any) => ['ABSENT', 'REJECTED'].includes(r.status)).slice(0, 5) : []).map((abs: any, i: number) => (
                     <TableRow key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                      <TableCell className="font-semibold text-sm whitespace-nowrap">{abs.date}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.day || new Date(abs.date).toLocaleDateString('en-US', {weekday: 'long'})}</TableCell>
-                      <TableCell className="text-sm font-medium whitespace-nowrap">{abs.subjectName || abs.subject}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{abs.time || 'N/A'}</TableCell>
+                      <TableCell className="font-semibold text-sm min-w-[100px] whitespace-normal leading-tight">{abs.date}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground min-w-[80px] whitespace-normal leading-tight">{abs.day || new Date(abs.date).toLocaleDateString('en-US', {weekday: 'long'})}</TableCell>
+                      <TableCell className="text-sm font-medium min-w-[150px] whitespace-normal leading-tight">{abs.subjectName || abs.subject}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground min-w-[80px] whitespace-normal leading-tight">{abs.time || 'N/A'}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className={`text-[10px] whitespace-nowrap ${abs.absenceType === 'Full Day' ? 'text-rose-500 border-rose-500/20 bg-rose-500/10' : 'text-amber-500 border-amber-500/20 bg-amber-500/10'}`}>
                           {abs.absenceType || 'Lecture-wise'}
@@ -1433,22 +1433,32 @@ export const AttendanceModule = () => {
   const [studentHistory, setStudentHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    if (role === 'student' && user?.id) {
-      const fetchStudentData = async () => {
+    let isMounted = true;
+    const fetchStudentData = async () => {
+      if (role === 'student' && user?.id) {
         try {
           const overall = await attendanceService.getStudentOverallAttendance(user.id);
           const subjectWise = await attendanceService.getStudentSubjectWiseAttendance(user.id);
           const history = await attendanceService.getStudentAttendanceHistory(user.id);
           
-          setStudentOverall(overall);
-          setStudentSubjectWise(subjectWise || []);
-          setStudentHistory(history || []);
+          if (isMounted) {
+            setStudentOverall(overall);
+            setStudentSubjectWise(subjectWise || []);
+            setStudentHistory(history || []);
+          }
         } catch (error) {
           console.error('Failed to fetch student attendance data', error);
         }
-      };
-      fetchStudentData();
-    }
+      }
+    };
+    
+    fetchStudentData();
+    window.addEventListener('sync-attendance-data', fetchStudentData);
+    
+    return () => {
+      isMounted = false;
+      window.removeEventListener('sync-attendance-data', fetchStudentData);
+    };
   }, [role, user?.id]);
   
   // Coordinator specific simulation
@@ -1641,9 +1651,12 @@ export const AttendanceModule = () => {
           ) : role === 'student' ? (
             <StudentAttendanceDetails 
               student={{
-                ...mockCoordinatorStudents[0],
-                name: user?.name,
-                enrollment: user?.email,
+                id: user?.id || selectedStudentId || 'unknown',
+                name: studentOverall?.studentName || user?.name || 'Student',
+                enrollment: studentOverall?.email || user?.email || 'N/A',
+                section: studentOverall?.className || 'N/A',
+                semester: studentOverall?.semester || 'N/A',
+                photo: studentOverall?.profilePictureUrl || user?.profilePictureUrl || user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentOverall?.studentName || user?.name || 'Student')}&background=4F46E5&color=fff&size=128`,
                 attendance: studentOverall?.overallPercentage ? Math.round(studentOverall.overallPercentage) : 0
               }}
               subjectData={studentSubjectWise}
@@ -2031,12 +2044,19 @@ export const AttendanceModule = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {(studentSubjectWise || []).map((sub, idx) => {
             const currentPct = sub.attendancePercentage || 0;
-            const attended = sub.classesAttended || sub.attendedClasses || 0;
-            const total = sub.totalClasses || 1;
             const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
-            // Calculations (simplified logic for demonstration)
-            const neededFor75 = Math.max(0, Math.ceil((0.75 * total - attended) / 0.25));
-            const canMiss = Math.max(0, Math.floor((attended - 0.75 * total) / 0.75));
+            
+            // Real calculations from backend
+            const neededFor75 = sub.neededFor75 ?? -1;
+            const neededFor80 = sub.neededFor80 ?? -1;
+            const canMiss = sub.safeToMiss ?? 0;
+            
+            const renderPrediction = (needed: number) => {
+              if (needed === -2) return <span className="text-sm font-bold text-muted-foreground">—</span>;
+              if (needed === -1) return <span className="text-sm font-bold text-rose-500">Cannot be achieved</span>;
+              if (needed === 0) return <span className="text-sm font-bold text-emerald-500">Safe</span>;
+              return <span className="text-sm font-bold text-foreground">Attend next {needed} classes</span>;
+            };
             
             return (
               <Card key={idx} className="border border-border/50 bg-card shadow-sm">
@@ -2049,11 +2069,11 @@ export const AttendanceModule = () => {
                 <CardContent className="p-5 space-y-4">
                   <div className="flex justify-between items-center py-2 border-b border-border/40">
                     <span className="text-sm text-muted-foreground">To reach 75%</span>
-                    <span className="text-sm font-bold text-foreground">Attend next {neededFor75} classes</span>
+                    {renderPrediction(neededFor75)}
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-border/40">
                     <span className="text-sm text-muted-foreground">To reach 80%</span>
-                    <span className="text-sm font-bold text-foreground">Attend next {neededFor75 + 2} classes</span>
+                    {renderPrediction(neededFor80)}
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm text-muted-foreground">Safe to miss</span>
