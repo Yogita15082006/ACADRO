@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventService } from '../services/eventService';
-import CreateEventForm from '../components/events/CreateEventForm';
+import { CreateEventForm } from '../components/events/CreateEventForm';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
