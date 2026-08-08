@@ -1018,6 +1018,7 @@ export const EventsModule = () => {
       )}
     </motion.div>
   );
+};
 
   return (
     <>
