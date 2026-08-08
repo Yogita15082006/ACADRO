@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { eventService } from '../services/eventService';
 import { CreateEventForm } from '../components/events/CreateEventForm';
 import { useAuth } from '../context/AuthContext';
@@ -363,6 +363,85 @@ export const EventsModule = () => {
     );
   };
 
+
+
+  const renderEventCard = (event: any, isAdmin: boolean) => (
+    <div key={event.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col h-full relative">
+      <div className="h-48 overflow-hidden relative">
+        <img src={event.thumbnail} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+        <span className={cn("absolute top-3 right-3 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-lg",
+          event.status === 'Ongoing' ? 'bg-amber-500 text-white' : event.status === 'Completed' ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white'
+        )}>
+          {event.status}
+        </span>
+        <span className="absolute bottom-3 left-3 text-[10px] font-bold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white px-2 py-1 rounded">
+          {event.category}
+        </span>
+      </div>
+      <div className="p-5 flex flex-col flex-grow">
+        <h3 className="text-lg font-black text-foreground mb-3 leading-tight group-hover:text-primary transition-colors line-clamp-2">{event.title}</h3>
+        <div className="space-y-2 mb-6 flex-grow">
+          <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Calendar size={14} className="text-primary/70"/> {event.date} • {event.startTime}</p>
+          <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><MapPin size={14} className="text-primary/70"/> {event.venue}</p>
+          {isAdmin ? (
+            <>
+              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Activity size={14} className="text-primary/70"/> Registration Status: {event.status === 'Completed' ? 'Closed' : 'Open'}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Users size={14} className="text-primary/70"/> Registration Count: {event.registeredCount} / {event.maxParticipants}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><CheckSquare2 size={14} className="text-primary/70"/> Attendance Status: {event.status === 'Completed' ? 'Completed' : 'Pending'}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Clock size={14} className="text-rose-500/70"/> Deadline: {event.regDeadline}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Users size={14} className="text-emerald-500/70"/> Seats Available: {event.maxParticipants - event.registeredCount}</p>
+            </>
+          )}
+        </div>
+        
+        {isAdmin && (
+          <div className="mx-5 mb-2">
+            <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase mb-1">
+              <span>Registrations</span>
+              <span>{event.registeredCount}/{event.maxParticipants}</span>
+            </div>
+            <div className="w-full bg-accent rounded-full h-1.5">
+              <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${Math.min((event.registeredCount / event.maxParticipants) * 100, 100)}%` }} />
+            </div>
+          </div>
+        )}
+        
+        {isAdmin ? (
+          <div className="space-y-2 mt-auto">
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 text-xs font-bold" onClick={() => { setSelectedEvent(event); setAdminEventTab('info'); setCurrentView('event_details'); }}><Eye size={14} className="mr-1"/> View</Button>
+              <Button variant="outline" className="flex-1 text-xs font-bold"><Edit size={14} className="mr-1"/> Edit</Button>
+              <Button variant="outline" className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" size="icon" onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14}/></Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1 text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20" onClick={() => { setSelectedEvent(event); setAdminEventTab('registrations'); setCurrentView('event_details'); }}>Registrations</Button>
+              <Button variant="secondary" className="flex-1 text-xs font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400" onClick={() => { setSelectedEvent(event); setAdminEventTab('attendance'); setCurrentView('event_details'); }}>Attendance</Button>
+              <Button variant="secondary" className="flex-1 text-xs font-bold bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" onClick={() => { setSelectedEvent(event); setAdminEventTab('notices'); setCurrentView('event_details'); }}>Notices</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-auto">
+            <Button variant="outline" className="w-full text-xs font-bold" onClick={() => { setSelectedEvent(event); setCurrentView('event_details'); setStudentEventTab('info'); }}>View Details</Button>
+            <Button className="w-full text-xs font-bold bg-primary text-white" disabled={event.status === 'Completed'} onClick={() => { 
+              if (event.registrationMethod === 'External Registration Link' && event.registrationExternalLink) {
+                window.open(event.registrationExternalLink, '_blank');
+              } else if (event.registrationMethod === 'Upload Registration Form') {
+                setSelectedEvent(event); setCurrentView('event_details'); setStudentEventTab('info');
+              } else {
+                setSelectedEvent(event); setCurrentView('student_register'); setIsRegistered(false); 
+              }
+            }}>
+              {event.status === 'Completed' ? 'Ended' : (event.registrationMethod === 'External Registration Link' ? 'External Link' : 'Register')}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
 
   const renderCreateEvent = () => (<CreateEventForm onCancel={() => setCurrentView('dashboard')} onSave={() => { setCurrentView('dashboard'); fetchEvents(); }} />);
