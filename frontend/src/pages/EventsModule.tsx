@@ -363,6 +363,7 @@ export const EventsModule = () => {
     );
   };
 
+
   const renderCreateEvent = () => (<CreateEventForm onBack={() => setCurrentView('dashboard')} onSuccess={() => { setCurrentView('dashboard'); fetchEvents(); }} />);
 
   const renderAdminEventDetails = () => (
