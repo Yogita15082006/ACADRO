@@ -76,8 +76,8 @@ export const eventService = {
     return response.data;
   },
 
-  registerForEvent: async (eventId: string) => {
-    const response = await api.post(`/events/${eventId}/register`);
+  registerForEvent: async (eventId: string, payload?: any) => {
+    const response = await api.post(`/events/${eventId}/register`, payload || {});
     return response.data;
   },
 

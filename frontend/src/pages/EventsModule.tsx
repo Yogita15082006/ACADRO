@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { eventService } from '../services/eventService';
+import CreateEventForm from '../components/events/CreateEventForm';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -105,13 +107,27 @@ export const EventsModule = () => {
   const [myEventsTab, setMyEventsTab] = useState('registered'); // registered, upcoming, completed, missed
 
   // Mock Registrations
-  const [registeredStudents, _setRegisteredStudents] = useState<any[]>(mockData.students.slice(0, 5));
+  const [registeredStudents, setRegisteredStudents] = useState<any[]>([]);
+  useEffect(() => {
+    if (selectedEvent && role !== 'student') {
+      eventService.getEventRegistrations(selectedEvent.id).then(res => {
+        if(res.success) setRegisteredStudents(res.data.content || []);
+      });
+    }
+  }, [selectedEvent, role]);
   
-  const [events, setEvents] = useState<any[]>(MOCK_EVENTS);
+  const [events, setEvents] = useState<any[]>([]);
+  const fetchEvents = () => {
+    eventService.getAllEvents().then(res => {
+      if(res.success) setEvents(res.data.content);
+    });
+  };
+  useEffect(() => { fetchEvents(); }, []);
 
   // States for student actions
   const [isRegistered, setIsRegistered] = useState(false);
   const [isAttendanceSubmitted, setIsAttendanceSubmitted] = useState(false);
+  const [customFormResponses, setCustomFormResponses] = useState<Record<string, string>>({});
 
   // Modals & Form Builder
   const [showCustomFieldModal, setShowCustomFieldModal] = useState(false);
@@ -347,617 +363,7 @@ export const EventsModule = () => {
     );
   };
 
-  const renderCreateEvent = () => (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 max-w-6xl mx-auto pb-24">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentView('dashboard')} className="hover:bg-accent rounded-full"><ChevronRight className="rotate-180" /></Button>
-          <div>
-            <h2 className="text-4xl font-black text-foreground tracking-tight">Create New Event</h2>
-            <p className="text-base font-medium text-muted-foreground mt-1">Configure event details, registration forms, and attendance policies.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-        {/* Main Form */}
-        <div className="xl:col-span-3 space-y-8">
-          
-          {/* Section 1: Basic Information */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border">
-              <h3 className="text-lg font-black flex items-center gap-2"><FileText size={20} className="text-primary"/> 1. Basic Information</h3>
-            </div>
-            {/* Banner, Thumbnail & Logo Upload */}
-            <div className="grid grid-cols-1 md:grid-cols-4 border-b border-border">
-              <div className="h-48 md:col-span-2 bg-accent/20 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-border relative group cursor-pointer hover:bg-accent/50 transition-colors">
-                <Upload size={32} className="text-muted-foreground mb-2 group-hover:text-primary transition-colors" />
-                <p className="text-sm font-bold text-foreground">Upload Event Banner</p>
-                <p className="text-xs text-muted-foreground mt-1">1920x1080px (16:9) recommended</p>
-              </div>
-              <div className="h-48 bg-accent/10 flex flex-col items-center justify-center relative group cursor-pointer hover:bg-accent/50 transition-colors border-b md:border-b-0 md:border-r border-border">
-                <ImageIcon size={24} className="text-muted-foreground mb-2 group-hover:text-primary transition-colors" />
-                <p className="text-sm font-bold text-foreground">Event Thumbnail</p>
-                <p className="text-xs text-muted-foreground mt-1">800x800px (1:1)</p>
-              </div>
-              <div className="h-48 bg-accent/5 flex flex-col items-center justify-center relative group cursor-pointer hover:bg-accent/50 transition-colors">
-                <Sparkles size={24} className="text-muted-foreground mb-2 group-hover:text-primary transition-colors" />
-                <p className="text-sm font-bold text-foreground">Event Logo</p>
-                <p className="text-xs text-muted-foreground mt-1">Optional • 256x256px</p>
-              </div>
-            </div>
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2 col-span-1 md:col-span-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Title <span className="text-rose-500">*</span></label>
-                  <input type="text" value={newEventForm.title} onChange={e => setNewEventForm({...newEventForm, title: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background font-bold text-lg focus:ring-4 focus:ring-primary/20 transition-all" placeholder="e.g. Annual Tech Symposium 2026" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Subtitle (Optional)</label>
-                  <input type="text" value={newEventForm.subtitle} onChange={e => setNewEventForm({...newEventForm, subtitle: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="e.g. Innovate to Elevate" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Category</label>
-                  <select value={newEventForm.category} onChange={e => setNewEventForm({...newEventForm, category: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium">
-                    {EVENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2 col-span-1 md:col-span-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Description</label>
-                  <textarea value={newEventForm.description} onChange={e => setNewEventForm({...newEventForm, description: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background h-40 font-medium focus:ring-4 focus:ring-primary/20 transition-all" placeholder="Write a comprehensive description of the event..."></textarea>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Event Details */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border">
-              <h3 className="text-lg font-black flex items-center gap-2"><MapPin size={20} className="text-primary"/> 2. Schedule & Location</h3>
-            </div>
-            <div className="p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Date <span className="text-rose-500">*</span></label>
-                  <input type="date" value={newEventForm.date} onChange={e => setNewEventForm({...newEventForm, date: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-bold" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Start Time</label>
-                  <input type="time" value={newEventForm.startTime} onChange={e => setNewEventForm({...newEventForm, startTime: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">End Time</label>
-                  <input type="time" value={newEventForm.endTime} onChange={e => setNewEventForm({...newEventForm, endTime: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" />
-                </div>
-              </div>
-              <div className="border-t border-border pt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                 <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Mode</label>
-                  <select value={newEventForm.mode} onChange={e => setNewEventForm({...newEventForm, mode: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium">
-                    <option>Offline</option><option>Online</option><option>Hybrid</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Venue / Room No. <span className="text-rose-500">*</span></label>
-                  <input type="text" value={newEventForm.venue} onChange={e => setNewEventForm({...newEventForm, venue: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="e.g. Main Auditorium" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Location Link (Maps/Meet)</label>
-                  <input type="url" value={newEventForm.locationLink} onChange={e => setNewEventForm({...newEventForm, locationLink: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="https://" />
-                </div>
-              </div>
-              {(newEventForm.mode === 'Online' || newEventForm.mode === 'Hybrid') && (
-                <div className="border-t border-border pt-6 mt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 flex items-center gap-2"><Video size={14} className="text-primary" /> Meeting Link</label>
-                      <input type="url" value={newEventForm.meetingLink} onChange={e => setNewEventForm({...newEventForm, meetingLink: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="https://meet.google.com/..." />
-                    </div>
-                    <div className="flex items-end">
-                      <p className="text-xs text-muted-foreground font-medium p-3 bg-accent/30 rounded-xl border border-border">This link will be shared with registered participants before the event starts.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="border-t border-border pt-8 mt-6">
-                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 block mb-3">Selected Targets</label>
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {newEventForm.academicYear.map(yr => (
-                    <span key={yr} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                      {yr} <X size={14} className="cursor-pointer hover:text-rose-500" onClick={() => setNewEventForm({...newEventForm, academicYear: newEventForm.academicYear.filter(y => y !== yr)})}/>
-                    </span>
-                  ))}
-                  {newEventForm.semester.map(sem => (
-                    <span key={sem} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                      {sem} <X size={14} className="cursor-pointer hover:text-rose-500" onClick={() => setNewEventForm({...newEventForm, semester: newEventForm.semester.filter(s => s !== sem)})}/>
-                    </span>
-                  ))}
-                  {newEventForm.targetClasses.map(cls => (
-                    <span key={cls} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                      {cls} <X size={14} className="cursor-pointer hover:text-rose-500" onClick={() => setNewEventForm({...newEventForm, targetClasses: newEventForm.targetClasses.filter(c => c !== cls)})}/>
-                    </span>
-                  ))}
-                  {newEventForm.academicYear.length === 0 && newEventForm.semester.length === 0 && newEventForm.targetClasses.length === 0 && (
-                    <span className="text-sm text-muted-foreground italic">No targets selected</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-border mt-2">
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 block mb-3">Academic Years</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['2nd Year', '3rd Year', '4th Year'].map(yr => (
-                      <label key={yr} className="flex items-center gap-3 p-3 border border-border rounded-xl cursor-pointer hover:bg-accent/30 transition-colors">
-                        <input type="checkbox" className="w-4 h-4 rounded text-primary focus:ring-primary" checked={newEventForm.academicYear.includes(yr)} onChange={e => {
-                          if(e.target.checked) setNewEventForm({...newEventForm, academicYear: [...newEventForm.academicYear, yr]});
-                          else setNewEventForm({...newEventForm, academicYear: newEventForm.academicYear.filter(y => y !== yr)});
-                        }}/>
-                        <span className="font-bold text-sm">{yr}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 block mb-3">Semesters</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {['Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'].map(sem => (
-                      <label key={sem} className="flex items-center gap-3 p-3 border border-border rounded-xl cursor-pointer hover:bg-accent/30 transition-colors">
-                        <input type="checkbox" className="w-4 h-4 rounded text-primary focus:ring-primary" checked={newEventForm.semester.includes(sem)} onChange={e => {
-                          if(e.target.checked) setNewEventForm({...newEventForm, semester: [...newEventForm.semester, sem]});
-                          else setNewEventForm({...newEventForm, semester: newEventForm.semester.filter(s => s !== sem)});
-                        }}/>
-                        <span className="font-bold text-sm">{sem}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 block mb-3">Target Department</label>
-                  <select value={newEventForm.department} onChange={e => setNewEventForm({...newEventForm, department: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background"><option>All Departments</option><option>IT</option><option>DS</option></select>
-                </div>
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 block mb-3">Target Classes</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['IT-1', 'IT-2', 'DS-1', 'DS-2'].map(cls => (
-                      <label key={cls} className="flex items-center gap-3 p-3 border border-border rounded-xl cursor-pointer hover:bg-accent/30 transition-colors">
-                        <input type="checkbox" className="w-4 h-4 rounded text-primary focus:ring-primary" checked={newEventForm.targetClasses.includes(cls)} onChange={e => {
-                          if(e.target.checked) setNewEventForm({...newEventForm, targetClasses: [...newEventForm.targetClasses, cls]});
-                          else setNewEventForm({...newEventForm, targetClasses: newEventForm.targetClasses.filter(c => c !== cls)});
-                        }}/>
-                        <span className="font-bold text-sm">{cls}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3 & 4: Registration */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border flex justify-between items-center">
-              <h3 className="text-lg font-black flex items-center gap-2"><Users size={20} className="text-primary"/> 3. Registration Settings</h3>
-              <div className="flex items-center gap-3 bg-background px-4 py-1.5 rounded-full border border-border">
-                <span className="text-sm font-bold">Registration Required</span>
-                <select value={newEventForm.isRegRequired} onChange={e => setNewEventForm({...newEventForm, isRegRequired: e.target.value})} className="bg-transparent font-black text-primary outline-none"><option>Yes</option><option>No</option></select>
-              </div>
-            </div>
-            
-            <AnimatePresence>
-              {newEventForm.isRegRequired === 'Yes' && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                  <div className="p-8 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Reg. Start Date</label>
-                        <input type="date" value={newEventForm.regStartDate} onChange={e => setNewEventForm({...newEventForm, regStartDate: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Reg. End Date</label>
-                        <input type="date" value={newEventForm.regEndDate} onChange={e => setNewEventForm({...newEventForm, regEndDate: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Max Participants</label>
-                        <input type="number" value={newEventForm.maxParticipants} onChange={e => setNewEventForm({...newEventForm, maxParticipants: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-bold" placeholder="Unlimited if empty" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Registration Fee (₹)</label>
-                        <input type="number" value={newEventForm.regFee} onChange={e => setNewEventForm({...newEventForm, regFee: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-bold" placeholder="0 for Free" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="flex items-center justify-between p-4 border border-border rounded-xl cursor-pointer hover:bg-accent/30 transition-colors">
-                        <div>
-                          <p className="font-bold text-sm text-foreground">Allow Waiting List</p>
-                          <p className="text-xs text-muted-foreground">Queue students after seats are full</p>
-                        </div>
-                        <input type="checkbox" checked={newEventForm.allowWaitingList} onChange={e => setNewEventForm({...newEventForm, allowWaitingList: e.target.checked})} className="w-5 h-5 rounded text-primary focus:ring-primary accent-primary" />
-                      </label>
-                      <label className="flex items-center justify-between p-4 border border-border rounded-xl cursor-pointer hover:bg-accent/30 transition-colors">
-                        <div>
-                          <p className="font-bold text-sm text-foreground">Auto Close Registration</p>
-                          <p className="text-xs text-muted-foreground">Close when max participants reached</p>
-                        </div>
-                        <input type="checkbox" checked={newEventForm.autoCloseRegistration} onChange={e => setNewEventForm({...newEventForm, autoCloseRegistration: e.target.checked})} className="w-5 h-5 rounded text-primary focus:ring-primary accent-primary" />
-                      </label>
-                    </div>
-
-                    <div className="border-t border-border pt-6 mt-6">
-                      <div className="space-y-2 mb-6">
-                        <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Registration Method</label>
-                        <select value={newEventForm.registrationMethod} onChange={e => setNewEventForm({...newEventForm, registrationMethod: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-bold">
-                          <option>Create Registration Form</option>
-                          <option>Upload Registration Form</option>
-                          <option>External Registration Link</option>
-                        </select>
-                      </div>
-
-                      {newEventForm.registrationMethod === 'Create Registration Form' && (
-                        <div className="border border-dashed border-border rounded-2xl p-6 bg-accent/10">
-                          <div className="flex justify-between items-center mb-6">
-                            <div>
-                              <h4 className="text-lg font-black">4. Registration Form Builder</h4>
-                              <p className="text-sm text-muted-foreground font-medium mt-1">Customize the information collected during registration.</p>
-                            </div>
-                            <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-primary hover:text-white rounded-xl" onClick={() => setShowCustomFieldModal(true)}>
-                              <Plus size={16}/> Add Custom Field
-                            </Button>
-                          </div>
-                          
-                          <div className="space-y-6">
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Default System Fields (Auto-filled)</h5>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {['Student Name', 'Enrollment Number', 'Email Address', 'Mobile Number', 'Department', 'Class'].map(field => (
-                                  <div key={field} className="flex items-center gap-2 p-3 bg-card border border-border rounded-xl shadow-sm opacity-70">
-                                    <Check size={16} className="text-emerald-500 shrink-0"/> 
-                                    <span className="font-bold text-sm truncate">{field}</span> 
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {customFields.length > 0 && (
-                              <div className="pt-4 border-t border-border">
-                                <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Custom Form Fields</h5>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  {customFields.map((field, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-4 bg-card border border-primary/20 rounded-xl shadow-sm">
-                                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black">{i+1}</div>
-                                      <div className="flex-1 overflow-hidden">
-                                        <p className="font-bold text-sm truncate">{field.label}</p>
-                                        <p className="text-[10px] font-black uppercase text-muted-foreground mt-0.5">{field.type}</p>
-                                      </div>
-                                      <button className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-lg transition-colors" onClick={() => setCustomFields(customFields.filter((_, idx) => idx !== i))}><Trash2 size={16}/></button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {customFields.length === 0 && (
-                              <div className="pt-4 border-t border-border flex justify-center py-6">
-                                <p className="text-sm text-muted-foreground font-medium">No custom fields added. Default fields will be used.</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {newEventForm.registrationMethod === 'Upload Registration Form' && (
-                        <div className="border border-dashed border-border rounded-2xl p-8 bg-accent/10 flex flex-col items-center justify-center text-center">
-                          <Upload size={32} className="text-muted-foreground mb-4" />
-                          <h4 className="text-sm font-bold text-foreground">Upload Form Document</h4>
-                          <p className="text-xs text-muted-foreground mt-1 mb-4">Accepts PDF, DOC, DOCX up to 5MB</p>
-                          <input type="file" className="hidden" id="form-upload" accept=".pdf,.doc,.docx" onChange={e => e.target.files && setNewEventForm({...newEventForm, registrationFile: e.target.files[0].name})} />
-                          <label htmlFor="form-upload">
-                            <Button variant="outline" className="pointer-events-none">{newEventForm.registrationFile || 'Select File to Upload'}</Button>
-                          </label>
-                        </div>
-                      )}
-
-                      {newEventForm.registrationMethod === 'External Registration Link' && (
-                        <div className="border border-dashed border-border rounded-2xl p-6 bg-accent/10 space-y-4">
-                           <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 flex items-center gap-2"><Link size={14} className="text-primary"/> External URL</label>
-                           <input type="url" value={newEventForm.registrationExternalLink} onChange={e => setNewEventForm({...newEventForm, registrationExternalLink: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="https://forms.gle/..." />
-                           <p className="text-xs text-muted-foreground">Students will be redirected to this link to complete their registration.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Section 5: Attendance */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border flex justify-between items-center">
-              <h3 className="text-lg font-black flex items-center gap-2"><CheckSquare size={20} className="text-primary"/> 5. Attendance Policy</h3>
-              <div className="flex items-center gap-3 bg-background px-4 py-1.5 rounded-full border border-border">
-                <span className="text-sm font-bold">Track Attendance</span>
-                <select value={newEventForm.isAttRequired} onChange={e => setNewEventForm({...newEventForm, isAttRequired: e.target.value})} className="bg-transparent font-black text-primary outline-none"><option>Yes</option><option>No</option></select>
-              </div>
-            </div>
-            
-            <AnimatePresence>
-              {newEventForm.isAttRequired === 'Yes' && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                  <div className="p-8 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attendance Timing</label>
-                          <select value={newEventForm.attendanceTiming} onChange={e => setNewEventForm({...newEventForm, attendanceTiming: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium">
-                            <option>During Event (Manual Code Generation)</option>
-                            <option>Pre-Event Entry (QR Scan)</option>
-                            <option>Post-Event Feedback based</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Auto Close Attendance After</label>
-                          <select value={newEventForm.autoClose} onChange={e => setNewEventForm({...newEventForm, autoClose: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium">
-                            <option>15 Minutes</option><option>30 Minutes</option><option>1 Hour</option><option>Manual Close Only</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 flex items-center gap-2">Verification Question <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded font-black">OPTIONAL</span></label>
-                          <input type="text" value={newEventForm.verificationQuestion} onChange={e => setNewEventForm({...newEventForm, verificationQuestion: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background" placeholder="e.g. What color was the speaker's shirt?" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Correct Answer</label>
-                          <input type="text" value={newEventForm.correctAnswer} onChange={e => setNewEventForm({...newEventForm, correctAnswer: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background" placeholder="Expected answer" />
-                          <p className="text-xs text-muted-foreground mt-1">Students must answer this to mark attendance, preventing proxy.</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attendance Start Time</label>
-                            <input type="time" value={newEventForm.attStartTime} onChange={e => setNewEventForm({...newEventForm, attStartTime: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attendance End Time</label>
-                            <input type="time" value={newEventForm.attEndTime} onChange={e => setNewEventForm({...newEventForm, attEndTime: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="border-l border-border pl-8 space-y-6 flex flex-col justify-center">
-                        <div className="bg-rose-50/50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-900/50 p-6 rounded-2xl">
-                          <label className="text-sm font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 block mb-3">Academic Impact Settings</label>
-                          <select value={newEventForm.includeInOverall} onChange={e => setNewEventForm({...newEventForm, includeInOverall: e.target.value})} className="w-full p-4 border border-rose-200 dark:border-rose-900/50 rounded-xl bg-background font-bold text-rose-700 dark:text-rose-300">
-                            <option>Exclude this Event Attendance from Overall Student Attendance</option>
-                            <option>Include this Event Attendance in Overall Student Attendance</option>
-                          </select>
-                          <p className="text-xs font-medium text-rose-600/70 dark:text-rose-400/70 mt-3 leading-relaxed">
-                            <AlertTriangle size={14} className="inline mr-1" /> If included, attending this event will positively affect the student's cumulative semester attendance percentage.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Section 6: Event Notifications */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border">
-              <h3 className="text-lg font-black flex items-center gap-2"><Bell size={20} className="text-primary"/> 6. Event Notifications</h3>
-            </div>
-            <div className="p-8 space-y-6">
-              <p className="text-sm text-muted-foreground font-medium">Create notifications that will be published alongside this event.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Notification Title</label>
-                  <input type="text" value={newEventNotification.title} onChange={e => setNewEventNotification({...newEventNotification, title: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium" placeholder="e.g. Important Update" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attachment Type</label>
-                  <select value={newEventNotification.attachment} onChange={e => setNewEventNotification({...newEventNotification, attachment: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background font-medium">
-                    <option>None</option><option>PDF</option><option>DOC</option><option>PPT</option><option>Images</option><option>ZIP</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Description</label>
-                <textarea value={newEventNotification.description} onChange={e => setNewEventNotification({...newEventNotification, description: e.target.value})} className="w-full p-3 border border-border rounded-xl bg-background h-24 font-medium" placeholder="Notification details..." />
-              </div>
-              <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary hover:text-white rounded-xl" onClick={() => {
-                if (newEventNotification.title) {
-                  setEventNotifications([...eventNotifications, { ...newEventNotification, id: Date.now() }]);
-                  setNewEventNotification({ title: '', description: '', attachment: 'None' });
-                }
-              }}><Plus size={16} /> Add Notification</Button>
-
-              {eventNotifications.length > 0 && (
-                <div className="border-t border-border pt-4 space-y-3">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Added Notifications ({eventNotifications.length})</h5>
-                  {eventNotifications.map((n, i) => (
-                    <div key={n.id} className="flex items-center justify-between p-4 bg-accent/20 border border-border rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary font-black text-sm">{i + 1}</div>
-                        <div>
-                          <p className="font-bold text-sm">{n.title}</p>
-                          <p className="text-xs text-muted-foreground">{n.attachment !== 'None' ? `📎 ${n.attachment}` : 'No attachment'}</p>
-                        </div>
-                      </div>
-                      <button className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 dark:bg-rose-900/20 rounded-lg" onClick={() => setEventNotifications(eventNotifications.filter(en => en.id !== n.id))}><Trash2 size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Section 7: Event Resources */}
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            <div className="bg-accent/30 px-8 py-5 border-b border-border">
-              <h3 className="text-lg font-black flex items-center gap-2"><FolderOpen size={20} className="text-primary"/> 7. Event Resources</h3>
-            </div>
-            <div className="p-8 space-y-6">
-              <p className="text-sm text-muted-foreground font-medium">Upload event materials such as brochures, rule books, schedules, and posters.</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {['Brochure', 'Rule Book', 'Schedule', 'Posters', 'Documents'].map(resourceType => {
-                  const isAdded = eventResources.some(r => r.type === resourceType);
-                  return (
-                    <button key={resourceType} onClick={() => {
-                      if (!isAdded) {
-                        setEventResources([...eventResources, { id: Date.now(), type: resourceType, name: `${resourceType}.pdf` }]);
-                      } else {
-                        setEventResources(eventResources.filter(r => r.type !== resourceType));
-                      }
-                    }} className={cn("flex flex-col items-center gap-3 p-6 border-2 border-dashed rounded-2xl transition-all cursor-pointer", isAdded ? "border-primary bg-primary/5 text-primary" : "border-border bg-accent/10 text-muted-foreground hover:border-primary/50 hover:bg-accent/30")}>
-                      {isAdded ? <CheckCircle size={24} /> : <Upload size={24} />}
-                      <span className="text-sm font-bold text-center">{resourceType}</span>
-                      <span className="text-[10px] font-medium">{isAdded ? 'Added ✓' : 'Click to add'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Sidebar Actions */}
-        <div className="space-y-6">
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm sticky top-6 space-y-6">
-            <h3 className="text-lg font-black border-b border-border pb-4">8. Save & Publish</h3>
-            
-            <div className="space-y-4">
-              <label className="flex items-center justify-between p-4 border border-border rounded-xl cursor-pointer hover:bg-accent/50 transition-colors">
-                <div>
-                  <p className="font-bold text-sm">Send Notification</p>
-                  <p className="text-xs text-muted-foreground">Alert target students immediately</p>
-                </div>
-                <input type="checkbox" defaultChecked className="w-5 h-5 rounded text-primary focus:ring-primary accent-primary" />
-              </label>
-              
-              <label className="flex items-center justify-between p-4 border border-border rounded-xl cursor-pointer hover:bg-accent/50 transition-colors">
-                <div>
-                  <p className="font-bold text-sm">Require Approval</p>
-                  <p className="text-xs text-muted-foreground">Registrations need manual approval</p>
-                </div>
-                <input type="checkbox" className="w-5 h-5 rounded text-primary focus:ring-primary accent-primary" />
-              </label>
-            </div>
-
-            <div className="pt-4 space-y-3">
-              <Button className="w-full h-14 rounded-2xl font-black text-lg bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20" onClick={handleCreateEvent}>
-                <Send size={18} className="mr-2" /> Publish Event
-              </Button>
-              <Button variant="outline" className="w-full h-12 rounded-2xl font-bold" onClick={() => setCurrentView('dashboard')}>
-                Save as Draft
-              </Button>
-              <Button variant="ghost" className="w-full h-12 rounded-2xl font-bold text-muted-foreground" onClick={() => setShowPreview(!showPreview)}>
-                <Eye size={16} className="mr-2" /> Preview Event
-              </Button>
-            </div>
-            
-            {/* Completion Checklist */}
-            <div className="pt-6 border-t border-border">
-               <h4 className="font-bold text-sm mb-3">Completion Checklist</h4>
-               <div className="space-y-2">
-                 {[
-                   { label: 'Event Title', done: !!newEventForm.title },
-                   { label: 'Event Date', done: !!newEventForm.date },
-                   { label: 'Venue', done: !!newEventForm.venue },
-                   { label: 'Description', done: !!newEventForm.description },
-                   { label: 'Registration Dates', done: !!newEventForm.regStartDate && !!newEventForm.regEndDate },
-                 ].map((item, i) => (
-                   <div key={i} className="flex items-center gap-2 text-sm">
-                     {item.done ? <CheckCircle size={14} className="text-emerald-500" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
-                     <span className={cn("font-medium", item.done ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </motion.div>
-  );
-
-  const renderEventCard = (event: any, isAdmin: boolean) => (
-    <div key={event.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col h-full relative">
-      <div className="h-48 overflow-hidden relative">
-        <img src={event.thumbnail} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-        <span className={cn("absolute top-3 right-3 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-lg",
-          event.status === 'Ongoing' ? 'bg-amber-500 text-white' : event.status === 'Completed' ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white'
-        )}>
-          {event.status}
-        </span>
-        <span className="absolute bottom-3 left-3 text-[10px] font-bold uppercase tracking-wider bg-white/20 backdrop-blur-md text-white px-2 py-1 rounded">
-          {event.category}
-        </span>
-      </div>
-      <div className="p-5 flex flex-col flex-grow">
-        <h3 className="text-lg font-black text-foreground mb-3 leading-tight group-hover:text-primary transition-colors line-clamp-2">{event.title}</h3>
-        <div className="space-y-2 mb-6 flex-grow">
-          <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Calendar size={14} className="text-primary/70"/> {event.date} • {event.startTime}</p>
-          <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><MapPin size={14} className="text-primary/70"/> {event.venue}</p>
-          {isAdmin ? (
-            <>
-              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Activity size={14} className="text-primary/70"/> Registration Status: {event.status === 'Completed' ? 'Closed' : 'Open'}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Users size={14} className="text-primary/70"/> Registration Count: {event.registeredCount} / {event.maxParticipants}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><CheckSquare2 size={14} className="text-primary/70"/> Attendance Status: {event.status === 'Completed' ? 'Completed' : 'Pending'}</p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Clock size={14} className="text-rose-500/70"/> Deadline: {event.regDeadline}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-2 font-medium"><Users size={14} className="text-emerald-500/70"/> Seats Available: {event.maxParticipants - event.registeredCount}</p>
-            </>
-          )}
-        </div>
-        
-        {isAdmin && (
-          <div className="mx-5 mb-2">
-            <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase mb-1">
-              <span>Registrations</span>
-              <span>{event.registeredCount}/{event.maxParticipants}</span>
-            </div>
-            <div className="w-full bg-accent rounded-full h-1.5">
-              <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${Math.min((event.registeredCount / event.maxParticipants) * 100, 100)}%` }} />
-            </div>
-          </div>
-        )}
-        
-        {isAdmin ? (
-          <div className="space-y-2 mt-auto">
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 text-xs font-bold" onClick={() => { setSelectedEvent(event); setAdminEventTab('info'); setCurrentView('event_details'); }}><Eye size={14} className="mr-1"/> View</Button>
-              <Button variant="outline" className="flex-1 text-xs font-bold"><Edit size={14} className="mr-1"/> Edit</Button>
-              <Button variant="outline" className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" size="icon" onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14}/></Button>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1 text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20" onClick={() => { setSelectedEvent(event); setAdminEventTab('registrations'); setCurrentView('event_details'); }}>Registrations</Button>
-              <Button variant="secondary" className="flex-1 text-xs font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400" onClick={() => { setSelectedEvent(event); setAdminEventTab('attendance'); setCurrentView('event_details'); }}>Attendance</Button>
-              <Button variant="secondary" className="flex-1 text-xs font-bold bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400" onClick={() => { setSelectedEvent(event); setAdminEventTab('notices'); setCurrentView('event_details'); }}>Notices</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 mt-auto">
-            <Button variant="outline" className="w-full text-xs font-bold" onClick={() => { setSelectedEvent(event); setCurrentView('event_details'); setStudentEventTab('info'); }}>View Details</Button>
-            <Button className="w-full text-xs font-bold bg-primary text-white" disabled={event.status === 'Completed'} onClick={() => { 
-              if (event.registrationMethod === 'External Registration Link' && event.registrationExternalLink) {
-                window.open(event.registrationExternalLink, '_blank');
-              } else if (event.registrationMethod === 'Upload Registration Form') {
-                setSelectedEvent(event); setCurrentView('event_details'); setStudentEventTab('info');
-              } else {
-                setSelectedEvent(event); setCurrentView('student_register'); setIsRegistered(false); 
-              }
-            }}>
-              {event.status === 'Completed' ? 'Ended' : (event.registrationMethod === 'External Registration Link' ? 'External Link' : 'Register')}
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const renderCreateEvent = () => (<CreateEventForm onBack={() => setCurrentView('dashboard')} onSuccess={() => { setCurrentView('dashboard'); fetchEvents(); }} />);
 
   const renderAdminEventDetails = () => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -1151,7 +557,7 @@ export const EventsModule = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {registeredStudents.map(student => (
+                      {registeredStudents.map((student: any) => (
                         <tr key={student.id} className="hover:bg-accent/20 transition-colors">
                           <td className="px-6 py-4 font-bold text-foreground">{student.name}</td>
                           <td className="px-6 py-4 text-muted-foreground">{student.enrollmentNumber}</td>
@@ -1513,7 +919,9 @@ export const EventsModule = () => {
     </motion.div>
   );
 
-  const renderStudentRegisterFlow = () => (
+  const renderStudentRegisterFlow = () => {
+    const aiFields = selectedEvent?.aiRegistrationFormConfig ? (typeof selectedEvent.aiRegistrationFormConfig === 'string' ? JSON.parse(selectedEvent.aiRegistrationFormConfig) : selectedEvent.aiRegistrationFormConfig) : [];
+    return (
     <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl mx-auto space-y-6 py-12">
       <Button variant="ghost" className="gap-2 -ml-4 font-bold" onClick={() => setCurrentView('dashboard')}><ChevronRight className="rotate-180"/> Cancel Registration</Button>
       {!isRegistered ? (
@@ -1558,9 +966,38 @@ export const EventsModule = () => {
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">Class</label>
                 <input type="text" value="IT-1" disabled className="w-full p-4 border border-border rounded-2xl bg-accent/50 cursor-not-allowed font-bold text-foreground shadow-sm" />
               </div>
+              {aiFields.map((f: any, idx: number) => (
+                <div key={idx} className="space-y-2 col-span-2">
+                  <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">{f.label} {f.required && <span className="text-rose-500">*</span>}</label>
+                  {f.type === 'textarea' ? (
+                    <textarea required={f.required} value={customFormResponses[f.label] || ''} onChange={e => setCustomFormResponses({...customFormResponses, [f.label]: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background font-bold text-foreground shadow-sm focus:ring-2 focus:ring-primary/20" rows={3}></textarea>
+                  ) : (
+                    <input type={f.type || 'text'} required={f.required} value={customFormResponses[f.label] || ''} onChange={e => setCustomFormResponses({...customFormResponses, [f.label]: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background font-bold text-foreground shadow-sm focus:ring-2 focus:ring-primary/20" />
+                  )}
+                </div>
+              ))}
             </div>
             <div className="pt-8 border-t border-border">
-              <Button className="w-full py-7 rounded-2xl text-xl font-black bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/30 transition-all" onClick={() => setIsRegistered(true)}>Confirm Registration</Button>
+              <Button className="w-full py-7 rounded-2xl text-xl font-black bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/30 transition-all" onClick={async () => {
+                if (selectedEvent) {
+                  const missingRequired = aiFields.some((f: any) => f.required && !customFormResponses[f.label]);
+                  if (missingRequired) {
+                    return toast.error("Please fill all required custom fields");
+                  }
+                  try {
+                    const payload = {
+                      customFormResponses: Object.keys(customFormResponses).length > 0 ? JSON.stringify(customFormResponses) : undefined
+                    };
+                    const res = await eventService.registerForEvent(selectedEvent.id, payload);
+                    if (res.success) {
+                      setIsRegistered(true);
+                      toast.success("Successfully registered!");
+                    }
+                  } catch (e: any) {
+                    toast.error(e.response?.data?.message || "Registration failed");
+                  }
+                }
+              }}>Confirm Registration</Button>
             </div>
           </div>
         </div>

@@ -96,8 +96,9 @@ public class EventController {
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<EventRegistrationResponse>> registerForEvent(
             @PathVariable UUID eventId,
+            @RequestBody(required = false) com.acronexus.dto.request.EventRegistrationRequest request,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
-        return ResponseEntity.ok(eventService.registerForEvent(eventId, currentUser.getId()));
+        return ResponseEntity.ok(eventService.registerForEvent(eventId, request, currentUser.getId()));
     }
 
     @DeleteMapping("/{eventId}/register")
@@ -126,4 +127,118 @@ public class EventController {
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
         return ResponseEntity.ok(eventService.exportParticipantList(eventId, currentUser.getId()));
     }
+
+    // --- Metadata Endpoints ---
+
+    @GetMapping("/metadata/batches")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<String>>> getAvailableBatches() {
+        return ResponseEntity.ok(eventService.getAvailableBatches());
+    }
+
+    @GetMapping("/metadata/years")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<String>>> getAvailableYears(@RequestParam String batchYear) {
+        return ResponseEntity.ok(eventService.getAvailableYears(batchYear));
+    }
+
+    @GetMapping("/metadata/semesters")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<String>>> getAvailableSemesters(@RequestParam String batchYear, @RequestParam String academicYear) {
+        return ResponseEntity.ok(eventService.getAvailableSemesters(batchYear, academicYear));
+    }
+
+    @GetMapping("/metadata/classes")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<com.acronexus.entity.AcroClass>>> getAvailableClasses(
+            @RequestParam String batchYear, @RequestParam String academicYear, @RequestParam String semester) {
+        return ResponseEntity.ok(eventService.getAvailableClasses(batchYear, academicYear, semester));
+    }
+
+    // --- AI Integration ---
+
+    @PostMapping("/ai/generate-form")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<String>> generateAiForm(
+            @RequestBody java.util.Map<String, String> payload,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.generateAiRegistrationForm(payload.get("prompt"), currentUser.getId()));
+    }
+
+    // --- Notices Endpoints ---
+
+    @PostMapping("/{eventId}/notices")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventNoticeResponse>> publishNotice(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody com.acronexus.dto.request.EventNoticeRequest request,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.publishNotice(eventId, request, currentUser.getId()));
+    }
+
+    @PutMapping("/notices/{noticeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventNoticeResponse>> updateNotice(
+            @PathVariable UUID noticeId,
+            @Valid @RequestBody com.acronexus.dto.request.EventNoticeRequest request,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.updateNotice(noticeId, request, currentUser.getId()));
+    }
+
+    @DeleteMapping("/notices/{noticeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<Void>> deleteNotice(
+            @PathVariable UUID noticeId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.deleteNotice(noticeId, currentUser.getId()));
+    }
+
+    // --- Attendance Endpoints ---
+
+    @PostMapping("/attendance/sessions/{sessionId}/generate-code")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> generateAttendanceCode(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.generateAttendanceCode(sessionId, currentUser.getId()));
+    }
+
+    @PostMapping("/attendance/sessions/{sessionId}/start")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> startAttendance(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.startAttendance(sessionId, currentUser.getId()));
+    }
+
+    @PostMapping("/attendance/sessions/{sessionId}/close")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> closeAttendance(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.closeAttendance(sessionId, currentUser.getId()));
+    }
+
+    @PatchMapping("/attendance/sessions/{sessionId}/unique-code-count")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> updateUniqueCodeCount(
+            @PathVariable UUID sessionId,
+            @RequestParam Integer count,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.updateUniqueCodeCount(sessionId, count, currentUser.getId()));
+    }
+
+    @PostMapping("/attendance/sessions/{sessionId}/submit")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<Void>> submitAttendance(
+            @PathVariable UUID sessionId,
+            @RequestBody java.util.Map<String, Object> payload,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        String code = (String) payload.get("attendanceCode");
+        Integer uniqueCode = (Integer) payload.get("uniqueCode");
+        return ResponseEntity.ok(eventService.submitAttendance(sessionId, code, uniqueCode, currentUser.getId()));
+    }
+
+
 }
+
