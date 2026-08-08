@@ -89,5 +89,25 @@ export const eventService = {
   getEventRegistrations: async (eventId: string, page = 0, size = 10) => {
     const response = await api.get(`/events/${eventId}/registrations?page=${page}&size=${size}`);
     return response.data;
+  },
+
+  getAvailableBatches: async () => {
+    const response = await api.get('/events/metadata/batches');
+    return response.data;
+  },
+
+  getAvailableYears: async (batchYear: string) => {
+    const response = await api.get(`/events/metadata/years?batchYear=${batchYear}`);
+    return response.data;
+  },
+
+  getAvailableSemesters: async (batchYear: string, academicYear: string) => {
+    const response = await api.get(`/events/metadata/semesters?batchYear=${batchYear}&academicYear=${academicYear}`);
+    return response.data;
+  },
+
+  getAvailableClasses: async (batchYear: string, academicYear: string, semester: string) => {
+    const response = await api.get(`/events/metadata/classes?batchYear=${batchYear}&academicYear=${academicYear}&semester=${semester}`);
+    return response.data;
   }
 };
