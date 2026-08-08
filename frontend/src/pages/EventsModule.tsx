@@ -364,7 +364,8 @@ export const EventsModule = () => {
   };
 
 
-  const renderCreateEvent = () => (<CreateEventForm onBack={() => setCurrentView('dashboard')} onSuccess={() => { setCurrentView('dashboard'); fetchEvents(); }} />);
+
+  const renderCreateEvent = () => (<CreateEventForm onCancel={() => setCurrentView('dashboard')} onSave={() => { setCurrentView('dashboard'); fetchEvents(); }} />);
 
   const renderAdminEventDetails = () => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-7xl mx-auto pb-12">
