@@ -26,6 +26,18 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @EntityGraph(attributePaths = {"department", "targetClass", "posterFile", "createdBy"})
     Optional<Event> findById(UUID id);
 
-    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.department LEFT JOIN FETCH e.targetClass LEFT JOIN FETCH e.posterFile LEFT JOIN FETCH e.createdBy WHERE e.isActive = true AND (e.department.id = :departmentId OR e.department IS NULL) AND (e.targetClass.id = :classId OR e.targetClass IS NULL) AND (e.registrationEnd >= :now OR e.registrationEnd IS NULL) ORDER BY e.eventDate ASC")
-    List<Event> findAvailableEventsForStudent(@Param("departmentId") UUID departmentId, @Param("classId") UUID classId, @Param("now") Instant now);
+    @Query("SELECT DISTINCT e FROM Event e " +
+           "LEFT JOIN FETCH e.department " +
+           "LEFT JOIN FETCH e.posterFile " +
+           "LEFT JOIN FETCH e.createdBy " +
+           "LEFT JOIN e.targetAssignments ta " +
+           "WHERE e.isActive = true " +
+           "AND (" +
+             "  (ta IS NOT NULL AND (ta.acroClass.id = :classId OR (ta.isEntireBatch = true AND ta.batchYear = :batchYear))) " +
+             "  OR " +
+             "  (ta IS NULL AND (e.department.id = :departmentId OR e.department IS NULL)) " +
+             ") " +
+           "AND e.eventDate >= :now " +
+           "ORDER BY e.eventDate ASC")
+    List<Event> findAvailableEventsForStudent(@Param("departmentId") UUID departmentId, @Param("classId") UUID classId, @Param("batchYear") String batchYear, @Param("now") Instant now);
 }

@@ -33,9 +33,18 @@ export interface Event {
   organizer?: string;
   rules?: string[];
   isActive?: boolean;
+  targets?: any[];
+  includeInOverallAttendance?: boolean;
+  creatorName?: string;
+  createdDate?: string;
 }
 
 export const eventService = {
+  getStatistics: async () => {
+    const response = await api.get('/events/statistics');
+    return response.data;
+  },
+
   getAllEvents: async (page = 0, size = 10) => {
     const response = await api.get(`/events?page=${page}&size=${size}`);
     return response.data;
@@ -48,6 +57,22 @@ export const eventService = {
 
   createEvent: async (data: Partial<Event>) => {
     const response = await api.post('/events', data);
+    return response.data;
+  },
+
+  uploadBanner: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/events/upload-banner', formData);
+    return response.data;
+  },
+
+  uploadFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/events/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
   },
 
@@ -108,6 +133,73 @@ export const eventService = {
 
   getAvailableClasses: async (batchYear: string, academicYear: string, semester: string) => {
     const response = await api.get(`/events/metadata/classes?batchYear=${batchYear}&academicYear=${academicYear}&semester=${semester}`);
+    return response.data;
+  },
+
+  generateAiForm: async (prompt: string) => {
+    const response = await api.post(`/events/ai/generate-form`, { prompt });
+    return response.data;
+  },
+
+  // Notices
+  getEventNotices: async (eventId: string) => {
+    const response = await api.get(`/events/${eventId}/notices`);
+    return response.data;
+  },
+
+  publishNotice: async (eventId: string, data: any) => {
+    const response = await api.post(`/events/${eventId}/notices`, data);
+    return response.data;
+  },
+
+  updateNotice: async (noticeId: string, data: any) => {
+    const response = await api.put(`/events/notices/${noticeId}`, data);
+    return response.data;
+  },
+  
+  deleteNotice: async (noticeId: string) => {
+    const response = await api.delete(`/events/notices/${noticeId}`);
+    return response.data;
+  },
+
+  // Attendance
+  getAttendanceSessions: async (eventId: string) => {
+    const response = await api.get(`/events/${eventId}/attendance/sessions`);
+    return response.data;
+  },
+
+  generateAttendanceCode: async (sessionId: string) => {
+    const response = await api.post(`/events/attendance/sessions/${sessionId}/generate-code`);
+    return response.data;
+  },
+
+  startAttendance: async (eventId: string, payload: any) => {
+    const response = await api.post(`/events/${eventId}/attendance/sessions/start`, payload);
+    return response.data;
+  },
+
+  closeAttendance: async (sessionId: string) => {
+    const response = await api.post(`/events/attendance/sessions/${sessionId}/close`);
+    return response.data;
+  },
+
+  updateUniqueCodeCount: async (sessionId: string, count: number) => {
+    const response = await api.patch(`/events/attendance/sessions/${sessionId}/unique-code-count?count=${count}`);
+    return response.data;
+  },
+
+  submitAttendance: async (sessionId: string, attendanceCode: string, uniqueCode: number) => {
+    const response = await api.post(`/events/attendance/sessions/${sessionId}/submit`, { attendanceCode, uniqueCode });
+    return response.data;
+  },
+
+  getSessionRecordsWithStats: async (sessionId: string) => {
+    const response = await api.get(`/events/attendance/sessions/${sessionId}/records`);
+    return response.data;
+  },
+
+  parseEventText: async (text: string) => {
+    const response = await api.post('/events/parse-text', { text });
     return response.data;
   }
 };

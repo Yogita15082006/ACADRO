@@ -74,9 +74,16 @@ public class EventServiceImpl implements EventService {
             event.setPosterFile(file);
         }
 
+        if (request.getPaymentQrFileId() != null) {
+            FileStorage file = fileStorageRepository.findById(request.getPaymentQrFileId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Payment QR file not found"));
+            event.setPaymentQrFile(file);
+        }
+
         event = eventRepository.save(event);
 
         if (request.getTargets() != null && !request.getTargets().isEmpty()) {
+            java.util.List<EventTargetAssignment> savedAssignments = new java.util.ArrayList<>();
             for (com.acronexus.dto.request.EventTargetAssignmentDto dto : request.getTargets()) {
                 EventTargetAssignment assignment = EventTargetAssignment.builder()
                         .event(event)
@@ -88,11 +95,13 @@ public class EventServiceImpl implements EventService {
                 if (dto.getAcroClassId() != null) {
                     assignment.setAcroClass(acroClassRepository.findById(dto.getAcroClassId()).orElse(null));
                 }
-                targetAssignmentRepository.save(assignment);
+                savedAssignments.add(targetAssignmentRepository.save(assignment));
             }
+            event.setTargetAssignments(savedAssignments);
         }
 
         if (request.getAttendanceSessions() != null && !request.getAttendanceSessions().isEmpty()) {
+            java.util.List<EventAttendanceSession> savedSessions = new java.util.ArrayList<>();
             for (com.acronexus.dto.request.EventAttendanceSessionDto dto : request.getAttendanceSessions()) {
                 EventAttendanceSession session = EventAttendanceSession.builder()
                         .event(event)
@@ -103,8 +112,9 @@ public class EventServiceImpl implements EventService {
                         .isIncludedInOverall(dto.getIsIncludedInOverall() != null ? dto.getIsIncludedInOverall() : false)
                         .status("NOT_STARTED")
                         .build();
-                attendanceSessionRepository.save(session);
+                savedSessions.add(attendanceSessionRepository.save(session));
             }
+            event.setAttendanceSessions(savedSessions);
         }
 
         return ApiResponse.success("Event created successfully", eventMapper.toResponse(event, 0L, false));
@@ -144,6 +154,14 @@ public class EventServiceImpl implements EventService {
             event.setPosterFile(null);
         }
 
+        if (request.getPaymentQrFileId() != null) {
+            FileStorage file = fileStorageRepository.findById(request.getPaymentQrFileId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Payment QR file not found"));
+            event.setPaymentQrFile(file);
+        } else {
+            event.setPaymentQrFile(null);
+        }
+
         event = eventRepository.save(event);
         long currentParticipants = eventRegistrationRepository.countByEventId(eventId);
         return ApiResponse.success("Event updated successfully", eventMapper.toResponse(event, currentParticipants, false));
@@ -169,6 +187,63 @@ public class EventServiceImpl implements EventService {
         event = eventRepository.save(event);
         long currentParticipants = eventRegistrationRepository.countByEventId(eventId);
         return ApiResponse.success("Event status updated", eventMapper.toResponse(event, currentParticipants, false));
+    }
+
+    @Override
+    public ApiResponse<com.acronexus.dto.response.EventStatisticsDto> getEventStatistics(UUID currentUserId) {
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        com.acronexus.dto.response.EventStatisticsDto.EventStatisticsDtoBuilder builder = 
+                com.acronexus.dto.response.EventStatisticsDto.builder()
+                .role(user.getRole().name());
+
+        if (user.getRole() == UserRole.STUDENT) {
+            Student student = studentRepository.findByUser_Id(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+            
+            StudentEnrollment enrollment = studentEnrollmentRepository
+                  .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(user.getId())
+                  .orElse(null);
+
+            List<Event> availableEvents = java.util.Collections.emptyList();
+            if (enrollment != null) {
+                UUID deptId = student.getUser().getDepartment().getId();
+                UUID classId = enrollment.getAcroClass().getId();
+                Instant startOfDay = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+                availableEvents = eventRepository.findAvailableEventsForStudent(deptId, classId, student.getBatchYear(), startOfDay);
+            }
+            
+            List<EventRegistration> registrations = eventRegistrationRepository.findByStudentUserIdOrderByRegisteredAtDesc(user.getId());
+            
+            long attendedCount = registrations.stream()
+                .filter(r -> "ATTENDED".equalsIgnoreCase(r.getAttendanceStatus()))
+                .count();
+                
+            long missedCount = registrations.stream()
+                .filter(r -> "MISSED".equalsIgnoreCase(r.getAttendanceStatus()))
+                .count();
+
+            builder.totalEvents((long) availableEvents.size())
+                   .registeredEvents((long) registrations.size())
+                   .attendedEvents(attendedCount)
+                   .missedEvents(missedCount);
+                   
+        } else {
+            Page<Event> allEventsPage = eventRepository.findAllByDepartmentId(user.getDepartment().getId(), Pageable.unpaged());
+            List<Event> allEvents = allEventsPage.getContent();
+
+            long upcoming = allEvents.stream().filter(e -> "UPCOMING".equalsIgnoreCase(e.getStatus())).count();
+            long ongoing = allEvents.stream().filter(e -> "ONGOING".equalsIgnoreCase(e.getStatus())).count();
+            long completed = allEvents.stream().filter(e -> "CLOSED".equalsIgnoreCase(e.getStatus()) || "COMPLETED".equalsIgnoreCase(e.getStatus())).count();
+
+            builder.totalEvents((long) allEvents.size())
+                   .upcomingEvents(upcoming)
+                   .ongoingEvents(ongoing)
+                   .completedEvents(completed);
+        }
+
+        return ApiResponse.success("Statistics fetched successfully", builder.build());
     }
 
     @Override
@@ -202,6 +277,70 @@ public class EventServiceImpl implements EventService {
         return ApiResponse.success("Event fetched successfully", eventMapper.toResponse(event, count, isRegistered));
     }
 
+    private static final String UPLOAD_DIR = "uploads/events/";
+
+    @Override
+    @Transactional
+    public UUID uploadBanner(org.springframework.web.multipart.MultipartFile file, UUID currentUserId) {
+        try {
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get(UPLOAD_DIR);
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            java.nio.file.Path filePath = uploadPath.resolve(fileName);
+            java.nio.file.Files.copy(file.getInputStream(), filePath);
+
+            com.acronexus.entity.FileStorage fs = new com.acronexus.entity.FileStorage();
+            fs.setFileName(file.getOriginalFilename());
+            fs.setDocumentUrl(filePath.toString());
+            fs.setFileType(file.getContentType());
+            fs.setUploadedBy(userRepository.findById(currentUserId).orElse(null));
+            fs.setUploadedAt(java.time.ZonedDateTime.now());
+            fs.setIsActive(true);
+            fs.setIsDeleted(false);
+            fs = fileStorageRepository.save(fs);
+            return fs.getId();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to store file", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getBanner(UUID fileId) {
+        com.acronexus.entity.FileStorage fs = fileStorageRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found"));
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(fs.getDocumentUrl());
+            return java.nio.file.Files.readAllBytes(path);
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Error reading file", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.response.FileDownloadDto downloadFile(UUID fileId) {
+        com.acronexus.entity.FileStorage fs = fileStorageRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found"));
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(fs.getDocumentUrl());
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            if (resource.exists() || resource.isReadable()) {
+                return com.acronexus.dto.response.FileDownloadDto.builder()
+                        .resource(resource)
+                        .fileName(fs.getFileName() != null ? fs.getFileName() : fs.getOriginalFilename())
+                        .mimeType(fs.getFileType())
+                        .build();
+            } else {
+                throw new RuntimeException("Could not read file!");
+            }
+        } catch (java.net.MalformedURLException e) {
+            throw new RuntimeException("Error reading file", e);
+        }
+    }
+
     @Override
     public ApiResponse<List<EventResponse>> getAvailableEventsForStudent(UUID studentUserId) {
         Student student = studentRepository.findByUser_Id(studentUserId)
@@ -214,7 +353,8 @@ public class EventServiceImpl implements EventService {
         UUID deptId = student.getUser().getDepartment().getId();
         UUID classId = enrollment.getAcroClass().getId();
         
-        List<Event> availableEvents = eventRepository.findAvailableEventsForStudent(deptId, classId, student.getBatchYear(), Instant.now());
+        Instant startOfDay = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        List<Event> availableEvents = eventRepository.findAvailableEventsForStudent(deptId, classId, student.getBatchYear(), startOfDay);
         
         List<EventResponse> responses = availableEvents.stream().map(e -> {
             long count = eventRegistrationRepository.countByEventId(e.getId());
@@ -248,10 +388,10 @@ public class EventServiceImpl implements EventService {
         if (event.getRegistrationStart() != null && now.isBefore(event.getRegistrationStart())) {
             throw new RuntimeException("Registration has not started yet");
         }
-        if (event.getRegistrationEnd() != null && now.isAfter(event.getRegistrationEnd())) {
+        if (event.getRegistrationEnd() != null && now.isAfter(event.getRegistrationEnd().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
             throw new RuntimeException("Registration has closed");
         }
-        if (event.getEventDate() != null && now.isAfter(event.getEventDate())) {
+        if (event.getEventDate() != null && now.isAfter(event.getEventDate().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
             throw new RuntimeException("Cannot register after event date");
         }
         
@@ -286,7 +426,7 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
                 
         Instant now = Instant.now();
-        if (event.getRegistrationEnd() != null && now.isAfter(event.getRegistrationEnd())) {
+        if (event.getRegistrationEnd() != null && now.isAfter(event.getRegistrationEnd().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
             throw new RuntimeException("Cannot cancel registration after registration has closed");
         }
         
@@ -346,29 +486,129 @@ public class EventServiceImpl implements EventService {
         return ApiResponse.success("Batches fetched", studentRepository.findDistinctBatchYears());
     }
 
+    private String normalizeYear(String year) {
+        if (year.matches(".*1.*|.*First.*")) return "1st Year";
+        if (year.matches(".*2.*|.*Second.*")) return "2nd Year";
+        if (year.matches(".*3.*|.*Third.*")) return "3rd Year";
+        if (year.matches(".*4.*|.*Fourth.*")) return "4th Year";
+        return year;
+    }
+
+    private java.util.List<String> getYearVariations(String normalizedYear) {
+        if (normalizedYear.equals("1st Year")) return java.util.Arrays.asList("1", "First Year", "First Year,First Year", "1st Year");
+        if (normalizedYear.equals("2nd Year")) return java.util.Arrays.asList("2", "Second Year", "Second Year,Second Year", "2nd Year");
+        if (normalizedYear.equals("3rd Year")) return java.util.Arrays.asList("3", "Third Year", "Third Year,Third Year", "3rd Year");
+        if (normalizedYear.equals("4th Year")) return java.util.Arrays.asList("4", "Fourth Year", "Fourth Year,Fourth Year", "4th Year");
+        return java.util.Arrays.asList(normalizedYear);
+    }
+
     @Override
     public ApiResponse<List<String>> getAvailableYears(String batchYear) {
-        return ApiResponse.success("Years fetched", studentEnrollmentRepository.findDistinctAcademicYearsByBatch(batchYear)); // Requires new query
+        List<String> rawYears = studentEnrollmentRepository.findDistinctAcademicYearsByBatch(batchYear);
+        List<String> normalizedYears = rawYears.stream().map(this::normalizeYear).distinct().sorted().collect(java.util.stream.Collectors.toList());
+        return ApiResponse.success("Years fetched", normalizedYears);
     }
 
     @Override
     public ApiResponse<List<String>> getAvailableSemesters(String batchYear, String academicYear) {
-        return ApiResponse.success("Semesters fetched", studentEnrollmentRepository.findDistinctSemesters(batchYear, academicYear)); // Requires new query
+        java.util.List<String> yearVariations = getYearVariations(academicYear);
+        return ApiResponse.success("Semesters fetched", studentEnrollmentRepository.findDistinctSemesters(batchYear, yearVariations)); // Requires new query
     }
 
     @Override
     public ApiResponse<List<com.acronexus.entity.AcroClass>> getAvailableClasses(String batchYear, String academicYear, String semester) {
-        return ApiResponse.success("Classes fetched", studentEnrollmentRepository.findClasses(batchYear, academicYear, semester)); // Requires new query
+        java.util.List<String> yearVariations = getYearVariations(academicYear);
+        return ApiResponse.success("Classes fetched", studentEnrollmentRepository.findClasses(batchYear, yearVariations, semester)); // Requires new query
     }
 
     // --- AI Registration Form ---
     @Override
+    public ApiResponse<com.acronexus.dto.response.EventParseResponseDto> parseEventText(com.acronexus.dto.request.EventParseRequestDto request) {
+        String systemPrompt = "You are an AI that extracts event details from unstructured text and maps them to a strictly formatted JSON object. " +
+                "You must NOT invent or guess any information. If a field is not explicitly mentioned or clearly implied, leave it as an empty string. " +
+                "CRITICAL: For the 'description' field, you MUST include the COMPLETE ORIGINAL TEXT, preserving 100% of the pasted information, URLs, instructions, and details without summarizing or removing anything. " +
+                "CRITICAL: If a registration URL is clearly provided, set 'registrationMethod' to 'Manually' and 'registrationExternalLink' to that exact URL. But still keep the URL in the 'description'. " +
+                "Other URLs (website, social media) must ONLY go into 'description' and NOT 'registrationExternalLink'. " +
+                "Output ONLY a single valid JSON object matching this exact structure, without any markdown formatting or backticks:\n" +
+                "{\n" +
+                "  \"title\": \"\",\n" +
+                "  \"subtitle\": \"\",\n" +
+                "  \"category\": \"\",\n" +
+                "  \"description\": \"\",\n" +
+                "  \"date\": \"\",\n" +
+                "  \"startTime\": \"\",\n" +
+                "  \"endTime\": \"\",\n" +
+                "  \"mode\": \"\",\n" +
+                "  \"venue\": \"\",\n" +
+                "  \"locationLink\": \"\",\n" +
+                "  \"meetingLink\": \"\",\n" +
+                "  \"regStartDate\": \"\",\n" +
+                "  \"regEndDate\": \"\",\n" +
+                "  \"maxParticipants\": \"\",\n" +
+                "  \"regFee\": \"\",\n" +
+                "  \"isRegRequired\": \"\",\n" +
+                "  \"registrationMethod\": \"\",\n" +
+                "  \"registrationExternalLink\": \"\",\n" +
+                "  \"allowWaitingList\": false,\n" +
+                "  \"rulesAndGuidelines\": \"\"\n" +
+                "}";
+
+        com.acronexus.dto.ai.AiGenericRequest aiRequest = new com.acronexus.dto.ai.AiGenericRequest(systemPrompt, request.getText(), 0.3, 1000);
+        com.acronexus.dto.ai.AiGenericResponse aiResponse = aiService.generateContent(aiRequest);
+
+        if (aiResponse == null || aiResponse.getContent() == null) {
+            throw new RuntimeException("Failed to generate response from AI Service");
+        }
+
+        String jsonContent = aiResponse.getContent().trim();
+        if (jsonContent.startsWith("```json")) {
+            jsonContent = jsonContent.substring(7);
+        }
+        if (jsonContent.startsWith("```")) {
+            jsonContent = jsonContent.substring(3);
+        }
+        if (jsonContent.endsWith("```")) {
+            jsonContent = jsonContent.substring(0, jsonContent.length() - 3);
+        }
+        jsonContent = jsonContent.trim();
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(jsonContent);
+            while (root.isArray() && root.size() > 0) {
+                root = root.get(0);
+            }
+            if (root.isArray()) {
+                throw new RuntimeException("AI returned an empty array instead of object.");
+            }
+            com.acronexus.dto.response.EventParseResponseDto parsedEvent = mapper.treeToValue(root, com.acronexus.dto.response.EventParseResponseDto.class);
+            return ApiResponse.success("Event details extracted successfully", parsedEvent);
+        } catch (Exception e) {
+            System.err.println("AI Response parsing failed. Content: " + jsonContent);
+            throw new RuntimeException("Failed to parse AI response into Event structure: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public ApiResponse<String> generateAiRegistrationForm(String prompt, UUID currentUserId) {
-        String systemPrompt = "You are an AI that generates JSON configuration for event registration forms. The user will give you a description of the event or fields they want. Output ONLY a valid JSON array of objects. Each object should have 'name', 'label', 'type' (e.g., text, email, number, select, date), and 'required' (boolean). Do not wrap in markdown or backticks. Example: [{\"name\": \"fullName\", \"label\": \"Full Name\", \"type\": \"text\", \"required\": true}]";
+        String systemPrompt = "You are an AI that generates JSON configuration for event registration forms. The user will give you a description of the event or specific fields they want. Output ONLY a valid JSON array of objects. Ensure you generate EVERY single field the user explicitly asks for, exactly matching their requested fields. Do not omit any requested fields. Each object should have 'name', 'label', 'type' (e.g., text, email, number, select, date, textarea, checkbox), and 'required' (boolean). Do not wrap in markdown or backticks. Example: [{\"name\": \"teamName\", \"label\": \"Team Name\", \"type\": \"text\", \"required\": true}, {\"name\": \"dietaryRestrictions\", \"label\": \"Dietary Restrictions\", \"type\": \"textarea\", \"required\": false}]";
         com.acronexus.dto.ai.AiGenericRequest request = new com.acronexus.dto.ai.AiGenericRequest(systemPrompt, prompt, 0.7, 500);
         com.acronexus.dto.ai.AiGenericResponse response = aiService.generateContent(request);
         
         String jsonContent = response.getContent();
+        if (jsonContent != null) {
+            jsonContent = jsonContent.trim();
+            if (jsonContent.startsWith("```json")) {
+                jsonContent = jsonContent.substring(7);
+            } else if (jsonContent.startsWith("```")) {
+                jsonContent = jsonContent.substring(3);
+            }
+            if (jsonContent.endsWith("```")) {
+                jsonContent = jsonContent.substring(0, jsonContent.length() - 3);
+            }
+            jsonContent = jsonContent.trim();
+        }
+        
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(jsonContent);
@@ -438,7 +678,36 @@ public class EventServiceImpl implements EventService {
         return ApiResponse.success("Notice deleted", null);
     }
 
+    @Override
+    public ApiResponse<List<com.acronexus.dto.response.EventNoticeResponse>> getEventNotices(UUID eventId, UUID currentUserId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        List<EventNotice> notices = noticeRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+        List<com.acronexus.dto.response.EventNoticeResponse> responses = notices.stream().map(this::toNoticeResponse).collect(Collectors.toList());
+        return ApiResponse.success("Notices fetched", responses);
+    }
+
     // --- Attendance Management ---
+    @Override
+    public ApiResponse<List<com.acronexus.dto.response.EventAttendanceSessionResponse>> getAttendanceSessions(UUID eventId, UUID currentUserId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        
+        List<EventAttendanceSession> sessions = attendanceSessionRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+        List<com.acronexus.dto.response.EventAttendanceSessionResponse> responses = sessions.stream().map(session -> {
+            com.acronexus.dto.response.EventAttendanceSessionResponse res = toSessionResponse(session);
+            
+            User user = userRepository.findById(currentUserId).orElse(null);
+            if (user != null && "STUDENT".equals(user.getRole().name().toUpperCase())) {
+                boolean isSubmitted = attendanceRecordRepository.findBySessionId(session.getId()).stream()
+                    .anyMatch(r -> r.getStudent().getId().equals(currentUserId) && "SUBMITTED".equals(r.getStatus()));
+                res.setIsSubmittedByCurrentUser(isSubmitted);
+            }
+            return res;
+        }).collect(Collectors.toList());
+        return ApiResponse.success("Sessions fetched", responses);
+    }
+
     @Override
     @Transactional
     public ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> generateAttendanceCode(UUID sessionId, UUID currentUserId) {
@@ -454,22 +723,30 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> startAttendance(UUID sessionId, UUID currentUserId) {
-        EventAttendanceSession session = attendanceSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-        checkEventManagementPermission(session.getEvent(), currentUserId);
+    public ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> startAttendance(UUID eventId, com.acronexus.dto.request.StartEventAttendanceDto dto, UUID currentUserId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        checkEventManagementPermission(event, currentUserId);
 
-        if (session.getUniqueCodeCount() == null || session.getUniqueCodeCount() <= 0) {
-            throw new RuntimeException("Unique code count must be configured before starting attendance");
-        }
-        if (session.getAttendanceCode() == null || session.getAttendanceCode().isEmpty()) {
-            throw new RuntimeException("Attendance code must be generated before starting attendance");
+        String code = dto.getAttendanceCode();
+        if (code == null || code.trim().isEmpty()) {
+            code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         }
 
-        session.setStatus("OPEN");
-        session.setSessionStartTime(Instant.now());
+        EventAttendanceSession session = EventAttendanceSession.builder()
+                .event(event)
+                .halfType(dto.getHalfType())
+                .selectedLectures(dto.getSelectedLectures())
+                .timerDurationMinutes(dto.getTimerDurationMinutes())
+                .uniqueCodeCount(dto.getUniqueCodeCount())
+                .isIncludedInOverall(dto.getIsIncludedInOverall())
+                .status("LIVE")
+                .sessionStartTime(Instant.now())
+                .attendanceCode(code)
+                .build();
+                
         session = attendanceSessionRepository.save(session);
-        return ApiResponse.success("Attendance started", toSessionResponse(session));
+        return ApiResponse.success("Attendance session started", toSessionResponse(session));
     }
 
     @Override
@@ -481,6 +758,23 @@ public class EventServiceImpl implements EventService {
 
         session.setStatus("CLOSED");
         session = attendanceSessionRepository.save(session);
+        
+        // Finalize pending students as NOT_SUBMITTED
+        List<EventRegistration> registrations = eventRegistrationRepository.findByEventIdOrderByRegisteredAtDesc(session.getEvent().getId());
+        List<EventAttendanceRecord> existingRecords = attendanceRecordRepository.findBySessionId(sessionId);
+        java.util.Set<UUID> submittedStudentIds = existingRecords.stream().map(r -> r.getStudent().getId()).collect(Collectors.toSet());
+        
+        for (EventRegistration reg : registrations) {
+            if (!submittedStudentIds.contains(reg.getStudent().getId())) {
+                EventAttendanceRecord notSubmitted = EventAttendanceRecord.builder()
+                        .session(session)
+                        .student(reg.getStudent())
+                        .status("NOT_SUBMITTED")
+                        .build();
+                attendanceRecordRepository.save(notSubmitted);
+            }
+        }
+        
         return ApiResponse.success("Attendance closed", toSessionResponse(session));
     }
 
@@ -502,8 +796,8 @@ public class EventServiceImpl implements EventService {
         EventAttendanceSession session = attendanceSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
-        if (!"OPEN".equals(session.getStatus())) {
-            throw new RuntimeException("Attendance is not open");
+        if (!"LIVE".equals(session.getStatus())) {
+            throw new RuntimeException("Attendance is not LIVE");
         }
         
         if (session.getTimerDurationMinutes() != null && session.getSessionStartTime() != null) {
@@ -572,13 +866,89 @@ public class EventServiceImpl implements EventService {
         return ApiResponse.success("Attendance submitted successfully", null);
     }
     
+    @Override
+    public ApiResponse<com.acronexus.dto.response.EventAttendanceSessionDetailsResponse> getSessionRecordsWithStats(UUID sessionId, UUID currentUserId) {
+        EventAttendanceSession session = attendanceSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        checkEventManagementPermission(session.getEvent(), currentUserId);
+
+        List<EventRegistration> registrations = eventRegistrationRepository.findByEventIdOrderByRegisteredAtDesc(session.getEvent().getId());
+        List<EventAttendanceRecord> records = attendanceRecordRepository.findBySessionId(sessionId);
+
+        java.util.Map<UUID, EventAttendanceRecord> recordMap = records.stream()
+                .collect(Collectors.toMap(r -> r.getStudent().getId(), r -> r));
+
+        int totalRegistered = registrations.size();
+        int submitted = 0;
+        int notSubmitted = 0;
+        int absent = 0;
+        int pending = 0;
+
+        List<com.acronexus.dto.response.EventAttendanceRecordResponse> recordResponses = new java.util.ArrayList<>();
+
+        for (EventRegistration reg : registrations) {
+            Student student = reg.getStudent();
+            EventAttendanceRecord rec = recordMap.get(student.getId());
+            String status = "PENDING";
+            Integer uniqueCode = null;
+            Instant submittedAt = null;
+
+            if (rec != null) {
+                status = rec.getStatus();
+                uniqueCode = rec.getUniqueCodeUsed();
+                submittedAt = rec.getSubmittedAt();
+                
+                if ("SUBMITTED".equals(status)) submitted++;
+                else if ("NOT_SUBMITTED".equals(status)) notSubmitted++;
+                else if ("ABSENT".equals(status)) absent++;
+            } else {
+                pending++;
+            }
+            
+            String batch = student.getBatchYear() != null ? student.getBatchYear() : "N/A";
+            String semester = student.getCurrentSemester() != null ? student.getCurrentSemester().toString() : "N/A";
+            String className = "N/A";
+            
+            java.util.Optional<StudentEnrollment> enrollment = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(student.getUser().getId());
+            if (enrollment.isPresent() && enrollment.get().getAcroClass() != null) {
+                className = enrollment.get().getAcroClass().getName();
+                if (enrollment.get().getAcroClass().getSection() != null) {
+                    className += "-" + enrollment.get().getAcroClass().getSection();
+                }
+            }
+
+            recordResponses.add(com.acronexus.dto.response.EventAttendanceRecordResponse.builder()
+                    .studentId(student.getId())
+                    .studentName(student.getUser().getFirstName() + " " + student.getUser().getLastName())
+                    .enrollmentNo(student.getEnrollmentNo())
+                    .batchYear(batch)
+                    .semester(semester)
+                    .className(className)
+                    .uniqueCodeUsed(uniqueCode)
+                    .submittedAt(submittedAt)
+                    .status(status)
+                    .build());
+        }
+        
+        com.acronexus.dto.response.EventAttendanceSessionDetailsResponse responseDto = com.acronexus.dto.response.EventAttendanceSessionDetailsResponse.builder()
+                .totalRegistered(totalRegistered)
+                .submitted(submitted)
+                .pending(pending)
+                .notSubmitted(notSubmitted)
+                .absent(absent)
+                .records(recordResponses)
+                .build();
+
+        return ApiResponse.success("Session stats and records fetched", responseDto);
+    }
+    
     private com.acronexus.dto.response.EventNoticeResponse toNoticeResponse(EventNotice notice) {
         return com.acronexus.dto.response.EventNoticeResponse.builder()
                 .id(notice.getId())
                 .title(notice.getTitle())
                 .description(notice.getDescription())
                 .attachmentFileId(notice.getAttachmentFile() != null ? notice.getAttachmentFile().getId() : null)
-                .attachmentFileUrl(notice.getAttachmentFile() != null ? notice.getAttachmentFile().getDocumentUrl() : null)
+                .attachmentFileUrl(notice.getAttachmentFile() != null ? "/api/events/file/" + notice.getAttachmentFile().getId() : null)
                 .createdAt(notice.getCreatedAt() != null ? notice.getCreatedAt().toInstant() : null)
                 .build();
     }

@@ -32,6 +32,8 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final TimetableRepository timetableRepository;
     private final TimetableSlotRepository timetableSlotRepository;
+    private final com.acronexus.repository.EventAttendanceRecordRepository eventAttendanceRecordRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Override
     public List<StudentAttendanceHistoryDto> getStudentAttendanceHistory(UUID studentId) {
@@ -254,7 +256,40 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
         }
 
         Object result = studentAttendanceRepository.getOverallAttendance(studentId);
-        if (result == null) {
+        Integer totalWorkingDays = 0;
+        Integer daysPresent = 0;
+        Integer totalClasses = 0;
+        Integer totalPresent = 0;
+
+        if (result != null) {
+            Object[] row = (Object[]) result;
+            totalWorkingDays = row[0] != null ? ((Number) row[0]).intValue() : 0;
+            daysPresent = row[1] != null ? ((Number) row[1]).intValue() : 0;
+            totalClasses = row[2] != null ? ((Number) row[2]).intValue() : 0;
+            totalPresent = row[3] != null ? ((Number) row[3]).intValue() : 0;
+        }
+
+        // Integrate Event Attendance Contribution
+        List<com.acronexus.entity.EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
+                .findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(studentId, "CLOSED");
+        for (com.acronexus.entity.EventAttendanceRecord rec : eventRecords) {
+            String selectedLecturesStr = rec.getSession().getSelectedLectures();
+            if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
+                try {
+                    List<String> selectedLectures = objectMapper.readValue(selectedLecturesStr, 
+                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
+                    int lectureCount = selectedLectures.size();
+                    totalClasses += lectureCount;
+                    if ("SUBMITTED".equals(rec.getStatus())) {
+                        totalPresent += lectureCount;
+                    }
+                } catch (Exception e) {
+                    // Skip if JSON parse fails
+                }
+            }
+        }
+
+        if (totalClasses == 0) {
             return OverallAttendanceDto.builder()
                     .studentName(studentName).email(email).semester(semesterStr).className(className).profilePictureUrl(profilePictureUrl)
                     .totalWorkingDays(0).daysPresent(0).daysAbsent(0)
@@ -262,15 +297,10 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
                     .overallPercentage(0.0)
                     .build();
         }
-        Object[] row = (Object[]) result;
-        Integer totalWorkingDays = row[0] != null ? ((Number) row[0]).intValue() : 0;
-        Integer daysPresent = row[1] != null ? ((Number) row[1]).intValue() : 0;
-        Integer totalClasses = row[2] != null ? ((Number) row[2]).intValue() : 0;
-        Integer totalPresent = row[3] != null ? ((Number) row[3]).intValue() : 0;
         
         Integer daysAbsent = totalWorkingDays - daysPresent;
         Integer classesMissed = totalClasses - totalPresent;
-        Double percentage = totalClasses == 0 ? 0.0 : (double) totalPresent / totalClasses * 100.0;
+        Double percentage = (double) totalPresent / totalClasses * 100.0;
         
         return OverallAttendanceDto.builder()
                 .studentName(studentName)

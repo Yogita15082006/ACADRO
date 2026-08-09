@@ -22,4 +22,13 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.acroClass FROM StudentEnrollment e WHERE e.isActive = true AND e.acroClass IS NOT NULL")
     java.util.List<com.acronexus.entity.AcroClass> findDistinctActiveAcroClasses();
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.academicYear.year FROM StudentEnrollment e WHERE e.student.batchYear = :batchYear AND e.isActive = true")
+    java.util.List<String> findDistinctAcademicYearsByBatch(@org.springframework.data.repository.query.Param("batchYear") String batchYear);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT CAST(e.semester.semesterNumber AS string) FROM StudentEnrollment e WHERE e.student.batchYear = :batchYear AND e.academicYear.year IN :academicYears AND e.isActive = true")
+    java.util.List<String> findDistinctSemesters(@org.springframework.data.repository.query.Param("batchYear") String batchYear, @org.springframework.data.repository.query.Param("academicYears") java.util.List<String> academicYears);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.acroClass FROM StudentEnrollment e WHERE e.student.batchYear = :batchYear AND e.academicYear.year IN :academicYears AND CAST(e.semester.semesterNumber AS string) = :semester AND e.acroClass.isActive = true AND e.acroClass.isDeleted = false")
+    java.util.List<com.acronexus.entity.AcroClass> findClasses(@org.springframework.data.repository.query.Param("batchYear") String batchYear, @org.springframework.data.repository.query.Param("academicYears") java.util.List<String> academicYears, @org.springframework.data.repository.query.Param("semester") String semester);
 }

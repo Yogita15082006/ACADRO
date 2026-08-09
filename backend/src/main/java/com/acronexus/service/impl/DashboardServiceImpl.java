@@ -39,6 +39,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final DepartmentRepository departmentRepository;
     private final AcroClassRepository acroClassRepository;
     private final SubjectRepository subjectRepository;
+    private final EventAttendanceRecordRepository eventAttendanceRecordRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     // ======================== STUDENT DASHBOARD ========================
 
@@ -75,14 +77,41 @@ public class DashboardServiceImpl implements DashboardService {
 
     private StudentDashboardResponse.AttendanceOverview buildAttendanceOverview(UUID studentId) {
         Object result = studentAttendanceRepository.getOverallAttendance(studentId);
-        if (result == null) {
+        long total = 0;
+        long present = 0;
+        
+        if (result != null) {
+            Object[] row = (Object[]) result;
+            total = row[0] != null ? ((Number) row[0]).longValue() : 0;
+            present = row[1] != null ? ((Number) row[1]).longValue() : 0;
+        }
+
+        // Integrate Event Attendance Contribution
+        List<EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
+                .findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(studentId, "CLOSED");
+        for (EventAttendanceRecord rec : eventRecords) {
+            String selectedLecturesStr = rec.getSession().getSelectedLectures();
+            if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
+                try {
+                    List<Integer> selectedLectures = objectMapper.readValue(selectedLecturesStr, 
+                            new com.fasterxml.jackson.core.type.TypeReference<List<Integer>>(){});
+                    int lectureCount = selectedLectures.size();
+                    total += lectureCount;
+                    if ("SUBMITTED".equals(rec.getStatus())) {
+                        present += lectureCount;
+                    }
+                } catch (Exception e) {
+                    // Skip if JSON parse fails
+                }
+            }
+        }
+
+        if (total == 0) {
             return StudentDashboardResponse.AttendanceOverview.builder()
                     .totalClasses(0).classesAttended(0).attendancePercentage(0.0).build();
         }
-        Object[] row = (Object[]) result;
-        long total = row[0] != null ? ((Number) row[0]).longValue() : 0;
-        long present = row[1] != null ? ((Number) row[1]).longValue() : 0;
-        double percentage = total > 0 ? (present * 100.0 / total) : 0.0;
+
+        double percentage = (present * 100.0) / total;
         return StudentDashboardResponse.AttendanceOverview.builder()
                 .totalClasses(total)
                 .classesAttended(present)

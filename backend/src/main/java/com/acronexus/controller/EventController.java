@@ -26,16 +26,68 @@ public class EventController {
 
     private final EventService eventService;
 
+    @GetMapping("/statistics")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventStatisticsDto>> getEventStatistics(
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.getEventStatistics(currentUser.getId()));
+    }
+
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<EventResponse>> createEvent(
             @Valid @RequestBody EventRequest request,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
         return ResponseEntity.ok(eventService.createEvent(request, currentUser.getId()));
     }
 
+    @PostMapping("/parse-text")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventParseResponseDto>> parseEventText(
+            @Valid @RequestBody com.acronexus.dto.request.EventParseRequestDto request) {
+        return ResponseEntity.ok(eventService.parseEventText(request));
+    }
+
+    @PostMapping(value = "/upload-banner", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    public ResponseEntity<ApiResponse<UUID>> uploadBanner(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(ApiResponse.success("Banner uploaded successfully", eventService.uploadBanner(file, currentUser.getId())));
+    }
+
+    @PostMapping(value = "/upload-file", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<UUID>> uploadFile(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(ApiResponse.success("File uploaded successfully", eventService.uploadBanner(file, currentUser.getId())));
+    }
+
+    @GetMapping("/banner/{fileId}")
+    public ResponseEntity<byte[]> getBanner(@PathVariable UUID fileId) {
+        byte[] data = eventService.getBanner(fileId);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.IMAGE_JPEG); 
+        return new ResponseEntity<>(data, headers, org.springframework.http.HttpStatus.OK);
+    }
+
+    @GetMapping("/file/{fileId}")
+    public ResponseEntity<org.springframework.core.io.Resource> getFile(@PathVariable UUID fileId) {
+        com.acronexus.dto.response.FileDownloadDto downloadDto = eventService.downloadFile(fileId);
+        org.springframework.http.MediaType mediaType;
+        try {
+            mediaType = org.springframework.http.MediaType.parseMediaType(downloadDto.getMimeType());
+        } catch (Exception e) {
+            mediaType = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
+        }
+        
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + downloadDto.getFileName() + "\"")
+                .contentType(mediaType)
+                .body(downloadDto.getResource());
+    }
+
     @PutMapping("/{eventId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
             @PathVariable UUID eventId,
             @Valid @RequestBody EventRequest request,
@@ -44,7 +96,7 @@ public class EventController {
     }
 
     @DeleteMapping("/{eventId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<Void>> deleteEvent(
             @PathVariable UUID eventId,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -52,7 +104,7 @@ public class EventController {
     }
 
     @PatchMapping("/{eventId}/toggle-status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<EventResponse>> toggleEventStatus(
             @PathVariable UUID eventId,
             @RequestParam boolean isActive,
@@ -61,7 +113,7 @@ public class EventController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<Page<EventResponse>>> getAllEvents(
             Pageable pageable,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -112,7 +164,7 @@ public class EventController {
     // Admin/Faculty registration management endpoints
 
     @GetMapping("/{eventId}/registrations")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<Page<EventRegistrationResponse>>> getEventRegistrations(
             @PathVariable UUID eventId,
             Pageable pageable,
@@ -121,7 +173,7 @@ public class EventController {
     }
 
     @GetMapping("/{eventId}/export-participants")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<ParticipantExportDto>>> exportParticipants(
             @PathVariable UUID eventId,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -131,25 +183,25 @@ public class EventController {
     // --- Metadata Endpoints ---
 
     @GetMapping("/metadata/batches")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<String>>> getAvailableBatches() {
         return ResponseEntity.ok(eventService.getAvailableBatches());
     }
 
     @GetMapping("/metadata/years")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<String>>> getAvailableYears(@RequestParam String batchYear) {
         return ResponseEntity.ok(eventService.getAvailableYears(batchYear));
     }
 
     @GetMapping("/metadata/semesters")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<String>>> getAvailableSemesters(@RequestParam String batchYear, @RequestParam String academicYear) {
         return ResponseEntity.ok(eventService.getAvailableSemesters(batchYear, academicYear));
     }
 
     @GetMapping("/metadata/classes")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<com.acronexus.entity.AcroClass>>> getAvailableClasses(
             @RequestParam String batchYear, @RequestParam String academicYear, @RequestParam String semester) {
         return ResponseEntity.ok(eventService.getAvailableClasses(batchYear, academicYear, semester));
@@ -158,7 +210,7 @@ public class EventController {
     // --- AI Integration ---
 
     @PostMapping("/ai/generate-form")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<String>> generateAiForm(
             @RequestBody java.util.Map<String, String> payload,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -167,8 +219,15 @@ public class EventController {
 
     // --- Notices Endpoints ---
 
+    @GetMapping("/{eventId}/notices")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.response.EventNoticeResponse>>> getEventNotices(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.getEventNotices(eventId, currentUser.getId()));
+    }
+
     @PostMapping("/{eventId}/notices")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventNoticeResponse>> publishNotice(
             @PathVariable UUID eventId,
             @Valid @RequestBody com.acronexus.dto.request.EventNoticeRequest request,
@@ -177,7 +236,7 @@ public class EventController {
     }
 
     @PutMapping("/notices/{noticeId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventNoticeResponse>> updateNotice(
             @PathVariable UUID noticeId,
             @Valid @RequestBody com.acronexus.dto.request.EventNoticeRequest request,
@@ -186,7 +245,7 @@ public class EventController {
     }
 
     @DeleteMapping("/notices/{noticeId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<Void>> deleteNotice(
             @PathVariable UUID noticeId,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -195,24 +254,33 @@ public class EventController {
 
     // --- Attendance Endpoints ---
 
+    @GetMapping("/{eventId}/attendance/sessions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR', 'STUDENT')")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.response.EventAttendanceSessionResponse>>> getAttendanceSessions(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.getAttendanceSessions(eventId, currentUser.getId()));
+    }
+
     @PostMapping("/attendance/sessions/{sessionId}/generate-code")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> generateAttendanceCode(
             @PathVariable UUID sessionId,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
         return ResponseEntity.ok(eventService.generateAttendanceCode(sessionId, currentUser.getId()));
     }
 
-    @PostMapping("/attendance/sessions/{sessionId}/start")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PostMapping("/{eventId}/attendance/sessions/start")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> startAttendance(
-            @PathVariable UUID sessionId,
+            @PathVariable UUID eventId,
+            @RequestBody @jakarta.validation.Valid com.acronexus.dto.request.StartEventAttendanceDto request,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
-        return ResponseEntity.ok(eventService.startAttendance(sessionId, currentUser.getId()));
+        return ResponseEntity.ok(eventService.startAttendance(eventId, request, currentUser.getId()));
     }
 
     @PostMapping("/attendance/sessions/{sessionId}/close")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> closeAttendance(
             @PathVariable UUID sessionId,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
@@ -220,12 +288,20 @@ public class EventController {
     }
 
     @PatchMapping("/attendance/sessions/{sessionId}/unique-code-count")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse>> updateUniqueCodeCount(
             @PathVariable UUID sessionId,
             @RequestParam Integer count,
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
         return ResponseEntity.ok(eventService.updateUniqueCodeCount(sessionId, count, currentUser.getId()));
+    }
+
+    @GetMapping("/attendance/sessions/{sessionId}/records")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.EventAttendanceSessionDetailsResponse>> getSessionRecordsWithStats(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(eventService.getSessionRecordsWithStats(sessionId, currentUser.getId()));
     }
 
     @PostMapping("/attendance/sessions/{sessionId}/submit")

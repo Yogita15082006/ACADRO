@@ -1,0 +1,1 @@
+const { Client } = require('pg'); const client = new Client({ connectionString: 'postgresql://postgres:payal@localhost:5432/acronexus' }); client.connect().then(() => client.query(SELECT id, name, section FROM classes WHERE name LIKE '%IT%')).then(res => console.log(res.rows)).catch(console.error).finally(() => client.end());

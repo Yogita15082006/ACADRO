@@ -41,4 +41,7 @@ public class EventRegistration {
     @Column(name = "certificate_generated")
     @Builder.Default
     private Boolean certificateGenerated = false;
+
+    @Column(name = "custom_form_responses", columnDefinition = "TEXT")
+    private String customFormResponses;
 }

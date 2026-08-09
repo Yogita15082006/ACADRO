@@ -19,6 +19,11 @@ public interface EventService {
     
     ApiResponse<Page<EventResponse>> getAllEvents(Pageable pageable, UUID currentUserId);
     ApiResponse<EventResponse> getEventById(UUID eventId, UUID currentUserId);
+    ApiResponse<com.acronexus.dto.response.EventStatisticsDto> getEventStatistics(UUID currentUserId);
+    
+    UUID uploadBanner(org.springframework.web.multipart.MultipartFile file, UUID currentUserId);
+    byte[] getBanner(UUID fileId);
+    com.acronexus.dto.response.FileDownloadDto downloadFile(UUID fileId);
     
     ApiResponse<List<EventResponse>> getAvailableEventsForStudent(UUID studentUserId);
     ApiResponse<List<EventRegistrationResponse>> getStudentRegistrations(UUID studentUserId);
@@ -42,11 +47,17 @@ public interface EventService {
     ApiResponse<com.acronexus.dto.response.EventNoticeResponse> publishNotice(UUID eventId, com.acronexus.dto.request.EventNoticeRequest request, UUID currentUserId);
     ApiResponse<com.acronexus.dto.response.EventNoticeResponse> updateNotice(UUID noticeId, com.acronexus.dto.request.EventNoticeRequest request, UUID currentUserId);
     ApiResponse<Void> deleteNotice(UUID noticeId, UUID currentUserId);
+    ApiResponse<List<com.acronexus.dto.response.EventNoticeResponse>> getEventNotices(UUID eventId, UUID currentUserId);
     
     // Attendance
+    ApiResponse<List<com.acronexus.dto.response.EventAttendanceSessionResponse>> getAttendanceSessions(UUID eventId, UUID currentUserId);
     ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> generateAttendanceCode(UUID sessionId, UUID currentUserId);
-    ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> startAttendance(UUID sessionId, UUID currentUserId);
+    ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> startAttendance(UUID eventId, com.acronexus.dto.request.StartEventAttendanceDto dto, UUID currentUserId);
     ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> closeAttendance(UUID sessionId, UUID currentUserId);
     ApiResponse<com.acronexus.dto.response.EventAttendanceSessionResponse> updateUniqueCodeCount(UUID sessionId, Integer count, UUID currentUserId);
     ApiResponse<Void> submitAttendance(UUID sessionId, String attendanceCode, Integer uniqueCode, UUID studentUserId);
+    ApiResponse<com.acronexus.dto.response.EventAttendanceSessionDetailsResponse> getSessionRecordsWithStats(UUID sessionId, UUID currentUserId);
+
+    // AI Parsing
+    ApiResponse<com.acronexus.dto.response.EventParseResponseDto> parseEventText(com.acronexus.dto.request.EventParseRequestDto request);
 }

@@ -257,9 +257,12 @@ async def generate_content(request: AiGenericRequest):
     instead of communicating with Groq directly.
     """
     prompt_text = (request.userPrompt or "") + " " + (request.systemPrompt or "")
-    if any(k in prompt_text.lower() for k in ["syllabus", "subject", "course", "extract", "chunk", "unit", "elective", "theory", "practical", "code", "semester", "year", "credit", "hour", "title", "objectives"]):
-        logger.info("Intercepted syllabus parsing call on /generate. Routing to high-speed validated OCR parser.")
-        return await handle_syllabus_generate_interceptor(request)
+    
+    # Bypass syllabus interceptor for event registration form generation and event parsing
+    if "event registration forms" not in prompt_text.lower() and "event details" not in prompt_text.lower():
+        if any(k in prompt_text.lower() for k in ["syllabus", "subject", "course", "extract", "chunk", "unit", "elective", "theory", "practical", "code", "semester", "year", "credit", "hour", "title", "objectives"]):
+            logger.info("Intercepted syllabus parsing call on /generate. Routing to high-speed validated OCR parser.")
+            return await handle_syllabus_generate_interceptor(request)
 
     logger.info("Received generate request (maxTokens=%s, temperature=%s)", request.maxTokens, request.temperature)
     response = await ai_service.generate_content(request)
