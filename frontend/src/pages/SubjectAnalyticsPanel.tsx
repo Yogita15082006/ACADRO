@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Users, ClipboardList, CheckCircle2, TrendingUp, Search, Eye, Filter, Sparkles, Calendar } from 'lucide-react';
-import { mockData } from '../data/mockData';
+import { Users, ClipboardList, CheckCircle2, TrendingUp, Search, Eye, Filter, Sparkles, Calendar, Loader2 } from 'lucide-react';
+import api from "../services/api";
 
 export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: any }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -16,76 +16,31 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  const students = useMemo(() => {
-    return mockData.students.filter(s => s.classId === workspaceContext.classId).map(student => {
-      // Mock metrics specifically for this subject
-      const totalAssignments = 5;
-      const totalQuizzes = 3;
-      const totalAttendance = 24;
-      
-      // Determine base performance randomly to simulate variation
-      const basePerformance = Math.random();
-      
-      const submittedAssignments = Math.floor(basePerformance * (totalAssignments + 1));
-      const assignmentPercentage = (submittedAssignments / totalAssignments) * 100;
-      
-      const attemptedQuizzes = Math.floor(basePerformance * (totalQuizzes + 1));
-      const quizAverage = attemptedQuizzes > 0 ? Math.floor(basePerformance * 40) + 60 : 0;
-      const quizPercentage = quizAverage;
-      
-      const presentAttendance = Math.floor((basePerformance * 0.4 + 0.6) * totalAttendance); // Even poor students attend some classes
-      const attendancePercentage = (presentAttendance / totalAttendance) * 100;
-      
-      const overallScore = Math.round((assignmentPercentage * 0.3) + (quizPercentage * 0.4) + (attendancePercentage * 0.3));
-      
-      let badge = '';
-      let badgeColor = '';
-      let feedback = '';
-      
-      if (overallScore >= 90) {
-        badge = 'Excellent';
-        badgeColor = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
-        feedback = 'Consistently performs well in assignments, quizzes and attendance. Keep up the excellent work.';
-      } else if (overallScore >= 80) {
-        badge = 'Very Good';
-        badgeColor = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
-        feedback = 'Strong academic performance with good attendance. Focus on improving quiz scores.';
-      } else if (overallScore >= 70) {
-        badge = 'Good';
-        badgeColor = 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
-        feedback = 'Regular attendance and assignment submissions. More quiz practice is recommended.';
-      } else if (overallScore >= 60) {
-        badge = 'Average';
-        badgeColor = 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30';
-        feedback = 'Performance is satisfactory but there is room for improvement in assignments and attendance.';
-      } else {
-        badge = 'Needs Improvement';
-        badgeColor = 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
-        feedback = 'Low attendance and incomplete assignments are affecting overall performance. Immediate attention is recommended.';
-      }
-      
-      let grade = '';
-      if (overallScore >= 90) grade = 'O';
-      else if (overallScore >= 80) grade = 'A+';
-      else if (overallScore >= 70) grade = 'A';
-      else if (overallScore >= 60) grade = 'B+';
-      else if (overallScore >= 50) grade = 'B';
-      else grade = 'C';
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-      return {
-        ...student,
-        metrics: {
-          assignments: { total: totalAssignments, submitted: submittedAssignments, pending: totalAssignments - submittedAssignments, percentage: Math.round(assignmentPercentage) },
-          quizzes: { total: totalQuizzes, attempted: attemptedQuizzes, average: Math.round(quizPercentage) },
-          attendance: { total: totalAttendance, present: presentAttendance, absent: totalAttendance - presentAttendance, percentage: Math.round(attendancePercentage) },
-          overallScore,
-          badge,
-          badgeColor,
-          grade,
-          feedback
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!workspaceContext?.id) return;
+      
+      try {
+        setLoading(true);
+        setError('');
+        const res = await api.get(`/v1/analytics/subject/${workspaceContext.id}/students`);
+        if (res.data && res.data.data) {
+          setStudents(res.data.data);
+        } else {
+          setStudents([]);
         }
-      };
-    }).sort((a, b) => b.metrics.overallScore - a.metrics.overallScore);
+      } catch (err: any) {
+        console.error('Failed to fetch analytics', err);
+        setError('Failed to load analytics data for this subject.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
   }, [workspaceContext]);
 
   const filteredStudents = useMemo(() => {
@@ -144,7 +99,30 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
 
   return (
     <div className="space-y-6">
-      {/* Top Dashboard */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-muted/10 rounded-xl border border-dashed border-border/50">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+          <p className="text-muted-foreground font-medium">Crunching student analytics data...</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-destructive/5 rounded-xl border border-destructive/20 text-center px-4">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+            <Search className="w-6 h-6 text-destructive" />
+          </div>
+          <h3 className="text-lg font-bold text-destructive mb-2">Error Loading Analytics</h3>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      ) : students.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-muted/10 rounded-xl border border-dashed border-border/50 text-center px-4">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Users className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-bold text-foreground mb-2">No Students Enrolled</h3>
+          <p className="text-muted-foreground">Analytics cannot be generated because there are no students enrolled in this class.</p>
+        </div>
+      ) : (
+        <>
+          {/* Top Dashboard */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-primary/5 border-primary/20 shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
@@ -258,121 +236,95 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
         </div>
       </div>
 
-      {/* Student List */}
-      <div className="space-y-4">
-        {filteredStudents.map(student => (
-          <Card key={student.id} className="border border-border/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-            <div className="flex flex-col lg:flex-row">
-              {/* Left Column: Student Identity */}
-              <div className="lg:w-[300px] p-5 border-b lg:border-b-0 lg:border-r border-border/50 bg-muted/5 flex flex-col justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted shrink-0 border border-border/50">
-                    <img src={student.avatar} alt={student.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-foreground text-base leading-tight">{student.name}</h4>
-                    <p className="text-muted-foreground text-sm font-medium mt-1">{student.enrollmentNumber}</p>
-                    <div className="flex items-center gap-2 mt-3">
-                      <Badge className="bg-primary text-primary-foreground font-bold px-2 py-0.5">Grade: {student.metrics.grade}</Badge>
-                      <Badge variant="outline" className={student.metrics.badgeColor}>{student.metrics.badge}</Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-5 pt-4 border-t border-border/50">
-                  <Button variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => handleViewProfile(student)}>
-                    <Eye className="w-4 h-4 mr-2" /> View Complete Profile
-                  </Button>
-                </div>
-              </div>
-
-              {/* Middle Column: Performance Breakdown */}
-              <div className="flex-1 p-5 grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {/* Assignments */}
-                <div className="space-y-3">
-                  <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wider">
-                    <ClipboardList className="w-4 h-4" /> Assignments
-                  </h5>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Completion</span>
-                      <span className="font-bold text-foreground">{student.metrics.assignments.percentage}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="h-2 rounded-full bg-blue-500" style={{ width: `${student.metrics.assignments.percentage}%` }} />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground font-medium pt-1">
-                      <span>{student.metrics.assignments.submitted} Submitted</span>
-                      <span>{student.metrics.assignments.pending} Pending</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quizzes */}
-                <div className="space-y-3">
-                  <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wider">
-                    <CheckCircle2 className="w-4 h-4" /> Quizzes
-                  </h5>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Average Score</span>
-                      <span className="font-bold text-foreground">{student.metrics.quizzes.average}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${student.metrics.quizzes.average}%` }} />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground font-medium pt-1">
-                      <span>{student.metrics.quizzes.attempted} / {student.metrics.quizzes.total} Attempted</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Attendance */}
-                <div className="space-y-3">
-                  <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wider">
-                    <Calendar className="w-4 h-4" /> Attendance
-                  </h5>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Attendance Rate</span>
-                      <span className="font-bold text-foreground">{student.metrics.attendance.percentage}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${student.metrics.attendance.percentage}%` }} />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground font-medium pt-1">
-                      <span>{student.metrics.attendance.present} Present</span>
-                      <span>{student.metrics.attendance.absent} Absent</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: AI Feedback */}
-              <div className="lg:w-[320px] p-5 border-t lg:border-t-0 lg:border-l border-border/50 bg-primary/5 flex flex-col justify-center">
-                <h5 className="text-xs font-bold text-primary flex items-center gap-1.5 uppercase tracking-wider mb-2">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Feedback
-                </h5>
-                <p className="text-sm text-foreground/80 leading-relaxed italic">
-                  "{student.metrics.feedback}"
-                </p>
-                <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-3">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overall Score</span>
-                  <span className="text-lg font-bold text-primary">{student.metrics.overallScore}%</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
-        {filteredStudents.length === 0 && (
-          <div className="text-center py-16 bg-card rounded-xl border border-border/50 shadow-sm">
-            <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-foreground font-semibold">No students found</p>
-            <p className="text-muted-foreground text-sm mt-1">Try adjusting your filters or search query.</p>
+      {/* Student List Table */}
+      <Card className="border border-border/50 shadow-sm">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left whitespace-nowrap">
+              <thead className="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border/50">
+                <tr>
+                  <th className="px-6 py-4 font-semibold">Student</th>
+                  <th className="px-6 py-4 font-semibold">Enrollment No.</th>
+                  <th className="px-6 py-4 font-semibold text-center">Attendance</th>
+                  <th className="px-6 py-4 font-semibold text-center">Assignments</th>
+                  <th className="px-6 py-4 font-semibold text-center">Quizzes</th>
+                  <th className="px-6 py-4 font-semibold text-center">Overall</th>
+                  <th className="px-6 py-4 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {filteredStudents.length > 0 ? (
+                  filteredStudents.map(student => (
+                    <tr key={student.id} className="hover:bg-muted/10 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <img src={`https://ui-avatars.com/api/?name=${student.name.replace(/ /g, '+')}&background=4F46E5&color=fff&size=40`} alt={student.name} className="w-10 h-10 rounded-xl object-cover ring-2 ring-background shadow-sm" />
+                          <div>
+                            <p className="font-bold text-foreground">{student.name}</p>
+                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-xs bg-background/50 px-2 py-0.5 rounded border border-border/50 text-muted-foreground">
+                          {student.enrollmentNumber}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500" style={{ width: `${student.metrics.attendance.percentage}%` }} />
+                          </div>
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400 w-9">{student.metrics.attendance.percentage}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500" style={{ width: `${student.metrics.assignments.percentage}%` }} />
+                          </div>
+                          <span className="font-semibold text-blue-600 dark:text-blue-400 w-9">{student.metrics.assignments.percentage}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500" style={{ width: `${student.metrics.quizzes.average}%` }} />
+                          </div>
+                          <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-9">{student.metrics.quizzes.average}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <span className="font-black text-foreground">{student.metrics.overallScore}%</span>
+                          <Badge variant="outline" className={`mt-1 text-[9px] uppercase leading-none py-0.5 px-1.5 border-0 ${student.metrics.badgeColor}`}>
+                            {student.metrics.badge}
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewProfile(student)} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Eye className="w-4 h-4 mr-2 text-primary" /> View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                      No students match your search or filter criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
+        </>
+      )}
 
-      {/* View Complete Profile Modal */}
+      {/* Student Profile Detail Modal */}
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           {selectedStudent && (

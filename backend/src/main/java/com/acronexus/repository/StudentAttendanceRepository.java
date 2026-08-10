@@ -12,6 +12,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     boolean existsByStudentIdAndClassSubjectIdAndDate(UUID studentId, UUID classSubjectId, java.time.LocalDate date);
     boolean existsByStudentIdAndSessionId(UUID studentId, UUID sessionId);
     List<StudentAttendance> findBySessionId(UUID sessionId);
+    List<StudentAttendance> findByClassSubjectId(UUID classSubjectId);
     
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM StudentAttendance sa WHERE sa.session.id = :sessionId")

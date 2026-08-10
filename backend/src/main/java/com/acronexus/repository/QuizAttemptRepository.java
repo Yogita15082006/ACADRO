@@ -21,6 +21,8 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, UUID> 
     @EntityGraph(attributePaths = {"quiz", "student", "student.user"})
     Optional<QuizAttempt> findByQuiz_IdAndStudent_User_Id(UUID quizId, UUID studentId);
 
+    List<QuizAttempt> findByQuiz_IdIn(List<UUID> quizIds);
+
     @org.springframework.data.jpa.repository.Modifying
     void deleteByQuiz_Id(UUID quizId);
 

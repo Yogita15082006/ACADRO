@@ -47,6 +47,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
     @EntityGraph(attributePaths = {"classSubject", "classSubject.subject", "classSubject.acroClass", "file", "createdBy"})
     List<Assignment> findByClassSubject_IdAndIsDeletedFalseOrderByCreatedAtDesc(UUID classSubjectId);
 
+    List<Assignment> findByClassSubjectId(UUID classSubjectId);
+
     @EntityGraph(attributePaths = {"classSubject", "classSubject.subject", "classSubject.acroClass", "file", "createdBy"})
     List<Assignment> findByIsDeletedFalseOrderByCreatedAtDesc();
 }
