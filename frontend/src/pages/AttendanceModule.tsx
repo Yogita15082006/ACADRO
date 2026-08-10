@@ -19,11 +19,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { MarkAttendanceModal } from './FacultyActivityModule';
-
 import { attendanceService } from '../services/attendanceService';
 import api from '../services/api';
-
-// Define schema
+import { CoordinatorAddAttendanceModal } from '../components/attendance/CoordinatorAddAttendanceModal';
+import { coordinatorAttendanceService, type CoordinatorStudent, type CoordinatorSectionData } from '../services/coordinatorAttendanceService';
+import { ProfileModule } from './ProfileModule';
 const attendanceSessionSchema = z.object({
   academicYear: z.string().min(1, "Required"),
   semester: z.string().min(1, "Required"),
@@ -1337,12 +1337,16 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
   );
 };
 
-const CoordinatorDashboard = ({ onSelectStudent, students, section, semester }: { onSelectStudent: (id: string) => void, students: any[], section: string, semester: number }) => {
+const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: { onSelectStudent: (id: string) => void, onViewProfile: (id: string) => void, sectionData: CoordinatorSectionData | null }) => {
   const [search, setSearch] = useState('');
   
-  const filtered = students.filter(s => 
+  if (!sectionData) {
+    return <div className="text-center p-8 text-muted-foreground">Loading section data...</div>;
+  }
+
+  const filtered = sectionData.students.filter(s => 
     s.name.toLowerCase().includes(search.toLowerCase()) || 
-    s.enrollment.toLowerCase().includes(search.toLowerCase())
+    (s.enrollmentNumber && s.enrollmentNumber.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -1350,7 +1354,7 @@ const CoordinatorDashboard = ({ onSelectStudent, students, section, semester }: 
       <Card className="border-border/50 shadow-sm bg-card">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 bg-muted/20 px-6 py-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" /> My Section Students ({section} â€¢ Sem {semester})
+            <Users className="w-4 h-4 text-primary" /> {sectionData.className} &bull; Sem {sectionData.semester} (Average: {sectionData.sectionAverage.toFixed(1)}%)
           </CardTitle>
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-[250px]">
@@ -1381,35 +1385,47 @@ const CoordinatorDashboard = ({ onSelectStudent, students, section, semester }: 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((student) => (
+                {filtered.map((student) => {
+                  const fallbackPhoto = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=4F46E5&color=fff&size=128`;
+                  return (
                   <TableRow key={student.id} className="hover:bg-muted/30 transition-colors border-b border-border/50 cursor-pointer" onClick={() => onSelectStudent(student.id)}>
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
-                        <img src={student.photo} alt={student.name} className="w-8 h-8 rounded-full object-cover border border-border/50" />
+                        <img 
+                          src={student.photo || fallbackPhoto} 
+                          onError={(e) => { e.currentTarget.src = fallbackPhoto; }}
+                          alt={student.name} 
+                          className="w-8 h-8 rounded-full object-cover border border-border/50" 
+                        />
                         <span className="font-semibold text-sm text-foreground">{student.name}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm font-medium text-muted-foreground">
-                      {student.enrollment}
+                      {student.enrollmentNumber || 'N/A'}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <span className="font-bold text-sm">{student.attendance}%</span>
+                        <span className="font-bold text-sm">{student.overallAttendance?.toFixed(1) || 0}%</span>
                         <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className={`h-full ${getProgressBarColor(student.attendance)}`} style={{ width: `${student.attendance}%` }}></div>
+                          <div className={`h-full ${getProgressBarColor(student.overallAttendance)}`} style={{ width: `${student.overallAttendance}%` }}></div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      {getStatusBadge(student.attendance)}
+                      {getStatusBadge(student.overallAttendance)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onSelectStudent(student.id); }}>
-                        View Details
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onViewProfile(student.id); }}>
+                          View Profile
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onSelectStudent(student.id); }}>
+                          View Details
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           </div>
@@ -1426,6 +1442,7 @@ export const AttendanceModule = () => {
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [viewingProfileStudentId, setViewingProfileStudentId] = useState<string | null>(null);
 
   // Student Real Data State
   const [studentOverall, setStudentOverall] = useState<any>(null);
@@ -1435,11 +1452,12 @@ export const AttendanceModule = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchStudentData = async () => {
-      if (role === 'student' && user?.id) {
+      const targetId = (role === 'student') ? user?.id : (role === 'coordinator' ? selectedStudentId : null);
+      if (targetId) {
         try {
-          const overall = await attendanceService.getStudentOverallAttendance(user.id);
-          const subjectWise = await attendanceService.getStudentSubjectWiseAttendance(user.id);
-          const history = await attendanceService.getStudentAttendanceHistory(user.id);
+          const overall = await attendanceService.getStudentOverallAttendance(targetId);
+          const subjectWise = await attendanceService.getStudentSubjectWiseAttendance(targetId);
+          const history = await attendanceService.getStudentAttendanceHistory(targetId);
           
           if (isMounted) {
             setStudentOverall(overall);
@@ -1459,13 +1477,31 @@ export const AttendanceModule = () => {
       isMounted = false;
       window.removeEventListener('sync-attendance-data', fetchStudentData);
     };
-  }, [role, user?.id]);
+  }, [role, user?.id, selectedStudentId]);
+
   
-  // Coordinator specific simulation
-  const assignedSection = 'IT-2';
-  const assignedSemester = 5;
-  const coordinatorSectionStudents: any[] = [];
-  
+  // Coordinator Real Data State
+  const [coordinatorSectionData, setCoordinatorSectionData] = useState<CoordinatorSectionData | null>(() => coordinatorAttendanceService.getCachedStudents());
+  const [showCoordinatorAddModal, setShowCoordinatorAddModal] = useState(false);
+
+  const fetchCoordinatorStudents = async (forceRefresh = false) => {
+    if (role === 'coordinator') {
+      try {
+        const data = await coordinatorAttendanceService.getMyStudents(forceRefresh);
+        setCoordinatorSectionData(data);
+      } catch (error) {
+        console.error('Failed to fetch coordinator students', error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchCoordinatorStudents();
+    const handleSync = () => fetchCoordinatorStudents(true);
+    window.addEventListener('sync-attendance-data', handleSync);
+    return () => window.removeEventListener('sync-attendance-data', handleSync);
+  }, [role]);
+
   // Admin Session State
   const [adminSessions, setAdminSessions] = useState<any[]>([]);
   useEffect(() => {
@@ -1604,6 +1640,12 @@ export const AttendanceModule = () => {
                 </Button>
               )}
 
+              {role === 'coordinator' && (
+                <Button onClick={() => setShowCoordinatorAddModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
+                  <Plus size={16} /> Add Attendance
+                </Button>
+              )}
+
               {role !== 'coordinator' && role !== 'faculty' && activeTab !== 'teachingHistory' && (
                 <Button onClick={() => setShowCreateModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
                   <Plus size={16} /> Create Session
@@ -1632,9 +1674,29 @@ export const AttendanceModule = () => {
 
       {activeTab === 'dashboard' && (
         <AnimatePresence mode="wait">
-          {selectedStudentId && role === 'coordinator' ? (
+          {viewingProfileStudentId && role === 'coordinator' ? (
+            <ProfileModule 
+              studentId={viewingProfileStudentId} 
+              onBack={() => setViewingProfileStudentId(null)} 
+            />
+          ) : selectedStudentId && role === 'coordinator' ? (
             <StudentAttendanceDetails 
-              student={coordinatorSectionStudents.find(s => s.id === selectedStudentId)}
+              student={(() => {
+                const s = coordinatorSectionData?.students.find(s => s.id === selectedStudentId);
+                if (!s) return { id: selectedStudentId, name: 'Unknown', enrollment: 'N/A', section: 'N/A', semester: 'N/A', photo: '', attendance: 0 };
+                return {
+                  id: s.id,
+                  name: s.name,
+                  enrollment: s.enrollmentNumber || 'N/A',
+                  section: coordinatorSectionData?.className || 'N/A',
+                  semester: coordinatorSectionData?.semester || 'N/A',
+                  photo: s.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
+                  attendance: s.overallAttendance ? Math.round(s.overallAttendance) : 0
+                };
+              })()}
+              subjectData={studentSubjectWise}
+              historyData={studentHistory}
+              overallData={studentOverall}
               onBack={() => setSelectedStudentId(null)}
             />
           ) : selectedSubjectId && role === 'student' ? (
@@ -1683,7 +1745,7 @@ export const AttendanceModule = () => {
                     <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500"><Users className="w-5 h-5"/></div>
                   </div>
                   <div>
-                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">{coordinatorSectionStudents.length}</h3>
+                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">{coordinatorSectionData ? coordinatorSectionData.students.length : '-'}</h3>
                     <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Total Students</p>
                   </div>
                 </CardContent>
@@ -1696,7 +1758,7 @@ export const AttendanceModule = () => {
                   </div>
                   <div>
                     <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionStudents.length > 0 ? Math.round(coordinatorSectionStudents.reduce((a, b) => a + b.attendance, 0) / coordinatorSectionStudents.length) : 0}%
+                      {coordinatorSectionData ? `${coordinatorSectionData.sectionAverage?.toFixed(1) || 0}%` : '-'}
                     </h3>
                     <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Section Avg Attendance</p>
                   </div>
@@ -1710,7 +1772,7 @@ export const AttendanceModule = () => {
                   </div>
                   <div>
                     <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionStudents.filter(s => s.status === 'Safe').length}
+                      {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance >= 75).length : '-'}
                     </h3>
                     <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students in Safe Zone</p>
                   </div>
@@ -1724,7 +1786,7 @@ export const AttendanceModule = () => {
                   </div>
                   <div>
                     <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionStudents.filter(s => s.status === 'Critical').length}
+                      {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance < 75).length : '-'}
                     </h3>
                     <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students at Risk</p>
                   </div>
@@ -1972,9 +2034,8 @@ export const AttendanceModule = () => {
             ) : role === 'coordinator' ? (
               <CoordinatorDashboard 
                 onSelectStudent={setSelectedStudentId} 
-                students={coordinatorSectionStudents}
-                section={assignedSection}
-                semester={assignedSemester}
+                onViewProfile={setViewingProfileStudentId}
+                sectionData={coordinatorSectionData}
               />
             ) : (
               <div className="lg:col-span-3 space-y-6">
@@ -2118,6 +2179,12 @@ export const AttendanceModule = () => {
           />
         )}
       </AnimatePresence>
+      <CoordinatorAddAttendanceModal 
+        isOpen={showCoordinatorAddModal} 
+        onClose={() => setShowCoordinatorAddModal(false)} 
+        onSuccess={() => fetchCoordinatorStudents()}
+        students={coordinatorSectionData?.students || []}
+      />
     </>
   );
 };

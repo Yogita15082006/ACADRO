@@ -26,8 +26,13 @@ public class AttendanceDashboardController {
     // --- AUTHORIZATION HELPERS ---
     private void verifyStudentAccess(UUID studentId) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        boolean isAdmin = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        if (!isAdmin && !userDetails.getId().equals(studentId)) {
+        boolean isPrivileged = userDetails.getAuthorities().stream().anyMatch(a -> 
+            a.getAuthority().equals("ROLE_ADMIN") || 
+            a.getAuthority().equals("ROLE_COORDINATOR") || 
+            a.getAuthority().equals("ROLE_HOD") || 
+            a.getAuthority().equals("ROLE_FACULTY")
+        );
+        if (!isPrivileged && !userDetails.getId().equals(studentId)) {
             throw new AccessDeniedException("Access denied: You can only access your own data");
         }
     }
@@ -55,7 +60,7 @@ public class AttendanceDashboardController {
     // --- STUDENT ENDPOINTS ---
 
     @GetMapping("/student/{studentId}/history")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<List<StudentAttendanceHistoryDto>>> getStudentAttendanceHistory(@PathVariable UUID studentId) {
         verifyStudentAccess(studentId);
         return ResponseEntity.ok(ApiResponse.success(
@@ -65,7 +70,7 @@ public class AttendanceDashboardController {
     }
 
     @GetMapping("/student/{studentId}/subject-wise")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<List<SubjectAttendanceDto>>> getStudentSubjectWiseAttendance(@PathVariable UUID studentId) {
         verifyStudentAccess(studentId);
         return ResponseEntity.ok(ApiResponse.success(
@@ -75,7 +80,7 @@ public class AttendanceDashboardController {
     }
 
     @GetMapping("/student/{studentId}/overall")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<OverallAttendanceDto>> getStudentOverallAttendance(@PathVariable UUID studentId) {
         verifyStudentAccess(studentId);
         return ResponseEntity.ok(ApiResponse.success(
@@ -85,7 +90,7 @@ public class AttendanceDashboardController {
     }
 
     @GetMapping("/student/{studentId}/monthly")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<List<MonthlyAttendanceDto>>> getStudentMonthlyAttendance(
             @PathVariable UUID studentId,
             @RequestParam UUID academicYearId,

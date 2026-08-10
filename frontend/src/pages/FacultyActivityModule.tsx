@@ -78,7 +78,7 @@ export const FacultyActivityModule = () => {
 
   const fetchFacultySummary = async () => {
     try {
-      const res = await api.get('/faculty-summary');
+      const res = await api.get('/v1/faculty-summary');
       setApiFacultyData(res.data);
       const activityRes = await api.get('/faculty-activities');
       setApiActivityRecords(activityRes.data?.data || []);
@@ -104,12 +104,12 @@ export const FacultyActivityModule = () => {
     if (!user) return new Set<string>();
     
     // HOD sees all
-    if (user.role === 'hod') {
-      return new Set(apiFacultyData.map(a => a.id));
+    if (user.role && user.role.toLowerCase() === 'hod') {
+      return new Set(apiFacultyData.map((a: any) => a.id));
     }
     
     // Coordinator sees only faculty assigned to their managed classes
-    if (user.role === 'coordinator') {
+    if (user.role && user.role.toLowerCase() === 'coordinator') {
       const managedClassIds = user.classes || [];
       const managedClassObjects = managedClassIds.map(id => mockData.classes.find(c => c.id === id)).filter(Boolean);
       const managedClassNames = managedClassObjects.map(c => c?.name);
@@ -173,9 +173,10 @@ export const FacultyActivityModule = () => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(f => 
-        f.name.toLowerCase().includes(q) || 
-        f.empId.toLowerCase().includes(q) || 
-        f.email.toLowerCase().includes(q)
+        (f.name && f.name.toLowerCase().includes(q)) || 
+        (f.employeeId && f.employeeId.toLowerCase().includes(q)) || 
+        (f.email && f.email.toLowerCase().includes(q)) ||
+        (f.role && f.role.toLowerCase().includes(q))
       );
     }
 
@@ -275,89 +276,79 @@ export const FacultyActivityModule = () => {
               </select>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pt-4 border-t border-border">
-            <MultiSelect label="Academic Year" options={yearOptions} selected={academicYears} onChange={setAcademicYears} />
-            <MultiSelect label="Semester" options={semOptions} selected={semesters} onChange={setSemesters} />
-            <MultiSelect label="Class" options={classOptions} selected={classes} onChange={setClasses} />
-            <MultiSelect label="Subject" options={allSubjects} selected={subjects} onChange={setSubjects} />
-            <MultiSelect label="Status" options={['Active', 'Inactive']} selected={statusFilter} onChange={setStatusFilter} />
-          </div>
-          
-          <div className="flex justify-end pt-2">
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-muted-foreground hover:text-foreground">
-              Clear All Filters
-            </Button>
-          </div>
+
         </CardContent>
       </Card>
 
       {/* Faculty Directory Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredFaculty.map(faculty => (
-          <Card key={faculty.id} className="overflow-hidden border-border hover:border-primary/40 hover:shadow-lg transition-all duration-300 group flex flex-col">
-            <CardHeader className="p-5 pb-4 border-b border-border/50 bg-muted/20 relative">
-              <div className="absolute top-4 right-4">
-                <Badge variant={faculty.status === 'Active' ? 'default' : 'secondary'} className={faculty.status === 'Active' ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-500 text-white' : ''}>
-                  {faculty.status}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-4">
-                <img src={`https://ui-avatars.com/api/?name=${faculty.name.replace(/ /g,'+')}&background=4F46E5&color=fff&size=64`} alt={faculty.name} className="w-16 h-16 rounded-full ring-2 ring-background shadow-md" />
-                <div>
-                  <CardTitle className="text-lg">{faculty.name}</CardTitle>
-                  <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="font-mono">{faculty.empId}</Badge>
+          <Card key={faculty.id} className="overflow-hidden border-border/60 bg-card hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex flex-col relative">
+            
+            {/* Top decorative gradient bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-primary/80 via-indigo-500/80 to-purple-500/80 absolute top-0 left-0 z-10" />
+
+            <CardHeader className="p-5 pb-4 border-b border-border/40 relative bg-gradient-to-b from-muted/30 to-transparent">
+              <div className="flex items-start gap-4">
+                <div className="relative">
+                  <img src={`https://ui-avatars.com/api/?name=${faculty.name.replace(/ /g,'+')}&background=4F46E5&color=fff&size=64`} alt={faculty.name} className="w-16 h-16 rounded-2xl object-cover ring-2 ring-background shadow-md group-hover:scale-105 transition-transform duration-300" />
+                  <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-card ${faculty.status === 'Active' ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                </div>
+                <div className="pt-1 flex-1 pr-14">
+                  <CardTitle className="text-lg font-bold text-foreground leading-tight">{faculty.name}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <Badge variant="outline" className="font-mono text-[10px] bg-background/50">{faculty.employeeId || 'N/A'}</Badge>
+                    {faculty.role && <Badge variant="secondary" className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary border-primary/20">{faculty.role}</Badge>}
                   </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-5 space-y-4 flex-1">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail size={14} className="shrink-0" /> <span className="truncate">{faculty.email}</span>
+            <CardContent className="p-5 space-y-5 flex-1 bg-card">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5 text-sm text-muted-foreground bg-muted/20 p-2 rounded-lg border border-border/40">
+                  <Mail size={14} className="shrink-0 text-primary/70" /> <span className="truncate font-medium">{faculty.email}</span>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {faculty.assignedYears.map(y => <Badge key={y} variant="secondary" className="text-[10px] uppercase bg-primary/10 text-primary">{y}</Badge>)}
-                  {faculty.assignedSems.map(s => <Badge key={s} variant="outline" className="text-[10px] uppercase">{s}</Badge>)}
+                  {faculty.assignedYears.map(y => <Badge key={y} variant="outline" className="text-[9px] uppercase bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">{y}</Badge>)}
+                  {faculty.assignedSems.map(s => <Badge key={s} variant="outline" className="text-[9px] uppercase bg-violet-50/50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800">{s}</Badge>)}
                 </div>
-                <div className="flex gap-1.5 flex-wrap pt-1">
-                  {faculty.assignedClasses.map(c => <Badge key={c} variant="outline" className="text-[10px] bg-accent/50">{c}</Badge>)}
-                  {faculty.assignedSubjects.map(s => <Badge key={s} variant="outline" className="text-[10px] bg-accent/20 border-primary/20 text-muted-foreground">{s}</Badge>)}
+                <div className="flex gap-1.5 flex-wrap">
+                  {faculty.assignedClasses.map(c => <Badge key={c} variant="secondary" className="text-[10px]">{c}</Badge>)}
+                  {faculty.assignedSubjects.map(s => <Badge key={s} variant="outline" className="text-[10px] text-muted-foreground border-dashed">{s}</Badge>)}
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border/50">
-                <div className="text-center p-2 rounded-lg bg-muted/30">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase">Scheduled</p>
-                  <p className="text-lg font-bold text-foreground mt-0.5">{faculty.totalScheduled}</p>
+              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border/40">
+                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-primary/10 border border-primary/20 transition-colors">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Scheduled</p>
+                  <p className="text-xl font-bold text-primary leading-none">{faculty.totalScheduled}</p>
                 </div>
-                <div className="text-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50">
-                  <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase">Taken</p>
-                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{faculty.classesTaken}</p>
+                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-success/10 border border-success/20 transition-colors">
+                  <p className="text-[10px] font-bold text-success uppercase tracking-wider mb-1">Taken</p>
+                  <p className="text-xl font-bold text-success leading-none">{faculty.classesTaken}</p>
                 </div>
-                <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50">
-                  <p className="text-[10px] font-semibold text-red-700 dark:text-red-400 uppercase">Missed</p>
-                  <p className="text-lg font-bold text-red-700 dark:text-red-400 mt-0.5">{faculty.classesMissed}</p>
+                <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-destructive/10 border border-destructive/20 transition-colors">
+                  <p className="text-[10px] font-bold text-destructive uppercase tracking-wider mb-1">Missed</p>
+                  <p className="text-xl font-bold text-destructive leading-none">{faculty.classesMissed}</p>
                 </div>
               </div>
               
-              <div className="pt-2">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-muted-foreground">Teaching Attendance</span>
-                  <span className="text-xs font-bold text-primary">{faculty.teachingAttendance}%</span>
+              <div className="pt-1">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Teaching Attendance</span>
+                  <span className="text-sm font-black text-primary">{faculty.teachingAttendance}%</span>
                 </div>
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: `${faculty.teachingAttendance}%` }} />
+                <div className="h-2.5 w-full bg-muted/50 rounded-full overflow-hidden shadow-inner backdrop-blur-sm relative">
+                  <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-indigo-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${faculty.teachingAttendance}%` }} />
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="p-4 pt-0 gap-3 border-t border-border/50 bg-muted/10 mt-auto">
-              <Button variant="outline" className="flex-1 border-primary/20 hover:bg-primary/5" onClick={() => setSelectedFaculty(faculty)}>
-                <BookOpen size={14} className="mr-2" /> View Activity
+            <CardFooter className="p-4 gap-3 border-t border-border/40 bg-muted/5 mt-auto">
+              <Button variant="default" className="flex-1 shadow-sm hover:shadow-md transition-all group/btn" onClick={() => setSelectedFaculty(faculty)}>
+                <BookOpen size={16} className="mr-2 group-hover/btn:-translate-y-0.5 transition-transform" /> View Activity
               </Button>
-              <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" title="View Profile">
-                <UserIcon size={16} />
+              <Button variant="outline" size="icon" className="shrink-0 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors" title="View Profile">
+                <UserIcon size={18} />
               </Button>
             </CardFooter>
           </Card>
@@ -418,7 +409,8 @@ const ActivityModal = ({ faculty, onClose }: { faculty: any, onClose: () => void
             <div>
               <h2 className="text-xl font-bold text-foreground flex items-center flex-wrap gap-2">
                 {faculty.name} 
-                <Badge variant="outline" className="font-mono text-xs">{faculty.empId}</Badge>
+                <Badge variant="outline" className="font-mono text-xs">{faculty.employeeId || 'N/A'}</Badge>
+                {faculty.role && <Badge variant="secondary" className="text-xs">{faculty.role}</Badge>}
               </h2>
               <p className="text-sm text-muted-foreground flex items-center flex-wrap gap-2 mt-1">
                 <span className="flex items-center gap-1"><Mail size={12}/> {faculty.email}</span>

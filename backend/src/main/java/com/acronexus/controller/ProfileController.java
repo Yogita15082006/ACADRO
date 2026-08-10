@@ -22,6 +22,12 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.success("Profile fetched successfully", profileService.getFullProfile(userDetails.getId())));
     }
 
+    @GetMapping("/{userId}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
+    public ResponseEntity<ApiResponse<ProfileDto>> getProfileById(@PathVariable java.util.UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success("Profile fetched successfully", profileService.getFullProfile(userId)));
+    }
+
     @PutMapping
     public ResponseEntity<ApiResponse<ProfileDto>> updateProfile(@RequestBody ProfileDto profileDto) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();

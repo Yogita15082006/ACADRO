@@ -1,12 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import api from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Mail, Hash, Users, GraduationCap, Building, Moon, Sun, LogOut, Info, Key, Camera, Eye, EyeOff, Save, Smartphone, CheckCircle2, Lock, Edit } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { mockData } from '../data/mockData';
 import { PersonalDetails } from '../components/profile/PersonalDetails';
 import { AddressDetails } from '../components/profile/AddressDetails';
 import { AcademicRecord } from '../components/profile/AcademicRecord';
@@ -19,18 +20,58 @@ import { Internships } from '../components/profile/Internships';
 import { Projects } from '../components/profile/Projects';
 import { ConsentDeclaration } from '../components/profile/ConsentDeclaration';
 import { FacultyTeachingSummary, FacultyAbsenceHistory } from '../components/profile/FacultyActivityWidgets';
-export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
+
+export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingStudent?: any, studentId?: string, onBack?: () => void }) => {
   const { user, role, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [searchParams] = useSearchParams();
+  const studentIdParam = studentId || searchParams.get('studentId');
 
-  const isReadOnlyView = !!viewingStudent;
-  const profileUser = viewingStudent || user;
+  const getSafeString = (val: any) => typeof val === 'object' && val !== null ? (val.name || val.id || JSON.stringify(val)) : val;
+
+  const sanitizeProfileData = (obj: any): any => {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeProfileData);
+    if (typeof obj === 'object') {
+      if ('id' in obj && 'name' in obj) return obj.name;
+      const newObj: any = {};
+      for (const key in obj) newObj[key] = sanitizeProfileData(obj[key]);
+      return newObj;
+    }
+    return obj;
+  };
+
+  const [fetchedStudent, setFetchedStudent] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!!studentIdParam);
+
+  useEffect(() => {
+    if (studentIdParam && !viewingStudent) {
+      setIsLoadingProfile(true);
+      api.get(`/v1/profile/${studentIdParam}`).then(res => {
+        setFetchedStudent(res.data?.data);
+      }).catch(err => console.error("Failed to fetch student profile", err))
+      .finally(() => setIsLoadingProfile(false));
+    }
+  }, [studentIdParam, viewingStudent]);
+
+  const isReadOnlyView = !!viewingStudent || !!studentIdParam;
+  const rawProfileUser = viewingStudent || fetchedStudent || (studentIdParam ? null : user);
+  const profileUser = sanitizeProfileData(rawProfileUser);
 
   // Profile Edit State
-  const [email, setEmail] = useState(profileUser.email || '');
-  const [phone, setPhone] = useState(profileUser.phone || '');
+  const [email, setEmail] = useState(profileUser?.email || '');
+  const [phone, setPhone] = useState(profileUser?.phone || '');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(profileUser.avatar || `https://ui-avatars.com/api/?name=${profileUser.name}&background=4F46E5&color=fff&size=128`);
+  const [avatarPreview, setAvatarPreview] = useState(profileUser?.avatar || profileUser?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser?.name || profileUser?.firstName || 'User')}&background=4F46E5&color=fff&size=128`);
+  
+  useEffect(() => {
+    if (profileUser) {
+      setEmail(profileUser.email || '');
+      setPhone(profileUser.phone || '');
+      setAvatarPreview(profileUser.avatar || profileUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser.name || profileUser.firstName || 'User')}&background=4F46E5&color=fff&size=128`);
+    }
+  }, [profileUser]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Password State
@@ -44,7 +85,7 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
   const [smsNotif, setSmsNotif] = useState(false);
 
   // Admin Class Management State
-  const [adminClasses, setAdminClasses] = useState<string[]>(profileUser.classes || []);
+  const [adminClasses, setAdminClasses] = useState<string[]>(profileUser?.classes || []);
   const [isEditingClasses, setIsEditingClasses] = useState(false);
 
   const handleProfileSave = (e: React.FormEvent) => {
@@ -75,9 +116,22 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
     }
   };
 
+  if (isLoadingProfile || !profileUser) {
+    return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading profile...</div>;
+  }
+
   return (
     <div className={`space-y-6 animate-in fade-in duration-500 pb-10 mx-auto ${isReadOnlyView ? 'max-w-6xl' : 'max-w-5xl'}`}>
       
+      {onBack && (
+        <div className="flex items-center mb-4">
+          <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground hover:text-foreground">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            Back to Dashboard
+          </Button>
+        </div>
+      )}
+
       {/* PROFESSIONAL PROFILE HEADER */}
       <Card className="bg-card border-border shadow-md overflow-hidden">
         {/* Banner */}
@@ -119,11 +173,11 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                   <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
                     {profileUser.name}
                   </h1>
-                  <p className="text-lg text-primary font-medium mt-1 flex items-center justify-center sm:justify-start gap-2">
+                  <div className="text-lg text-primary font-medium mt-1 flex items-center justify-center sm:justify-start gap-2">
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                       {isReadOnlyView ? 'Student' : (['faculty', 'hod', 'coordinator', 'both'].includes(role) ? 'Administrator' : 'Student')}
                     </Badge>
-                  </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground mt-4">
@@ -135,11 +189,11 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" />
-                        <span>{profileUser.course && profileUser.section ? `${profileUser.course} (Section: ${profileUser.section})` : profileUser.className || 'Unassigned'}</span>
+                        <span>{getSafeString(profileUser.course) && getSafeString(profileUser.section) ? `${getSafeString(profileUser.course)} (Section: ${getSafeString(profileUser.section)})` : getSafeString(profileUser.className) || 'Unassigned'}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4" />
-                        <span>{profileUser.department || profileUser.departmentName || profileUser.branch || 'Not Specified'}</span>
+                        <span>{getSafeString(profileUser.department) || getSafeString(profileUser.departmentName) || getSafeString(profileUser.branch) || 'Not Specified'}</span>
                       </div>
                     </>
                   ) : (
@@ -150,7 +204,7 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4" />
-                        <span>{profileUser.department}</span>
+                        <span>{getSafeString(profileUser.department) || 'Not Specified'}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4" />
@@ -344,20 +398,20 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                   {isEditingClasses ? (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {mockData.classes.map(c => (
-                          <label key={c.id} className="flex items-start gap-3 p-4 rounded-xl border-2 border-border/50 bg-background hover:bg-muted/50 cursor-pointer transition-all hover:border-primary/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                        {profileUser?.classes?.map((c: any, index: number) => (
+                          <label key={index} className="flex items-start gap-3 p-4 rounded-xl border-2 border-border/50 bg-background hover:bg-muted/50 cursor-pointer transition-all hover:border-primary/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                             <input 
                               type="checkbox" 
                               className="mt-1 rounded border-input text-primary focus:ring-primary w-5 h-5 transition-all cursor-pointer"
-                              checked={adminClasses.includes(c.id)}
-                              onChange={() => toggleClass(c.id)}
+                              checked={true}
+                              readOnly
                             />
                             <div className="space-y-1">
-                              <p className="text-base font-semibold text-foreground">{c.name}</p>
-                              <p className="text-sm text-muted-foreground">{c.year} • {(c as any).department || 'Department'}</p>
+                              <p className="text-base font-semibold text-foreground">{typeof c === 'string' ? c : (c.name || 'Unknown Class')}</p>
+                              <p className="text-sm text-muted-foreground">{c.year || ''}</p>
                             </div>
                           </label>
-                        ))}
+                        )) || <p className="text-sm text-muted-foreground italic py-2">No available classes to select.</p>}
                       </div>
                       <div className="flex justify-end pt-2 gap-3">
                          <Button variant="outline" onClick={() => setIsEditingClasses(false)}>
@@ -378,13 +432,12 @@ export const ProfileModule = ({ viewingStudent }: { viewingStudent?: any }) => {
                       {adminClasses.length === 0 ? (
                         <p className="text-sm text-muted-foreground italic py-2">No classes assigned.</p>
                       ) : (
-                        adminClasses.map((classId: string) => {
-                          const classInfo = mockData.classes.find(c => c.id === classId);
-                          return classInfo ? (
-                            <div key={classId} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-sm">
+                        adminClasses.map((classItem: any, index: number) => {
+                          const className = typeof classItem === 'string' ? classItem : classItem.name;
+                          return className ? (
+                            <div key={index} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-sm">
                               <Users className="w-4 h-4 opacity-70" />
-                              <span className="font-semibold">{classInfo.name}</span>
-                              <span className="text-xs opacity-70 border-l border-primary/30 pl-3 py-1">{classInfo.year}</span>
+                              <span className="font-semibold">{className}</span>
                             </div>
                           ) : null;
                         })

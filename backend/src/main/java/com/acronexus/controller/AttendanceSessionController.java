@@ -30,7 +30,7 @@ public class AttendanceSessionController {
     }
 
     @PostMapping("/faculty/{facultyId}")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<AttendanceSessionDTO> createSession(
             @PathVariable UUID facultyId,
             @RequestBody CreateAttendanceSessionRequest request) {
@@ -38,14 +38,14 @@ public class AttendanceSessionController {
     }
 
     @GetMapping("/faculty/{facultyId}")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<List<AttendanceSessionDTO>> getFacultySessions(
             @PathVariable UUID facultyId) {
         return ResponseEntity.ok(sessionService.getFacultySessions(facultyId));
     }
 
     @GetMapping("/faculty/{facultyId}/statistics")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<java.util.Map<String, Object>> getFacultyStatistics(@PathVariable UUID facultyId) {
         return ResponseEntity.ok(sessionService.getFacultyStatistics(facultyId));
     }
@@ -62,7 +62,7 @@ public class AttendanceSessionController {
     }
 
     @PutMapping("/{sessionId}/status")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<AttendanceSessionDTO> updateStatus(
             @PathVariable UUID sessionId,
             @RequestParam com.acronexus.entity.AttendanceSessionStatus status) {
@@ -70,14 +70,14 @@ public class AttendanceSessionController {
     }
 
     @GetMapping("/{sessionId}/live")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<List<com.acronexus.dto.StudentAttendanceRecordDTO>> getLiveResponses(
             @PathVariable UUID sessionId) {
         return ResponseEntity.ok(sessionService.getLiveResponses(sessionId));
     }
 
     @PostMapping("/{sessionId}/bulk-approve-text")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> bulkApproveText(
             @PathVariable UUID sessionId,
             @RequestBody com.acronexus.dto.BulkApproveTextRequest request) {
@@ -88,7 +88,7 @@ public class AttendanceSessionController {
 
 
     @PostMapping("/{sessionId}/bulk-apply-review")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> bulkApplyReview(
             @PathVariable UUID sessionId,
             @RequestBody com.acronexus.dto.BulkApplyReviewRequest request) {
@@ -97,7 +97,7 @@ public class AttendanceSessionController {
     }
 
     @PostMapping("/{sessionId}/add-student/{enrollmentNumber}")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> addStudentToHistory(
             @PathVariable UUID sessionId,
             @PathVariable String enrollmentNumber) {
@@ -106,20 +106,21 @@ public class AttendanceSessionController {
     }
 
     @DeleteMapping("/{sessionId}")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> deleteSession(@PathVariable UUID sessionId) {
         sessionService.deleteSession(sessionId);
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/class/{classSubjectId}/active")
-    @PreAuthorize("hasRole('STUDENT') or hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT', 'FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<List<AttendanceSessionDTO>> getActiveSessionsForClass(
             @PathVariable UUID classSubjectId) {
         return ResponseEntity.ok(sessionService.getActiveSessionsForClass(classSubjectId));
     }
 
     @PutMapping("/{sessionId}/respond-request/{attendanceId}")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> respondToRequest(
             @PathVariable UUID sessionId,
             @PathVariable UUID attendanceId,
@@ -129,7 +130,7 @@ public class AttendanceSessionController {
     }
 
     @PostMapping("/{sessionId}/bulk-respond")
-    @PreAuthorize("hasRole('FACULTY') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
     public ResponseEntity<Void> bulkRespondToRequests(
             @PathVariable UUID sessionId,
             @RequestBody com.acronexus.dto.BulkRespondRequest request) {

@@ -1,9 +1,14 @@
 package com.acronexus.controller;
 
 import com.acronexus.entity.Faculty;
+import com.acronexus.entity.User;
+import com.acronexus.entity.UserRole;
 import com.acronexus.entity.ClassSubject;
+import com.acronexus.entity.CoordinatorAssignment;
 import com.acronexus.repository.FacultyRepository;
+import com.acronexus.repository.UserRepository;
 import com.acronexus.repository.ClassSubjectRepository;
+import com.acronexus.repository.CoordinatorAssignmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,32 +24,35 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FacultySummaryController {
 
+    private final UserRepository userRepository;
     private final FacultyRepository facultyRepository;
     private final ClassSubjectRepository classSubjectRepository;
+    private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
     public ResponseEntity<List<Map<String, Object>>> getFacultySummary() {
-        List<Faculty> faculties = facultyRepository.findAll();
+        List<UserRole> targetRoles = Arrays.asList(UserRole.FACULTY, UserRole.COORDINATOR);
+        List<User> targetUsers = userRepository.findByRoleIn(targetRoles).stream()
+                .filter(u -> (u.getIsActive() == null || u.getIsActive()) && (u.getIsDeleted() == null || !u.getIsDeleted()))
+                .collect(Collectors.toList());
+        
         List<Map<String, Object>> response = new ArrayList<>();
 
-        for (Faculty faculty : faculties) {
+        for (User user : targetUsers) {
             Map<String, Object> map = new HashMap<>();
-            map.put("id", faculty.getId());
-            if (faculty.getUser() != null) {
-                map.put("name", faculty.getUser().getFirstName() + " " + faculty.getUser().getLastName());
-                map.put("email", faculty.getUser().getEmail());
-                map.put("avatar", faculty.getUser().getProfilePictureUrl());
-                map.put("department", faculty.getUser().getDepartment() != null ? faculty.getUser().getDepartment().getName() : "Unknown");
-            } else {
-                map.put("name", "Unknown");
-                map.put("email", "unknown");
-                map.put("avatar", null);
-                map.put("department", "Unknown");
-            }
-            map.put("employeeId", faculty.getEmployeeId());
+            map.put("id", user.getId());
+            map.put("name", user.getFirstName() + " " + user.getLastName());
+            map.put("email", user.getEmail());
+            map.put("avatar", user.getProfilePictureUrl());
+            map.put("department", user.getDepartment() != null ? user.getDepartment().getName() : "Unknown");
+            map.put("role", user.getRole().name());
 
-            List<ClassSubject> classSubjects = classSubjectRepository.findByFacultyIdAndIsActiveTrue(faculty.getId());
+            Optional<Faculty> facultyOpt = facultyRepository.findById(user.getId());
+            map.put("employeeId", facultyOpt.map(Faculty::getEmployeeId).orElse("N/A"));
+
+            List<ClassSubject> classSubjects = classSubjectRepository.findByFacultyIdAndIsActiveTrue(user.getId());
+            List<CoordinatorAssignment> coordAssignments = coordinatorAssignmentRepository.findByCoordinatorId(user.getId());
             
             Set<String> assignedYears = new HashSet<>();
             Set<String> assignedSems = new HashSet<>();
@@ -58,10 +66,16 @@ public class FacultySummaryController {
                 if (cs.getSubject() != null) assignedSubjects.add(cs.getSubject().getName());
             }
 
-            map.put("assignedYears", assignedYears);
-            map.put("assignedSems", assignedSems);
-            map.put("assignedClasses", assignedClasses);
-            map.put("assignedSubjects", assignedSubjects);
+            for (CoordinatorAssignment ca : coordAssignments) {
+                if (ca.getAcademicYear() != null) assignedYears.add(ca.getAcademicYear().replace("YEAR_", ""));
+                if (ca.getSemester() != null) assignedSems.add("Sem " + ca.getSemester());
+                if (ca.getClassName() != null) assignedClasses.add(ca.getClassName());
+            }
+
+            map.put("assignedYears", new ArrayList<>(assignedYears));
+            map.put("assignedSems", new ArrayList<>(assignedSems));
+            map.put("assignedClasses", new ArrayList<>(assignedClasses));
+            map.put("assignedSubjects", new ArrayList<>(assignedSubjects));
 
             response.add(map);
         }

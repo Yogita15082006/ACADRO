@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 @Repository
 public interface StudentAttendanceRepository extends JpaRepository<StudentAttendance, UUID> {
     boolean existsByStudentIdAndClassSubjectIdAndDate(UUID studentId, UUID classSubjectId, java.time.LocalDate date);
+    boolean existsByStudentIdAndSessionId(UUID studentId, UUID sessionId);
     List<StudentAttendance> findBySessionId(UUID sessionId);
     
     @org.springframework.data.jpa.repository.Modifying
