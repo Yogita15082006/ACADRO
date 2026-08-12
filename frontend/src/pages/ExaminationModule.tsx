@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from "../services/api";
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -17,22 +17,7 @@ import {
   Bar, Legend, PieChart, Pie, Cell, BarChart
 } from 'recharts';
 import { toast } from 'sonner';
-import { mockData } from '../data/mockData';
 
-// --- INITIAL MOCK DATA ---
-const INITIAL_EXAMS = [
-  { id: 'exam-1', name: 'Mid Semester Examination', academicYear: '2026-2027', department: 'Information Technology', semester: '5th', class: 'IT-1', description: 'Official Mid Semester Examination for odd semester.', startDate: '2026-10-15', endDate: '2026-10-25', status: 'Completed' },
-  { id: 'exam-2', name: 'End Semester Examination', academicYear: '2026-2027', department: 'Information Technology', semester: '5th', class: 'IT-1', description: 'Final End Semester Examination.', startDate: '2026-12-10', endDate: '2026-12-24', status: 'Upcoming' }
-];
-
-const MOCK_TIMETABLES = [
-  { id: 'tt-1', examId: 'exam-1', name: 'Mid_Sem_TimeTable.pdf', type: 'PDF', size: '2.4 MB', uploadedBy: 'Admin (Dr. Sharma)', uploadDate: '2026-10-01' }
-];
-
-const MOCK_NOTICES = [
-  { id: 'not-1', examId: 'exam-1', title: 'Admit Card Collection', description: 'Please collect your admit cards from the department office.', category: 'Admit Card Notice', priority: 'High', publishDate: '2026-10-10', attachment: 'admit_card_guidelines.pdf' },
-  { id: 'not-2', examId: 'exam-1', title: 'Seating Arrangement', description: 'Seating arrangement for all 3rd-year students.', category: 'Seating Arrangement', priority: 'Medium', publishDate: '2026-10-14', attachment: 'seating.xlsx' }
-];
 
 const getPersistentData = (key: string, defaultValue: any) => {
   try {
@@ -55,15 +40,52 @@ const setPersistentData = (key: string, value: any) => {
 export const ExaminationModule = () => {
   const { role, user } = useAuth();
   
-  // States
-  const [exams, setExams] = useState(() => getPersistentData('acronexus_exams', INITIAL_EXAMS));
-  const [timetables, setTimetables] = useState(() => getPersistentData('acronexus_timetables', MOCK_TIMETABLES));
-  const [notices, setNotices] = useState(() => getPersistentData('acronexus_notices', MOCK_NOTICES));
+  // Real States
+  const [exams, setExams] = useState<any[]>([]);
+    const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [batches, setBatches] = useState<string[]>([]);
+  const [allClasses, setAllClasses] = useState<any[]>([]);
+  
+  
+
+  const [timetables] = useState<any[]>([]);
+  const [notices, setNotices] = useState<any[]>([]);
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isCreatingExam, setIsCreatingExam] = useState(false);
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('timetable'); // timetable, results, analytics, info
+  
+  useEffect(() => {
+    if (activeTab === 'eligibility') {
+      fetchSavedEligibilityList();
+    }
+  }, [activeTab, selectedExam]);
   const [examToDelete, setExamToDelete] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Fetch Initial Data
+  useEffect(() => {
+    const fetchData = async () => {
+    setIsLoadingData(true);
+    try {
+      const [examsRes, batchesRes] = await Promise.all([
+        api.get('/examinations'),
+        api.get('/v1/metadata/batches')
+      ]);
+      
+      if (examsRes.data.success) setExams(examsRes.data.data);
+      if (batchesRes.data.success) setBatches(batchesRes.data.data);
+    } catch (error) {
+      console.error("Error fetching examination initial data:", error);
+      toast.error("Failed to load examination data");
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+    fetchData();
+  }, []);
+
 
   // Publish Notice State
   const [showPublishNoticeModal, setShowPublishNoticeModal] = useState(false);
@@ -88,14 +110,58 @@ export const ExaminationModule = () => {
   
   // Create Exam (Admin)
   const [createExamName, setCreateExamName] = useState('');
+  const [createType, setCreateType] = useState('MID_TERM');
+  const [customType, setCustomType] = useState('');
   const [createYear, setCreateYear] = useState('');
   const [createSemester, setCreateSemester] = useState('');
-  const [createDept, setCreateDept] = useState('');
+  const [createBatch, setCreateBatch] = useState('');
   const [createClasses, setCreateClasses] = useState<string[]>([]);
   const [createStartDate, setCreateStartDate] = useState('');
   const [createEndDate, setCreateEndDate] = useState('');
   const [createDescription, setCreateDescription] = useState('');
+
+  // Cascading logic
+  useEffect(() => {
+    if (createBatch) {
+      api.get(`/academic-years?batch=${createBatch}`)
+        .then(res => {
+          if (res.data.success) setAcademicYears(res.data.data);
+        })
+        .catch(err => console.error(err));
+    } else {
+      setAcademicYears([]);
+      setCreateYear('');
+    }
+  }, [createBatch]);
+
+  useEffect(() => {
+    if (createBatch && createYear) {
+      api.get(`/semesters?batch=${createBatch}&academicYearId=${createYear}`)
+        .then(res => {
+          if (res.data.success) setSemesters(res.data.data);
+        })
+        .catch(err => console.error(err));
+    } else {
+      setSemesters([]);
+      setCreateSemester('');
+    }
+  }, [createBatch, createYear]);
+
+  useEffect(() => {
+    if (createBatch && createYear && createSemester) {
+      api.get(`/v1/classes?batch=${createBatch}&academicYearId=${createYear}&semesterId=${createSemester}`)
+        .then(res => {
+          if (res.data.success) setAllClasses(res.data.data);
+        })
+        .catch(err => console.error(err));
+    } else {
+      setAllClasses([]);
+      setCreateClasses([]);
+    }
+  }, [createBatch, createYear, createSemester]);
+
   const [createTimetableFile, setCreateTimetableFile] = useState<File | null>(null);
+  
   // Results Management (Admin)
   const [selectedClass, setSelectedClass] = useState('');
   const [enteringMarksForStudent, setEnteringMarksForStudent] = useState<any>(null);
@@ -174,13 +240,15 @@ export const ExaminationModule = () => {
   const [elgCriteria, setElgCriteria] = useState({ attendance: true, assignment: false, quiz: false, internalMarks: false, event: false });
   const [elgSettings, setElgSettings] = useState({ attendance: 75, assignment: 80, quiz: 40, internal: 40 });
   const [elgGeneratedList, setElgGeneratedList] = useState<any[] | null>(null);
+  const [savedListId, setSavedListId] = useState<string | null>(null);
   const [elgInsights, setElgInsights] = useState<any>(null);
   const [elgFilter, setElgFilter] = useState({ search: '', status: 'All', sort: 'Alpha' });
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationText, setSimulationText] = useState('');
-  const [eligibilitySaved, setEligibilitySaved] = useState(false);
-  const [savedEligibilityLists, setSavedEligibilityLists] = useState<any[]>(() => getPersistentData('acronexus_eligibility', []));
+  
+
   const [elgViewMode, setElgViewMode] = useState<'saved' | 'create' | 'view'>('saved');
+  const [isEligibilitySaved, setIsEligibilitySaved] = useState(false);
 
   // Seating Arrangement (Admin)
   const [seatRooms, setSeatRooms] = useState<any[]>([]); 
@@ -191,9 +259,7 @@ export const ExaminationModule = () => {
   const [savedSeatingLists, setSavedSeatingLists] = useState<any[]>(() => getPersistentData('acronexus_seating', []));
   const [seatingViewMode, setSeatingViewMode] = useState<'saved' | 'create' | 'view'>('saved');
   
-  useEffect(() => {
-    setPersistentData('acronexus_eligibility', savedEligibilityLists);
-  }, [savedEligibilityLists]);
+
 
   useEffect(() => {
     setPersistentData('acronexus_seating', savedSeatingLists);
@@ -210,26 +276,29 @@ export const ExaminationModule = () => {
 
   // Constants
   // Helper to get students for a class
-  const classStudents = selectedClass ? mockData.students.filter(s => s.className === selectedClass || selectedClass.includes('IT')) : [];
+  const classStudents: any[] = []; // Removed mock data usage for result management base list
 
   const openCreateForm = (exam: any = null) => {
     if (exam) {
       setEditingExamId(exam.id);
       setCreateExamName(exam.name);
-      setCreateYear(exam.academicYear);
-      setCreateSemester(exam.semester);
-      setCreateDept(exam.department);
-      setCreateClasses(exam.class.split(', '));
+      setCreateType(exam.type || 'MID_TERM');
+      setCreateYear(exam.academicYearId);
+      setCreateSemester(exam.semesterId);
+      setCreateBatch(exam.batch || '');
+      setCreateClasses(exam.classIds || []);
       setCreateStartDate(exam.startDate);
       setCreateEndDate(exam.endDate);
-      setCreateDescription(exam.description);
+      setCreateDescription(exam.description || '');
       setCreateTimetableFile(null);
     } else {
       setEditingExamId(null);
       setCreateExamName('');
+      setCreateType('MID_TERM');
+      setCustomType('');
       setCreateYear('');
       setCreateSemester('');
-      setCreateDept('');
+      setCreateBatch('');
       setCreateClasses([]);
       setCreateStartDate('');
       setCreateEndDate('');
@@ -239,73 +308,94 @@ export const ExaminationModule = () => {
     setIsCreatingExam(true);
   };
 
-  const handleSaveExam = () => {
-    if (!createExamName || !createYear || !createSemester || !createDept || createClasses.length === 0 || !createStartDate || !createEndDate) {
-      alert("Please fill all required fields.");
+  const handleSaveExam = async () => {
+    if (!createExamName || !createBatch || !createYear || !createSemester || createClasses.length === 0 || !createStartDate || !createEndDate) {
+      toast.error("Please fill all required fields.");
       return;
     }
 
     if (new Date(createEndDate) < new Date(createStartDate)) {
-      alert("End Date cannot be before Start Date.");
+      toast.error("End Date cannot be before Start Date.");
       return;
     }
     
-    const newExam = {
-      id: editingExamId || `exam-${Date.now()}`,
+    // Prepare DTO
+    const requestDto = {
       name: createExamName,
-      academicYear: createYear,
-      department: createDept,
-      semester: createSemester,
-      class: createClasses.join(', '),
+      type: createType,
+        customType: createType === 'OTHER' ? customType : null,
+      batch: createBatch,
+      semesterId: createSemester,
+      academicYearId: createYear,
+      classIds: createClasses,
       description: createDescription,
       startDate: createStartDate,
       endDate: createEndDate,
-      status: 'Upcoming'
+      timetableFileId: null 
     };
 
-    if (editingExamId) {
-      setExams(exams.map(e => e.id === editingExamId ? { ...e, ...newExam } : e));
-    } else {
-      setExams([...exams, newExam]);
-    }
+    try {
+      let response;
+      if (editingExamId) {
+        response = await api.put(`/examinations/${editingExamId}`, requestDto);
+      } else {
+        response = await api.post(`/examinations`, requestDto);
+      }
+      
+      let examData = response.data.data;
 
-    if (createTimetableFile) {
-      const newTT = {
-        id: `tt-${Date.now()}`,
-        examId: newExam.id,
-        name: createTimetableFile.name,
-        type: createTimetableFile.type.includes('pdf') ? 'PDF' : 'Image',
-        size: (createTimetableFile.size / (1024 * 1024)).toFixed(2) + ' MB',
-        uploadedBy: user?.name || 'Admin',
-        uploadDate: new Date().toISOString().split('T')[0]
-      };
-      setTimetables([...timetables, newTT]);
-    }
+      // If timetable file is provided, upload it
+      if (createTimetableFile) {
+        const formData = new FormData();
+        formData.append('file', createTimetableFile);
+        try {
+          const uploadResponse = await api.post(`/examinations/${examData.id}/timetable`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          examData = uploadResponse.data.data;
+        } catch (uploadError: any) {
+          console.error("Timetable upload failed:", uploadError);
+          toast.error("Examination saved, but timetable upload failed.");
+        }
+      }
 
-    setIsCreatingExam(false);
-    toast.success(editingExamId ? "Examination updated successfully" : "Examination created successfully");
+      if (editingExamId) {
+        setExams(exams.map(e => e.id === editingExamId ? examData : e));
+        toast.success("Examination updated successfully!");
+      } else {
+        setExams([...exams, examData]);
+        toast.success("Examination created successfully!");
+      }
+      
+      setIsCreatingExam(false);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.message || "Failed to save examination");
+    }
   };
   
   const handleDeleteExam = (id: string) => {
     setExamToDelete(id);
   };
 
-  const confirmDeleteExam = () => {
+  const confirmDeleteExam = async () => {
     if (examToDelete) {
-      setExams(exams.filter(e => e.id !== examToDelete));
-      setTimetables(timetables.filter(t => t.examId !== examToDelete));
-      if (selectedExam?.id === examToDelete) {
-        setSelectedExam(null);
+      try {
+        await api.delete(`/examinations/${examToDelete}`);
+        setExams(exams.filter(e => e.id !== examToDelete));
+        if (selectedExam?.id === examToDelete) {
+          setSelectedExam(null);
+        }
+        setExamToDelete(null);
+        toast.success("Examination deleted successfully");
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.response?.data?.message || "Failed to delete examination");
       }
-      setExamToDelete(null);
-      toast.success("Examination deleted successfully");
     }
   };
 
-  const handleDeleteTimetable = (id: string) => {
-    setTimetables(timetables.filter(t => t.id !== id));
-    toast.success("Timetable deleted successfully");
-  };
+  // handle delete timetable removed
 
   const handleDeleteNotice = (id: string) => {
     setNotices(notices.filter(n => n.id !== id));
@@ -511,7 +601,7 @@ export const ExaminationModule = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className={cn("text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider", 
-                  exam.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  exam.status === 'Completed' || exam.status?.toUpperCase() === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : exam.status === 'UPCOMING' || exam.status?.toUpperCase() === 'UPCOMING' ? 'bg-blue-600 text-white shadow-sm' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                 )}>
                   {exam.status}
                 </span>
@@ -528,10 +618,15 @@ export const ExaminationModule = () => {
               </div>
             </div>
             <h3 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{exam.name}</h3>
-            <div className="space-y-1 mb-4 flex-grow">
-              <p className="text-sm text-muted-foreground flex items-center gap-2"><CalendarIcon size={14}/> {exam.startDate} to {exam.endDate}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-2"><GraduationCap size={14}/> Sem: {exam.semester} • Class: {exam.class}</p>
-            </div>
+              <div className="grid grid-cols-2 gap-y-2 text-sm text-muted-foreground mb-4 flex-grow">
+                  <p className="flex items-center gap-2 col-span-2"><CalendarIcon size={14} className="text-primary"/> {new Date(exam.startDate).toLocaleDateString()} to {new Date(exam.endDate).toLocaleDateString()}</p>
+                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Batch: <span className="font-medium text-foreground">{exam.batch}</span></p>
+                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Year: <span className="font-medium text-foreground">{exam.academicYearName}</span></p>
+                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Sem: <span className="font-medium text-foreground">{exam.semesterName || exam.semester}</span></p>
+                  <p className="flex items-center gap-2 col-span-2"><GraduationCap size={14} className="text-primary"/> Classes: <span className="font-medium text-foreground">{exam.classNames ? exam.classNames.join(', ') : exam.class}</span></p>
+                {exam.createdByName && <p className="text-xs text-muted-foreground flex items-center gap-2 mt-2 pt-2 border-t border-border/50 col-span-2"><User size={12}/> Created By: {exam.createdByName}</p>}
+                {exam.createdAt && <p className="text-xs text-muted-foreground flex items-center gap-2 col-span-2"><Clock size={12}/> Created Date: {new Date(exam.createdAt).toLocaleString()}</p>}
+              </div>
             <div className="pt-4 border-t border-border flex justify-end">
               <span className="text-sm font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
                 Open Examination <ChevronRight size={16} />
@@ -561,77 +656,98 @@ export const ExaminationModule = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Year</label>
+            <label className="text-sm font-medium">Examination Type *</label>
+            <select className="w-full p-2 border border-border rounded-lg bg-background" value={createType} onChange={e => setCreateType(e.target.value)}>
+              <option value="MID_TERM">Mid Term</option>
+              <option value="END_TERM">End Term</option>
+              <option value="PRACTICAL">Practical</option>
+              <option value="QUIZ">Quiz</option>
+              <option value="OTHER">Other (Manual Entry)</option>
+            </select>
+          </div>
+          {createType === 'OTHER' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Specify Custom Examination Type *</label>
+              <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Unit Test 1" value={customType} onChange={e => setCustomType(e.target.value)} />
+            </div>
+          )}
+          <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">Batch *</label>
+              <select className="w-full p-2 border border-border rounded-lg bg-background" value={createBatch} onChange={e => { setCreateBatch(e.target.value); setCreateYear(''); }}>
+                <option value="">Select Batch</option>
+                {batches.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Academic Year *</label>
             <select className="w-full p-2 border border-border rounded-lg bg-background" value={createYear} onChange={e => { setCreateYear(e.target.value); setCreateClasses([]); }}>
               <option value="">Select Year</option>
-              <option value="Second Year">2nd Year</option>
-              <option value="Third Year">3rd Year</option>
-              <option value="Fourth Year">4th Year</option>
+              {academicYears.map(year => (
+                <option key={year.id} value={year.id}>{year.displayYear || year.year}</option>
+              ))}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Semester</label>
+            <label className="text-sm font-medium">Semester *</label>
             <select className="w-full p-2 border border-border rounded-lg bg-background" value={createSemester} onChange={e => setCreateSemester(e.target.value)}>
               <option value="">Select Semester</option>
-              <option value="Semester 3">Semester 3</option>
-              <option value="Semester 4">Semester 4</option>
-              <option value="Semester 5">Semester 5</option>
-              <option value="Semester 6">Semester 6</option>
-              <option value="Semester 7">Semester 7</option>
-              <option value="Semester 8">Semester 8</option>
+              {semesters.map(sem => (
+                <option key={sem.id} value={sem.id}>Semester {sem.semesterNumber}</option>
+              ))}
             </select>
           </div>
-          <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium">Department</label>
-            <select className="w-full p-2 border border-border rounded-lg bg-background" value={createDept} onChange={e => { setCreateDept(e.target.value); setCreateClasses([]); }}>
-              <option value="">Select Department</option>
-              <option value="IT">Information Technology (IT)</option>
-              <option value="DS">Data Science (DS)</option>
-            </select>
-          </div>
+            {createType === 'OTHER' && (
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Specify Custom Examination Type *</label>
+                <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Unit Test 1" value={customType} onChange={e => setCustomType(e.target.value)} />
+              </div>
+            )}
+
 
           <div className="space-y-2 md:col-span-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Classes *</label>
-              {mockData.classes.filter(c => (!createYear || c.year === createYear) && (!createDept || c.name.includes(createDept))).length > 0 && (
+              {allClasses.length > 0 && (
                 <button type="button" onClick={() => {
-                  const filtered = mockData.classes.filter(c => (!createYear || c.year === createYear) && (!createDept || c.name.includes(createDept)));
+                  const filtered = allClasses;
                   if (createClasses.length === filtered.length) {
                     setCreateClasses([]);
                   } else {
-                    setCreateClasses(filtered.map(c => c.name));
+                    setCreateClasses(filtered.map(c => c.id));
                   }
                 }} className="text-xs font-semibold text-primary hover:underline">
-                  {createClasses.length > 0 && createClasses.length === mockData.classes.filter(c => (!createYear || c.year === createYear) && (!createDept || c.name.includes(createDept))).length ? 'Deselect All' : 'Select All'}
+                  {createClasses.length > 0 && createClasses.length === allClasses.length ? 'Deselect All' : 'Select All'}
                 </button>
               )}
             </div>
-            {(!createYear && !createDept) ? (
+            {(!createYear && !createSemester) ? (
               <p className="text-sm text-muted-foreground italic p-3 bg-muted/30 rounded-lg border border-border">
-                Select Academic Year and Department to view available classes.
+                Select Batch, Academic Year and Semester to view available classes.
               </p>
             ) : (
               <div className="flex flex-wrap gap-3">
-                {mockData.classes.filter(c => (!createYear || c.year === createYear) && (!createDept || c.name.includes(createDept))).map(cls => (
+                {allClasses.map(cls => (
                   <label 
                     key={cls.id} 
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-medium ${
-                      createClasses.includes(cls.name) 
+                      createClasses.includes(cls.id) 
                         ? 'border-primary bg-primary/10 text-primary' 
                         : 'border-border bg-card hover:border-primary/30 text-foreground'
                     }`}
                   >
                     <input 
                       type="checkbox" 
-                      checked={createClasses.includes(cls.name)} 
+                      checked={createClasses.includes(cls.id)} 
                       onChange={() => {
                         setCreateClasses(prev => 
-                          prev.includes(cls.name) ? prev.filter(c => c !== cls.name) : [...prev, cls.name]
+                          prev.includes(cls.id) ? prev.filter(c => c !== cls.id) : [...prev, cls.id]
                         );
                       }}
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                     />
-                    {cls.name}
+                    {cls.section ? `${cls.name}-${cls.section}` : cls.name}
                   </label>
                 ))}
               </div>
@@ -711,7 +827,7 @@ export const ExaminationModule = () => {
           <div>
             <h2 className="text-2xl font-black text-foreground">{selectedExam.name}</h2>
             <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <GraduationCap size={14}/> {selectedExam.department} • Sem: {selectedExam.semester} • {selectedExam.startDate}
+              <GraduationCap size={14}/> {selectedExam.batch} • Sem: {selectedExam.semesterName || selectedExam.semester} • {selectedExam.startDate}
             </p>
           </div>
         </div>
@@ -752,6 +868,45 @@ export const ExaminationModule = () => {
     );
   };
 
+  const handleDownloadTimetable = async (timetableId: string, fileName: string, viewOnly: boolean = false) => {
+    if (!selectedExam || !selectedExam.id) return;
+    try {
+      const response = await api.get(`/examinations/${selectedExam.id}/timetable/${timetableId}`, {
+        responseType: 'blob'
+      });
+      const contentType = (response.headers['content-type'] as string) || 'application/pdf';
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
+      
+      if (viewOnly) {
+        window.open(url, '_blank');
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName || 'timetable.pdf');
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to download timetable");
+    }
+  };
+  
+  const handleDeleteTimetable = async (timetableId: string) => {
+      if (!selectedExam || !selectedExam.id) return;
+      try {
+          await api.delete(`/examinations/${selectedExam.id}/timetable/${timetableId}`);
+          toast.success("Timetable deleted successfully");
+          const updated = { ...selectedExam, timetables: selectedExam.timetables.filter((t: any) => t.id !== timetableId) };
+          setSelectedExam(updated);
+          setExams(exams.map(e => e.id === updated.id ? updated : e));
+      } catch (err) {
+          console.error(err);
+          toast.error("Failed to delete timetable");
+      }
+  };
+
   // --- RENDER: TIMETABLE (ADMIN & STUDENT) ---
   const renderTimetable = () => (
     <div className="space-y-6">
@@ -760,46 +915,78 @@ export const ExaminationModule = () => {
           <h3 className="text-lg font-bold">Uploaded Timetables</h3>
           <p className="text-sm text-muted-foreground">Official examination schedules</p>
         </div>
-        {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-          <Button className="gap-2 bg-primary">
-            <Upload size={16}/> Upload Timetable
-          </Button>
+        {['faculty', 'hod', 'coordinator', 'both', 'admin'].includes(role) && (
+          <div className="relative overflow-hidden inline-block">
+            <Button className="gap-2 bg-primary">
+              <Upload size={16}/> Upload Timetable
+            </Button>
+            <input 
+              type="file" 
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+              accept=".pdf,image/*,.doc,.docx"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file || !selectedExam) return;
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  const uploadResponse = await api.post(`/examinations/${selectedExam.id}/timetable`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                  });
+                  const updatedExam = uploadResponse.data.data;
+                  // Ensure timetables array exists
+                  if (!updatedExam.timetables) updatedExam.timetables = [];
+                  setSelectedExam(updatedExam);
+                  setExams(exams.map(ex => ex.id === updatedExam.id ? updatedExam : ex));
+                  toast.success("Timetable uploaded successfully");
+                } catch (err) {
+                  console.error("Upload error", err);
+                  toast.error("Failed to upload timetable");
+                } finally {
+                  e.target.value = '';
+                }
+              }}
+            />
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {timetables.filter(t => t.examId === selectedExam.id).length === 0 ? (
-          <div className="col-span-full p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
-            <CalendarDays size={48} className="mx-auto mb-4 opacity-20" />
-            <p>No timetable uploaded yet.</p>
-          </div>
-        ) : (
-          timetables.filter(t => t.examId === selectedExam.id).map(tt => (
-            <div key={tt.id} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col h-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {selectedExam?.timetables && selectedExam.timetables.length > 0 ? (
+          selectedExam.timetables.map((tt: any) => (
+            <div key={tt.id} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col hover:border-primary/50 transition-colors">
               <div className="flex justify-between items-start mb-4">
-                <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
-                  <FileIcon size={24} />
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                  <FileText size={24} />
                 </div>
-                <span className="text-xs font-bold text-muted-foreground">{tt.size}</span>
+                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] uppercase font-bold flex items-center">
+                  <CheckCircle size={12} className="mr-1"/> Active
+                </span>
               </div>
-              <h4 className="font-bold text-foreground truncate mb-1">{tt.name}</h4>
-              <div className="space-y-1 mb-6 flex-grow">
-                <p className="text-xs text-muted-foreground flex items-center gap-1"><GraduationCap size={12}/> Class: {selectedExam.class} • Sem: {selectedExam.semester}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1"><Users size={12}/> {tt.uploadedBy}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1"><CalendarIcon size={12}/> {tt.uploadDate}</p>
+              
+              <div className="mb-4">
+                <h4 className="font-bold text-base truncate" title={tt.fileName}>{tt.fileName}</h4>
+                <p className="text-xs text-muted-foreground mt-1">Uploaded by {tt.uploadedBy}</p>
+                <p className="text-xs text-muted-foreground">{new Date(tt.uploadDate).toLocaleString()}</p>
               </div>
+              
               <div className="grid grid-cols-2 gap-2 mt-auto">
-                <Button variant="outline" className="w-full text-xs h-9"><Eye size={14} className="mr-1"/> View</Button>
-                <Button variant="outline" className="w-full text-xs h-9"><DownloadCloud size={14} className="mr-1"/> Download</Button>
+                <Button variant="outline" className="w-full text-xs h-9" onClick={() => handleDownloadTimetable(tt.id, tt.fileName, true)}><Eye size={14} className="mr-1"/> View</Button>
+                <Button variant="outline" className="w-full text-xs h-9" onClick={() => handleDownloadTimetable(tt.id, tt.fileName, false)}><DownloadCloud size={14} className="mr-1"/> Download</Button>
                 {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-                  <>
-                    <Button variant="outline" className="w-full text-xs h-9 text-blue-500 hover:text-blue-600 hover:bg-blue-50"><RefreshCw size={14} className="mr-1"/> Replace</Button>
-                    <Button variant="outline" className="w-full text-xs h-9 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteTimetable(tt.id)}><Trash2 size={14} className="mr-1"/> Delete</Button>
-                  </>
+                  <Button variant="outline" className="w-full col-span-2 text-xs h-9 text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200" onClick={() => handleDeleteTimetable(tt.id)}>
+                    <Trash2 size={14} className="mr-1"/> Delete
+                  </Button>
                 )}
               </div>
             </div>
           ))
+        ) : (
+          <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-accent/50">
+            <CalendarDays className="mx-auto text-muted-foreground mb-4" size={48} opacity={0.5}/>
+            <h4 className="font-bold text-lg mb-2">No Timetables Available</h4>
+            <p className="text-muted-foreground">The timetable for this examination has not been uploaded yet.</p>
+          </div>
         )}
       </div>
     </div>
@@ -823,10 +1010,9 @@ export const ExaminationModule = () => {
     
     try {
       setUploadStatus('extracting');
-      const response = await axios.post('http://localhost:8080/api/v1/bulk-upload/results', formData, {
+      const response = await api.post('/v1/bulk-upload/results', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'dummy-token'}`
+          'Content-Type': 'multipart/form-data'
         }
       });
       
@@ -1857,121 +2043,178 @@ export const ExaminationModule = () => {
     }, 4000);
   };
 
-  const generateEligibilityList = () => {
-    // Simulate AI Engine
-    // Filter students by selected exam's class
-    const classesForExam = selectedExam?.class ? selectedExam.class.split(',').map((c: string) => c.trim()) : [];
-    
-    const classSts = mockData.students.filter(s => {
-      return classesForExam.includes(s.className) || classesForExam.length === 0;
-    });
-    
-    let totalAssg = mockData.assignments?.filter((a: any) => a.classId === classSts[0]?.classId).length || 5;
-    
-    let eligibleCount = 0;
-    let failAttendance = 0;
-    let failAssignment = 0;
-    let failQuiz = 0;
-
-    const list = classSts.map(student => {
-      const attendance = student.overallAttendance;
-      
-      // Mock assignment %
-      const subms = mockData.assignmentSubmissions.filter(s => s.studentId === student.id).length;
-      const assignment = totalAssg > 0 ? Math.round((subms / totalAssg) * 100) : 100;
-      
-      // Mock quiz %
-      const atts = mockData.quizAttempts.filter(q => q.studentId === student.id);
-      const quiz = atts.length > 0 ? Math.round(atts.reduce((acc, curr) => acc + curr.percentage, 0) / atts.length) : Math.floor(Math.random() * 40) + 40;
-      
-      // Mock internal %
-      const internal = Math.floor(Math.random() * 40) + 50;
-
-      let isEligible = true;
-      let reason = '';
-
-      if (elgCriteria.attendance && attendance < elgSettings.attendance) {
-        isEligible = false;
-        failAttendance++;
-        reason = 'Attendance Shortage';
-      } else if (elgCriteria.assignment && assignment < elgSettings.assignment) {
-        isEligible = false;
-        failAssignment++;
-        reason = 'Low Assignment Submissions';
-      } else if (elgCriteria.quiz && quiz < elgSettings.quiz) {
-        isEligible = false;
-        failQuiz++;
-        reason = 'Low Quiz Performance';
-      } else if (elgCriteria.internalMarks && internal < elgSettings.internal) {
-        isEligible = false;
-        reason = 'Low Internal Marks';
-      }
-
-      if (isEligible) eligibleCount++;
-
-      return {
-        ...student,
-        attendance,
-        assignment,
-        quiz,
-        internal,
-        isEligible,
-        reason
+  const generateEligibilityList = async () => {
+    if (!selectedExam) return;
+    try {
+      const payload = {
+        criteria: elgCriteria,
+        settings: elgSettings
       };
-    });
-
-    // Sort Alpha A-Z
-    list.sort((a, b) => a.name.localeCompare(b.name));
-
-    const insights = {
-      total: list.length,
-      eligible: eligibleCount,
-      notEligible: list.length - eligibleCount,
-      percentage: Math.round((eligibleCount / (list.length || 1)) * 100),
-      failAttendance,
-      failAssignment,
-      failQuiz
-    };
-
-    setElgInsights(insights);
-    setElgGeneratedList(list);
-  };
-
-  const handleExportCSV = () => {
-    if (!elgGeneratedList) return;
-    
-    const headers = ['Student Name', 'Enrollment No', 'Class', 'Attendance %', 'Assignment %', 'Quiz %', 'Internal %', 'Status', 'Reason'];
-    const rows = elgGeneratedList.map(s => [
-      s.name,
-      s.enrollmentNumber,
-      s.className,
-      s.attendance,
-      s.assignment,
-      s.quiz,
-      s.internal,
-      s.isEligible ? 'Eligible' : 'Not Eligible',
-      s.reason || 'N/A'
-    ]);
-    
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n" 
-      + rows.map(e => e.join(",")).join("\n");
       
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Eligibility_List_Report.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const response = await api.post(`/examinations/${selectedExam.id}/generate-eligibility`, payload);
+      if (!response.data.success) throw new Error("Failed to generate metrics");
+      
+      const list = response.data.data.map((s: any) => ({
+        ...s,
+        attendance: s.overallAttendance || 0,
+        assignment: s.assignmentPercentage || 0,
+        quiz: s.quizPercentage || 0,
+        internal: s.internalPercentage || 0,
+        reason: s.reason || '-'
+      }));
+      
+      let eligibleCount = 0;
+      let failAttendance = 0;
+      let failAssignment = 0;
+      let failQuiz = 0;
+
+      list.forEach((student: any) => {
+        if (student.isEligible) eligibleCount++;
+        else {
+           if (student.reason.includes('Attendance')) failAttendance++;
+           if (student.reason.includes('Assignment')) failAssignment++;
+           if (student.reason.includes('Quiz')) failQuiz++;
+        }
+      });
+      
+      list.sort((a: any, b: any) => {
+          const classA = a.className || '';
+          const classB = b.className || '';
+          if (classA < classB) return -1;
+          if (classA > classB) return 1;
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          return nameA.localeCompare(nameB);
+      });
+
+      const insights = {
+        total: list.length,
+        eligible: eligibleCount,
+        notEligible: list.length - eligibleCount,
+        percentage: list.length > 0 ? Math.round((eligibleCount / list.length) * 100) : 0,
+        failAttendance,
+        failAssignment,
+        failQuiz
+      };
+
+      setElgInsights(insights);
+      setElgGeneratedList(list);
+      setIsEligibilitySaved(false);
+      setElgViewMode('view');
+      toast.success("Eligibility list generated successfully. Please review and save.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate eligibility list");
+    }
+  };
+  
+  const fetchSavedEligibilityList = async () => {
+    if (!selectedExam) return;
+    setIsLoadingData(true);
+    try {
+      const response = await api.get(`/examinations/${selectedExam.id}/eligibility-list`);
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
+        const data = response.data.data[0];
+        setSavedListId(data.id);
+        const students = data.students.map((s: any) => ({
+           id: s.id,
+           studentId: s.studentId,
+           name: s.name,
+           enrollmentNumber: s.enrollmentNumber,
+           className: s.className,
+           attendance: s.overallAttendance || 0,
+           assignment: s.assignmentPercentage || 0,
+           quiz: s.quizPercentage || 0,
+           internal: s.internalPercentage || 0,
+           isEligible: s.isEligible,
+           reason: s.reason
+        }));
+        
+        let eligible = 0;
+        students.forEach((s: any) => { if (s.isEligible) eligible++; });
+        
+        setElgInsights({
+          total: students.length,
+          eligible: eligible,
+          notEligible: students.length - eligible,
+          percentage: students.length > 0 ? Math.round((eligible / students.length) * 100) : 0,
+          failAttendance: 0, failAssignment: 0, failQuiz: 0
+        });
+        students.sort((a: any, b: any) => {
+            const classA = a.className || '';
+            const classB = b.className || '';
+            if (classA < classB) return -1;
+            if (classA > classB) return 1;
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB);
+        });
+        setElgGeneratedList(students);
+        
+        setIsEligibilitySaved(true);
+        setElgViewMode('saved');
+      }
+    } catch (err: any) {
+      setIsEligibilitySaved(false);
+      setElgGeneratedList(null);
+      setElgViewMode('create');
+      if (err.response && err.response.status !== 404) {
+        console.error("Fetch eligibility failed", err);
+      }
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+  
+  const saveEligibilityListToBackend = async () => {
+    if (!selectedExam || !elgGeneratedList) return;
+    try {
+      const payload = {
+        students: elgGeneratedList.map((s: any) => ({
+          studentId: s.studentId || s.id,
+          enrollmentNumber: s.enrollmentNumber || s.enrollmentNo,
+          isEligible: s.isEligible,
+          reason: s.reason || '',
+          overallAttendance: s.overallAttendance || s.attendance || 0,
+          assignmentPercentage: s.assignment || s.assignmentPercentage || 0,
+          quizPercentage: s.quiz || s.quizPercentage || 0,
+          internalPercentage: s.internal || s.internalPercentage || 0
+        }))
+      };
+      await api.post(`/examinations/${selectedExam.id}/eligibility-list`, payload);
+      
+      toast.success("Eligibility list saved to database successfully!");
+      setIsEligibilitySaved(true);
+      fetchSavedEligibilityList();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to save eligibility list");
+    }
   };
 
   const handlePrint = () => {
     window.print();
   };
 
+  const handleDeleteEligibilityList = async (listId?: string) => {
+    if (!selectedExam) return;
+    try {
+      await api.delete(`/examinations/${selectedExam.id}/eligibility-list/${listId || savedListId}`);
+      toast.success("Eligibility list deleted successfully");
+      setIsEligibilitySaved(false);
+      setElgGeneratedList(null);
+      setElgViewMode('create');
+    } catch(err) {
+      console.error(err);
+      toast.error("Failed to delete eligibility list");
+    }
+  };
+
   const renderEligibilityGenerator = () => {
     if (elgViewMode === 'saved') {
+      if (isLoadingData) {
+        return <div className="text-center p-8"><BrainCircuit className="animate-pulse mx-auto text-primary" size={32} /><p className="mt-4 text-muted-foreground">Loading Eligibility List...</p></div>;
+      }
       return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -1981,69 +2224,64 @@ export const ExaminationModule = () => {
               </h2>
               <p className="text-sm text-muted-foreground">Manage and generate student eligibility reports</p>
             </div>
-            <Button className="bg-primary text-primary-foreground gap-2" onClick={() => { setElgViewMode('create'); setElgGeneratedList(null); setEligibilitySaved(false); }}>
-              <Plus size={16}/> Create New List
-            </Button>
+            {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+              <Button className="bg-primary text-primary-foreground gap-2" onClick={() => { setElgViewMode('create'); setElgGeneratedList(null); }}>
+                <Plus size={16}/> Create New List
+              </Button>
+            )}
           </div>
 
-          {savedEligibilityLists.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {savedEligibilityLists.map(list => (
-                <div key={list.id} className="group relative bg-card border border-border/60 hover:border-primary/40 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
-                  <div className="bg-primary/5 border-b border-border/50 px-5 py-4 flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{list.exam?.type || 'Mid Semester'}</span>
-                        <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{list.exam?.academicYear || 'All'} - {list.exam?.semester || 'All'}</span>
-                      </div>
-                      <h4 className="font-extrabold text-foreground text-lg leading-tight line-clamp-1">{list.exam?.name || 'Eligibility Report'}</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {elgGeneratedList && isEligibilitySaved ? (
+              <div className="group relative bg-card border border-border/60 hover:border-primary/40 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
+                <div className="bg-primary/5 border-b border-border/50 px-5 py-4 flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{selectedExam?.type || 'Mid Semester'}</span>
+                      <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{selectedExam?.academicYear || 'All'} - {selectedExam?.semester || 'All'}</span>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                       <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border", "bg-emerald-500/10 text-emerald-600 border-emerald-500/20")}>Saved</span>
-                       <span className="text-xs text-muted-foreground font-medium flex items-center gap-1"><CalendarIcon size={12}/> {list.date}</span>
+                    <h4 className="font-extrabold text-foreground text-lg leading-tight line-clamp-1">{selectedExam?.name || 'Eligibility Report'}</h4>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Saved</span>
+                  </div>
+                </div>
+                
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    <div className="bg-background rounded-lg p-3 border border-border">
+                      <div className="text-xs font-semibold text-emerald-600 mb-1">Eligible</div>
+                      <div className="text-xl font-black text-foreground">{elgInsights?.eligible || 0}</div>
+                    </div>
+                    <div className="bg-background rounded-lg p-3 border border-border">
+                      <div className="text-xs font-semibold text-rose-500 mb-1">Not Eligible</div>
+                      <div className="text-xl font-black text-foreground">{elgInsights?.notEligible || 0}</div>
                     </div>
                   </div>
                   
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div className="grid grid-cols-2 gap-4 mb-5">
-                      <div className="bg-background rounded-lg p-3 border border-border">
-                        <div className="text-xs font-semibold text-emerald-600 mb-1">Eligible</div>
-                        <div className="text-xl font-black text-foreground">{list.insights?.eligible || 0}</div>
-                      </div>
-                      <div className="bg-background rounded-lg p-3 border border-border">
-                        <div className="text-xs font-semibold text-rose-500 mb-1">Not Eligible</div>
-                        <div className="text-xl font-black text-foreground">{list.insights?.notEligible || 0}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-auto pt-4 border-t border-border/50">
-                      <Button variant="outline" className="flex-1 text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground border-primary/20 hover:border-primary transition-colors" onClick={() => {
-                        setElgGeneratedList(list.list);
-                        setElgInsights(list.insights);
-                        setEligibilitySaved(true);
-                        setElgViewMode('view');
-                      }}>
-                        <Eye size={16} className="mr-2"/> View Report
+                  <div className="flex flex-wrap items-center gap-2 mt-auto pt-4 border-t border-border/50">
+                    <Button variant="outline" className="flex-1 min-w-[80px] text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground border-primary/20 hover:border-primary transition-colors" onClick={() => setElgViewMode('view')}>
+                      <Eye size={16} className="mr-1.5"/> View
+                    </Button>
+                    <Button variant="outline" className="flex-1 min-w-[80px] text-sm font-semibold rounded-lg" onClick={handlePrint}>
+                      <Printer size={16} className="mr-1.5"/> Print
+                    </Button>
+                    {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+                      <Button variant="outline" className="w-full text-sm font-semibold rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200" onClick={() => handleDeleteEligibilityList()}>
+                        <Trash2 size={16} className="mr-1.5"/> Delete
                       </Button>
-                      <Button variant="ghost" size="icon" className="rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50 dark:hover:text-rose-400" onClick={() => {
-                        setSavedEligibilityLists(savedEligibilityLists.filter(l => l.id !== list.id));
-                      }}>
-                        <Trash2 size={16}/>
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center p-12 border border-dashed border-border rounded-xl bg-accent/10 mt-6">
-              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4 text-muted-foreground">
-                <Sparkles size={24}/>
               </div>
-              <p className="text-sm font-semibold text-foreground mb-1">No lists generated yet</p>
-              <p className="text-xs text-muted-foreground">Create a new eligibility list to get started</p>
-            </div>
-          )}
+            ) : (
+              <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-accent/50">
+                <BrainCircuit className="mx-auto text-muted-foreground mb-4" size={48} opacity={0.5}/>
+                <h4 className="font-bold text-lg mb-2">No Eligibility List Available</h4>
+                <p className="text-muted-foreground">An eligibility list for this examination has not been generated yet.</p>
+              </div>
+            )}
+          </div>
         </motion.div>
       );
     }
@@ -2056,7 +2294,13 @@ export const ExaminationModule = () => {
         return true;
       });
 
-      if (elgFilter.sort === 'Alpha') filtered.sort((a, b) => a.name.localeCompare(b.name));
+      if (elgFilter.sort === 'Alpha') {
+        filtered.sort((a, b) => {
+          const classCmp = (a.className || '').localeCompare(b.className || '');
+          if (classCmp !== 0) return classCmp;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+      }
       if (elgFilter.sort === 'Enrollment') filtered.sort((a, b) => a.enrollmentNumber.localeCompare(b.enrollmentNumber));
       if (elgFilter.sort === 'Attendance') filtered.sort((a, b) => b.attendance - a.attendance);
 
@@ -2065,7 +2309,7 @@ export const ExaminationModule = () => {
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => setElgViewMode('saved')} className="rounded-full bg-accent hover:bg-primary hover:text-primary-foreground">
+                <Button variant="ghost" size="icon" onClick={() => setElgViewMode(isEligibilitySaved ? 'saved' : 'create')} className="rounded-full bg-accent hover:bg-primary hover:text-primary-foreground">
                   <ChevronRight className="rotate-180" size={20}/>
                 </Button>
                 <div>
@@ -2076,17 +2320,14 @@ export const ExaminationModule = () => {
                 </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                {!eligibilitySaved && (
-                  <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={() => { 
-                    setEligibilitySaved(true); 
-                    setSavedEligibilityLists([...savedEligibilityLists, { id: Date.now(), exam: selectedExam, list: elgGeneratedList, insights: elgInsights, date: new Date().toLocaleDateString() }]);
-                    alert("Eligibility List Saved successfully!"); 
-                  }}>
-                    <CheckCircle size={16}/> Save List
-                  </Button>
-                )}
-                <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handleExportCSV}><FileSpreadsheet size={16}/> CSV</Button>
-                <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
+                
+                  {!isEligibilitySaved && (
+                    <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={saveEligibilityListToBackend}>
+                      <CheckCircle size={16}/> Save List
+                    </Button>
+                  )}
+                <Button variant="outline" className="gap-2 flex-1 sm:flex-none bg-accent hover:bg-primary hover:text-primary-foreground" onClick={() => setElgViewMode('create')}><BrainCircuit size={16}/> Generate List</Button>
+                  <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
               </div>
             </div>
           </div>
@@ -2145,9 +2386,9 @@ export const ExaminationModule = () => {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left whitespace-nowrap">
-                <thead className="bg-accent/50 text-muted-foreground text-xs uppercase font-semibold">
-                  <tr>
+              <table className="w-full text-sm text-left whitespace-nowrap print:border-collapse print:border print:border-gray-400" style={{ pageBreakInside: 'auto' }}>
+                <thead className="bg-accent/50 text-muted-foreground text-xs uppercase font-semibold print:bg-blue-50 print:text-blue-900">
+                  <tr style={{ pageBreakInside: 'avoid', pageBreakAfter: 'auto' }}>
                     <th className="px-4 py-3">S.No.</th>
                     <th className="px-4 py-3">Student Name</th>
                     <th className="px-4 py-3">Enrollment Number</th>
@@ -2161,7 +2402,7 @@ export const ExaminationModule = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filtered.map((s, idx) => (
-                    <tr key={s.id} className="hover:bg-accent/20">
+                    <tr key={s.id} className="hover:bg-accent/20 print:border-b print:border-gray-300" style={{ pageBreakInside: 'avoid', pageBreakAfter: 'auto' }}>
                       <td className="px-4 py-3 font-medium text-muted-foreground">{idx + 1}</td>
                       <td className="px-4 py-3 font-bold">{s.name}</td>
                       <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{s.enrollmentNumber}</td>
@@ -2176,8 +2417,8 @@ export const ExaminationModule = () => {
                         <span className={s.quiz < elgSettings.quiz && elgCriteria.quiz ? 'text-rose-500' : 'text-emerald-500'}>{s.quiz}%</span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-max mx-auto",
-                          s.isEligible ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                        <span className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-max mx-auto shadow-sm",
+                          s.isEligible ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
                         )}>
                           {s.isEligible ? <CheckCircle size={12}/> : <X size={12}/>}
                           {s.isEligible ? 'Eligible' : 'Not Eligible'}
@@ -2207,132 +2448,118 @@ export const ExaminationModule = () => {
             <h2 className="text-2xl font-black text-foreground flex items-center gap-2">
               <Sparkles className="text-primary"/> Generate Eligible Student List
             </h2>
-            <p className="text-sm text-muted-foreground">Simulate AI-based eligibility analysis</p>
+            <p className="text-sm text-muted-foreground">Automatically fetch metrics and generate list</p>
           </div>
-          <Button variant="outline" onClick={() => setElgViewMode('saved')} className="gap-2">
-            <ChevronRight className="rotate-180"/> Back to Lists
-          </Button>
         </div>
 
         <div className="bg-card border border-border rounded-xl shadow-sm p-8 space-y-8">
-          
-          {isSimulating ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-6">
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <BrainCircuit className="text-primary animate-pulse" size={32} />
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-foreground">AI Simulation in Progress</h3>
-                <p className="text-muted-foreground animate-pulse font-medium">{simulationText}</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Step 1: Eligibility Criteria */}
-
-              <hr className="border-border" />
-
-              <div className="space-y-4">
-                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block mb-2">Step 1: Eligibility Criteria</label>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  
-                  {/* Attendance */}
-                  <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.attendance ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
-                    <label className="flex items-start gap-3 cursor-pointer mb-3">
-                      <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.attendance} onChange={e => setElgCriteria({...elgCriteria, attendance: e.target.checked})} />
-                      <div>
-                        <span className="font-bold text-foreground">Attendance</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Filter based on overall class attendance.</p>
-                      </div>
-                    </label>
-                    {elgCriteria.attendance && (
-                      <div className="ml-7 mt-2">
-                        <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Attendance Required (%)</label>
-                        <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.attendance} onChange={e => setElgSettings({...elgSettings, attendance: Number(e.target.value)})} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Assignment */}
-                  <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.assignment ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
-                    <label className="flex items-start gap-3 cursor-pointer mb-3">
-                      <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.assignment} onChange={e => setElgCriteria({...elgCriteria, assignment: e.target.checked})} />
-                      <div>
-                        <span className="font-bold text-foreground">Assignment Submission</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Filter based on submitted assignments.</p>
-                      </div>
-                    </label>
-                    {elgCriteria.assignment && (
-                      <div className="ml-7 mt-2">
-                        <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Submission Rate (%)</label>
-                        <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.assignment} onChange={e => setElgSettings({...elgSettings, assignment: Number(e.target.value)})} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quiz */}
-                  <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.quiz ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
-                    <label className="flex items-start gap-3 cursor-pointer mb-3">
-                      <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.quiz} onChange={e => setElgCriteria({...elgCriteria, quiz: e.target.checked})} />
-                      <div>
-                        <span className="font-bold text-foreground">Quiz Performance</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Filter based on average quiz scores.</p>
-                      </div>
-                    </label>
-                    {elgCriteria.quiz && (
-                      <div className="ml-7 mt-2">
-                        <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Average Quiz Marks (%)</label>
-                        <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.quiz} onChange={e => setElgSettings({...elgSettings, quiz: Number(e.target.value)})} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Internal Marks */}
-                  <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.internalMarks ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
-                    <label className="flex items-start gap-3 cursor-pointer mb-3">
-                      <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.internalMarks} onChange={e => setElgCriteria({...elgCriteria, internalMarks: e.target.checked})} />
-                      <div>
-                        <span className="font-bold text-foreground">Previous Internal Marks</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Filter based on internal evaluations.</p>
-                      </div>
-                    </label>
-                    {elgCriteria.internalMarks && (
-                      <div className="ml-7 mt-2">
-                        <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Internal Percentage (%)</label>
-                        <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.internal} onChange={e => setElgSettings({...elgSettings, internal: Number(e.target.value)})} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Events */}
-                  <div className={cn("border rounded-xl p-4 transition-all lg:col-span-2", elgCriteria.event ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.event} onChange={e => setElgCriteria({...elgCriteria, event: e.target.checked})} />
-                      <div>
-                        <span className="font-bold text-foreground">Event Participation (Optional)</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Consider co-curricular event participation.</p>
-                      </div>
-                    </label>
-                  </div>
-
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            {isSimulating ? (
+              <div className="space-y-6">
+                <div className="relative w-24 h-24 flex items-center justify-center mx-auto">
+                  <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <BrainCircuit className="text-primary animate-pulse" size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-foreground">Generating List...</h3>
+                  <p className="text-muted-foreground font-medium">Fetching attendance and assignments...</p>
                 </div>
               </div>
+            ) : (
+                <div className="w-full text-left">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold">Configure Criteria</h3>
+                  </div>
+                  <hr className="border-border mb-6" />
 
-              <div className="pt-6 border-t border-border flex justify-end">
-                <Button 
-                  size="lg" 
-                  className="bg-primary text-primary-foreground gap-2 font-bold w-full sm:w-auto"
-                  disabled={(!elgCriteria.attendance && !elgCriteria.assignment && !elgCriteria.quiz && !elgCriteria.internalMarks && !elgCriteria.event)}
-                  onClick={handleGenerateClick}
-                >
-                  <BrainCircuit size={18} className="animate-pulse"/> Generate Eligible Student List
-                </Button>
-              </div>
-            </>
-          )}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      
+                      {/* Attendance */}
+                      <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.attendance ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
+                        <label className="flex items-start gap-3 cursor-pointer mb-3">
+                          <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.attendance} onChange={e => setElgCriteria({...elgCriteria, attendance: e.target.checked})} />
+                          <div>
+                            <span className="font-bold text-foreground">Attendance</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">Filter based on overall class attendance.</p>
+                          </div>
+                        </label>
+                        {elgCriteria.attendance && (
+                          <div className="ml-7 mt-2">
+                            <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Attendance Required (%)</label>
+                            <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.attendance} onChange={e => setElgSettings({...elgSettings, attendance: Number(e.target.value)})} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Assignment */}
+                      <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.assignment ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
+                        <label className="flex items-start gap-3 cursor-pointer mb-3">
+                          <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.assignment} onChange={e => setElgCriteria({...elgCriteria, assignment: e.target.checked})} />
+                          <div>
+                            <span className="font-bold text-foreground">Assignment Submission</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">Filter based on submitted assignments.</p>
+                          </div>
+                        </label>
+                        {elgCriteria.assignment && (
+                          <div className="ml-7 mt-2">
+                            <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Submission Rate (%)</label>
+                            <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.assignment} onChange={e => setElgSettings({...elgSettings, assignment: Number(e.target.value)})} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quiz */}
+                      <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.quiz ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
+                        <label className="flex items-start gap-3 cursor-pointer mb-3">
+                          <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.quiz} onChange={e => setElgCriteria({...elgCriteria, quiz: e.target.checked})} />
+                          <div>
+                            <span className="font-bold text-foreground">Quiz Performance</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">Filter based on average quiz scores.</p>
+                          </div>
+                        </label>
+                        {elgCriteria.quiz && (
+                          <div className="ml-7 mt-2">
+                            <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Average Quiz Marks (%)</label>
+                            <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.quiz} onChange={e => setElgSettings({...elgSettings, quiz: Number(e.target.value)})} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Internal Marks */}
+                      <div className={cn("border rounded-xl p-4 transition-all", elgCriteria.internalMarks ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
+                        <label className="flex items-start gap-3 cursor-pointer mb-3">
+                          <input type="checkbox" className="mt-1 w-4 h-4 rounded text-primary focus:ring-primary" checked={elgCriteria.internalMarks} onChange={e => setElgCriteria({...elgCriteria, internalMarks: e.target.checked})} />
+                          <div>
+                            <span className="font-bold text-foreground">Previous Internal Marks</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">Filter based on internal evaluations.</p>
+                          </div>
+                        </label>
+                        {elgCriteria.internalMarks && (
+                          <div className="ml-7 mt-2">
+                            <label className="text-xs font-semibold text-muted-foreground block mb-1">Minimum Internal Percentage (%)</label>
+                            <input type="number" className="w-full p-2 text-sm border border-border rounded-lg bg-background" value={elgSettings.internal} onChange={e => setElgSettings({...elgSettings, internal: Number(e.target.value)})} />
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  </div>
+
+                  <div className="pt-6 mt-6 border-t border-border flex justify-end">
+                    <Button 
+                      size="lg" 
+                      className="bg-primary text-primary-foreground gap-2 font-bold w-full sm:w-auto shadow-lg hover:shadow-xl transition-all"
+                      disabled={(!elgCriteria.attendance && !elgCriteria.assignment && !elgCriteria.quiz && !elgCriteria.internalMarks)}
+                      onClick={generateEligibilityList}
+                    >
+                      <BrainCircuit size={18} className="animate-pulse"/> Generate Eligibility List
+                    </Button>
+                  </div>
+                </div>
+            )}
+          </div>
         </div>
       </motion.div>
     );
@@ -2359,12 +2586,7 @@ export const ExaminationModule = () => {
     setNewRoomInvigilator('');
   };
 
-  const getAvailableClasses = () => {
-    if (selectedExam && selectedExam.class) {
-      return selectedExam.class.split(',').map((c: string) => c.trim());
-    }
-    return ['IT-1', 'IT-2', 'CS-1', 'CS-2'];
-  };
+
 
   const handleGenerateSeatingClick = () => {
     setIsSimulatingSeating(true);
@@ -2376,19 +2598,82 @@ export const ExaminationModule = () => {
       setIsSimulatingSeating(false);
       
       const totalCapacity = seatRooms.reduce((acc, r) => acc + (r.benches * (r.maxPerBench || seatingConfig.maxPerBench)), 0);
-      const examClasses = getAvailableClasses();
-      const actualStudents = mockData.students.filter(s => examClasses.includes(s.className));
-      const totalStudents = actualStudents.length > 0 ? actualStudents.length : examClasses.length * 45; // integration with actual student counts
+      // 1. Fetch Eligibility List if not loaded
+      let studentsForSeating = elgGeneratedList;
+      if (!studentsForSeating || studentsForSeating.length === 0) {
+        toast.error("No saved eligibility list found! Please generate and save an eligibility list first.");
+        setIsSimulatingSeating(false);
+        return;
+      }
       
+      const eligibleStudents = studentsForSeating.filter((s:any) => s.isEligible);
+      
+      if (eligibleStudents.length === 0) {
+        toast.error("No eligible students found in the list!");
+        setIsSimulatingSeating(false);
+        return;
+      }
+      
+      const totalStudents = eligibleStudents.length;
+      
+      if (totalCapacity < totalStudents) {
+         setSeatingGenerated({
+            totalStudents,
+            roomsUtilized: seatRooms.length,
+            totalCapacity,
+            unallocatedStudents: totalStudents - totalCapacity,
+            roomAllocations: []
+         });
+         setIsSimulatingSeating(false);
+         setSeatingViewMode('view');
+         return;
+      }
+      
+      // Basic allocation logic based on eligible students
+      let studentIndex = 0;
+      const roomAllocations = seatRooms.map((r) => {
+         const capacity = r.benches * (r.maxPerBench || seatingConfig.maxPerBench);
+         const studentsInRoom: any[] = [];
+         
+         let rNum = 1;
+         let bNum = 1;
+         let sNum = 0; // 0=LEFT, 1=RIGHT
+         
+         for (let i = 0; i < capacity && studentIndex < eligibleStudents.length; i++) {
+             const st = eligibleStudents[studentIndex++];
+             studentsInRoom.push({
+                ...st,
+                rowNum: `R${rNum}`,
+                benchNum: `B${bNum}`,
+                seatPosition: sNum === 0 ? 'LEFT' : 'RIGHT'
+             });
+             
+             sNum++;
+             if (sNum > 1) {
+                 sNum = 0;
+                 bNum++;
+                 if (bNum > (r.benches / 2)) {
+                     // simplistic layout assumption
+                     bNum = 1;
+                     rNum++;
+                 }
+             }
+         }
+         
+         return {
+           ...r,
+           allocated: studentsInRoom.length,
+           students: studentsInRoom,
+           classes: [...new Set(studentsInRoom.map((s:any) => s.className))]
+         };
+      });
+
       setSeatingGenerated({
         totalStudents,
         roomsUtilized: seatRooms.length,
         totalCapacity,
-        roomAllocations: seatRooms.map((r, i) => ({
-          ...r,
-          allocated: Math.min(r.benches * (r.maxPerBench || seatingConfig.maxPerBench), Math.floor(totalStudents / (seatRooms.length || 1))),
-          classes: examClasses.slice(i % (examClasses.length || 1), (i % (examClasses.length || 1)) + 2)
-        }))
+        unallocatedStudents: 0,
+        roomAllocations
       });
       setSeatingViewMode('view');
     }, 4500);
@@ -2457,7 +2742,7 @@ export const ExaminationModule = () => {
                         <Printer size={16} className="mr-2"/> Print
                       </Button>
                       <Button variant="ghost" size="icon" className="rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50 dark:hover:text-rose-400" onClick={() => {
-                        setSavedSeatingLists(savedSeatingLists.filter(l => l.id !== list.id));
+                        setSavedSeatingLists((prev: any[]) => prev.filter(l => l.id !== list.id));
                       }}>
                         <Trash2 size={16}/>
                       </Button>
@@ -2508,7 +2793,19 @@ export const ExaminationModule = () => {
             }
           `}</style>
           
-          <div className="flex flex-col gap-4 mb-4 print:hidden">
+                      {seatingGenerated.unallocatedStudents > 0 && (
+              <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex items-start gap-3 mb-4 print:hidden">
+                <AlertTriangle className="text-rose-500 shrink-0 mt-0.5" size={20} />
+                <div>
+                  <h4 className="font-bold text-rose-700 text-sm">Insufficient Capacity</h4>
+                  <p className="text-sm text-rose-600 mt-1">
+                    <span className="font-bold">{seatingGenerated.unallocatedStudents}</span> eligible student(s) could not be allocated seats. 
+                    Please add more rooms or increase capacity.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col gap-4 mb-4 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" onClick={() => setSeatingViewMode('saved')} className="rounded-full bg-accent hover:bg-primary hover:text-primary-foreground">
@@ -2525,100 +2822,71 @@ export const ExaminationModule = () => {
                 {!seatingSaved && (
                   <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={() => { 
                     setSeatingSaved(true); 
-                    setSavedSeatingLists([...savedSeatingLists, { id: Date.now(), exam: selectedExam, list: seatingGenerated, date: new Date().toLocaleDateString() }]);
+                    setSavedSeatingLists((prev: any[]) => [...prev, { id: Date.now(), exam: selectedExam, list: seatingGenerated, date: new Date().toLocaleDateString() }]);
                     alert("Seating Arrangement Saved successfully!"); 
                   }}>
                     <CheckCircle size={16}/> Save Seating
                   </Button>
                 )}
-                <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
+                <Button variant="outline" className="gap-2 flex-1 sm:flex-none bg-accent hover:bg-primary hover:text-primary-foreground" onClick={() => setElgViewMode('create')}><BrainCircuit size={16}/> Generate List</Button>
+                  <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
               </div>
             </div>
           </div>
 
           <div id="printable-seating-sheet" className="bg-muted/10 print:bg-white rounded-xl">
             {seatingGenerated.roomAllocations.map((room: any, index: number) => {
-              const maxPerBench = room.maxPerBench || seatingConfig.maxPerBench || 2;
-              const studentList: any[] = [];
-              let sno = 1;
-              const benchesPerRow = 5;
-              
-              Array.from({ length: room.benches }).forEach((_, idx) => {
-                const assigned = Math.min(maxPerBench, Math.max(0, room.allocated - (idx * maxPerBench)));
-                const rowNum = Math.floor(idx / benchesPerRow) + 1;
-                const benchNum = (idx % benchesPerRow) + 1;
-                
-                for (let s = 0; s < assigned; s++) {
-                  const classIdx = (idx + s) % (room.classes.length || 1);
-                  const studentClass = room.classes[classIdx] || 'Unassigned';
-                  const seatLabel = maxPerBench === 2 ? (s === 0 ? 'LEFT' : 'RIGHT') : `SEAT ${s+1}`;
-                  
-                  const randomNames = ["Aarav Sharma", "Priya Verma", "Rahul Singh", "Neha Jain", "Rohan Gupta", "Aditi Rao", "Karan Patel", "Sneha Iyer", "Vikram Malhotra", "Pooja Desai"];
-                  const nameStr = randomNames[sno % randomNames.length];
-                  const enrollment = `0827${studentClass.replace('-', '')}22${String(sno).padStart(3, '0')}`;
-                  
-                  studentList.push({
-                    sno: sno++,
-                    enrollment,
-                    name: nameStr,
-                    className: studentClass,
-                    row: `Row ${String(rowNum).padStart(2, '0')}`,
-                    bench: `Bench ${String(benchNum).padStart(2, '0')}`,
-                    seat: seatLabel
-                  });
-                }
-              });
-
+              const studentList = room.students || [];
               return (
-                <div key={room.id} className={cn("bg-white text-black p-8 sm:p-12 mb-8 border border-gray-200 shadow-sm rounded-xl print:border-none print:shadow-none print:p-0 print:mb-0 print:rounded-none", index < seatingGenerated.roomAllocations.length - 1 ? "page-break" : "")}>
+                <div key={room.id} className={cn("bg-white text-black p-8 sm:p-12 mb-8 border border-gray-200 shadow-sm rounded-xl print:border-none print:shadow-none print:p-0 print:mb-0 print:rounded-none", index < seatingGenerated.roomAllocations.length - 1 ? "page-break-after-always" : "")} style={{ pageBreakAfter: index < seatingGenerated.roomAllocations.length - 1 ? 'always' : 'auto' }}>
                   <div className="text-center border-b-2 border-black pb-6 mb-8">
                     <h1 className="text-2xl font-black uppercase tracking-wider mb-2">Acropolis Institute of Technology & Research</h1>
                     <h2 className="text-xl font-bold uppercase tracking-wide text-gray-800">Examination Seating Arrangement</h2>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm font-semibold">
-                    <div className="flex"><span className="w-32 text-gray-600">Examination:</span> <span>{selectedExam?.name || 'Mid Semester Examination 2026'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Room:</span> <span className="text-lg font-bold">{room.number} {room.name && `(${room.name})`}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Examination:</span> <span>{selectedExam?.name || 'Mid Semester Examination'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Room:</span> <span className="text-lg font-bold">{room.roomNumber || room.number}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Academic Year:</span> <span>{selectedExam?.academicYear || 'All Years'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Semester:</span> <span>{selectedExam?.semester || 'All Semesters'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Date:</span> <span>{selectedExam?.startDate || '12 October 2026'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Time:</span> <span>{room.startTime || '10:00 AM'} – {room.endTime || '12:00 PM'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Semester:</span> <span>{selectedExam?.semester?.semesterNumber || selectedExam?.semesterId || 'All Semesters'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Date:</span> <span>{selectedExam?.startDate || 'Scheduled Date'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Time:</span> <span>{room.startTime || '10:00 AM'} - {room.endTime || '12:00 PM'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Total Students:</span> <span>{room.allocated}</span></div>
-                    {room.invigilator && <div className="flex"><span className="w-32 text-gray-600">Invigilator:</span> <span>{room.invigilator}</span></div>}
+                    {room.invigilatorNames && room.invigilatorNames.length > 0 && <div className="flex"><span className="w-32 text-gray-600">Invigilator:</span> <span>{room.invigilatorNames.join(', ')}</span></div>}
                   </div>
 
-                  <table className="w-full text-left border-collapse border border-gray-300 print:border-gray-500">
+                  <table className="w-full text-left border-collapse border border-gray-300 print:border-gray-500" style={{ pageBreakInside: 'auto' }}>
                     <thead>
-                      <tr className="bg-gray-100 print:bg-gray-200">
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 w-16 text-center">S.No.</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900">Enrollment Number</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900">Student Name</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center">Class</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center">Row</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center">Bench</th>
-                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center">Seat</th>
+                      <tr className="bg-gray-100 print:bg-gray-200" style={{ pageBreakInside: 'avoid', pageBreakAfter: 'auto' }}>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 w-16 text-center print:color-adjust-exact">S.No.</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 print:color-adjust-exact">Enrollment Number</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 print:color-adjust-exact">Student Name</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center print:color-adjust-exact">Class</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center print:color-adjust-exact">Row</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center print:color-adjust-exact">Bench</th>
+                        <th className="border border-gray-300 print:border-gray-500 px-4 py-3 font-bold text-gray-900 text-center print:color-adjust-exact">Seat</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {studentList.map((student, i) => (
-                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center text-gray-700">{student.sno}</td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 font-mono text-gray-800">{student.enrollment}</td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-gray-800 font-medium">{student.name}</td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center text-gray-800">{student.className}</td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center">
-                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold text-xs print:border print:border-blue-300">{student.row}</span>
+                    <tbody style={{ pageBreakInside: 'auto' }}>
+                      {studentList.map((student: any, i: number) => (
+                        <tr key={student.id || i} className={i % 2 === 0 ? 'bg-white print:bg-white' : 'bg-gray-50 print:bg-gray-50'} style={{ pageBreakInside: 'avoid', pageBreakAfter: 'auto' }}>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center text-gray-700 print:color-adjust-exact">{i + 1}</td>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 font-mono text-gray-800 print:color-adjust-exact">{student.enrollmentNumber || student.enrollment}</td>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-gray-800 font-medium print:color-adjust-exact">{student.studentName || student.name}</td>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center text-gray-800 print:color-adjust-exact">{student.className}</td>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center print:color-adjust-exact">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold text-xs print:border print:border-blue-300 print:color-adjust-exact">{student.rowNum || student.row}</span>
                           </td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center">
-                            <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded font-bold text-xs print:border print:border-emerald-300">{student.bench}</span>
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center print:color-adjust-exact">
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded font-bold text-xs print:border print:border-emerald-300 print:color-adjust-exact">{student.benchNum || student.bench}</span>
                           </td>
-                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center">
+                          <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center print:color-adjust-exact">
                             <span className={cn(
-                              "px-2 py-1 rounded font-bold text-xs print:border",
-                              student.seat === 'LEFT' ? "bg-purple-100 text-purple-800 print:border-purple-300" : 
-                              student.seat === 'RIGHT' ? "bg-amber-100 text-amber-800 print:border-amber-300" : "bg-gray-200 text-gray-800 print:border-gray-300"
+                              "px-2 py-1 rounded font-bold text-xs print:border print:color-adjust-exact",
+                              (student.seatPosition || student.seat) === 'LEFT' ? "bg-purple-100 text-purple-800 print:border-purple-300" : 
+                              (student.seatPosition || student.seat) === 'RIGHT' ? "bg-amber-100 text-amber-800 print:border-amber-300" : "bg-gray-200 text-gray-800 print:border-gray-300"
                             )}>
-                              {student.seat}
+                              {student.seatPosition || student.seat}
                             </span>
                           </td>
                         </tr>
@@ -2626,10 +2894,10 @@ export const ExaminationModule = () => {
                     </tbody>
                   </table>
                   
-                  <div className="mt-12 flex justify-between px-8 text-sm font-bold text-gray-800 print:mt-16">
+                  <div className="mt-12 flex justify-between px-8 text-sm font-bold text-gray-800 print:mt-16" style={{ pageBreakInside: 'avoid' }}>
                      <div className="text-center">
                        <div className="w-32 border-b border-gray-500 mb-2"></div>
-                       {room.invigilator ? `Invigilator (${room.invigilator})` : 'Invigilator Signature'}
+                       {room.invigilatorNames && room.invigilatorNames.length > 0 ? `Invigilator (${room.invigilatorNames[0]})` : 'Invigilator Signature'}
                      </div>
                      <div className="text-center">
                        <div className="w-32 border-b border-gray-500 mb-2"></div>

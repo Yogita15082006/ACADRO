@@ -162,3 +162,59 @@
   @apply bg-background;
 }
 
+@media print {
+  @page {
+    size: landscape; /* Forces landscape orientation */
+    margin: 0 !important; /* Setting margin to 0 hides the default browser headers/footers (like localhost url) */
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    padding: 10mm !important; /* Re-add margin via body padding since @page margin is 0 */
+    /* Removed zoom: 85% because 'zoom' breaks CSS pagination/page-breaks in Chrome, causing rows to slice in half */
+  }
+  
+  /* Disable max-heights and overflows on containers to allow page breaks and full width rendering */
+  .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  
+  /* Fix table clipping and enforce structure */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-inside: auto;
+    table-layout: auto !important; /* Allow browser to calculate optimal column widths */
+  }
+  
+  /* Prevent word clipping and heavily compact the table to fit more rows per page */
+  th, td {
+    word-break: break-word !important;
+    white-space: normal !important;
+    padding: 4px 6px !important; /* Extremely tight padding */
+    font-size: 11px !important; /* Smaller font to fit more rows */
+    line-height: 1.2 !important;
+  }
+
+  /* Compact the badges in print */
+  span {
+    padding: 2px 4px !important;
+    font-size: 10px !important;
+  }
+
+  /* Ensure rows do not split across pages */
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+  }
+  
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+}

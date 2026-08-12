@@ -56,4 +56,57 @@ public class ExaminationController {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Examination deleted successfully", null));
     }
+
+    @PostMapping("/{id}/generate-eligibility")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.ExaminationEligibilityStudentDto>>> generateEligibilityList(
+            @PathVariable UUID id, @RequestBody com.acronexus.dto.EligibilityGenerationRequestDto request) {
+        return ResponseEntity.ok(ApiResponse.success("Eligibility list generated successfully", service.generateEligibilityList(id, request)));
+    }
+
+    @GetMapping("/{id}/eligibility-metrics")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.ExaminationEligibilityMetricsDto>>> getEligibilityMetrics(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success("Eligibility metrics retrieved successfully", service.getEligibilityMetrics(id)));
+    }
+
+    @PostMapping("/{id}/eligibility-list")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.ExaminationEligibilityListDto>>> saveEligibilityList(
+            @PathVariable UUID id, @RequestBody com.acronexus.dto.ExaminationEligibilityListDto request) {
+        return ResponseEntity.ok(ApiResponse.success("Eligibility list saved successfully", service.saveEligibilityList(id, request)));
+    }
+
+    @GetMapping("/{id}/eligibility-list")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.ExaminationEligibilityListDto>>> getEligibilityList(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success("Eligibility lists retrieved successfully", service.getEligibilityList(id)));
+    }
+    
+    @DeleteMapping("/{id}/eligibility-list/{listId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<Void>> deleteEligibilityList(@PathVariable UUID id, @PathVariable UUID listId) {
+        service.deleteEligibilityList(id, listId);
+        return ResponseEntity.ok(ApiResponse.success("Eligibility list deleted successfully", null));
+    }
+
+    @PostMapping("/{id}/timetable")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<ExaminationResponseDto>> uploadTimetable(@PathVariable UUID id, @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        ExaminationResponseDto responseDto = service.uploadTimetable(id, file);
+        return ResponseEntity.ok(ApiResponse.success("Timetable uploaded successfully", responseDto));
+    }
+
+    @DeleteMapping("/{id}/timetable/{timetableId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<Void>> deleteTimetable(@PathVariable UUID id, @PathVariable UUID timetableId) {
+        service.deleteTimetable(id, timetableId);
+        return ResponseEntity.ok(ApiResponse.success("Timetable deleted successfully", null));
+    }
+
+    @GetMapping("/{id}/timetable/{timetableId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
+    public org.springframework.http.ResponseEntity<byte[]> downloadTimetable(@PathVariable UUID id, @PathVariable UUID timetableId) {
+        return service.downloadTimetable(id, timetableId);
+    }
 }

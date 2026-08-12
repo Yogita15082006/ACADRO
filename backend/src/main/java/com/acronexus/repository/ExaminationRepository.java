@@ -26,4 +26,5 @@ public interface ExaminationRepository extends JpaRepository<Examination, UUID> 
 
     long countByIsDeletedFalse();
     long countByDepartmentIdAndIsDeletedFalse(UUID departmentId);
+
 }

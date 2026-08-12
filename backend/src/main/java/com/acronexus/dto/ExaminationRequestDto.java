@@ -12,8 +12,8 @@ import java.util.UUID;
 @Data
 public class ExaminationRequestDto {
     
-    @NotNull(message = "Department ID is required")
-    private UUID departmentId;
+    @NotBlank(message = "Batch is required")
+    private String batch;
 
     @NotNull(message = "Semester ID is required")
     private UUID semesterId;
@@ -24,10 +24,20 @@ public class ExaminationRequestDto {
 
     @NotNull(message = "Examination type is required")
     private ExamType type;
+    private String customType;
 
     @NotNull(message = "Start date is required")
     private LocalDate startDate;
 
     @NotNull(message = "End date is required")
     private LocalDate endDate;
+
+    @NotNull(message = "Academic year is required")
+    private UUID academicYearId;
+
+    private java.util.List<UUID> classIds;
+
+    private String description;
+
+    private UUID timetableFileId;
 }

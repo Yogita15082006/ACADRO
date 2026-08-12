@@ -819,7 +819,8 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
         // Student Enrollment Entity
         StudentEnrollment enrollment = studentEnrollmentRepository
-                .findByStudentIdAndAcademicYearIdAndSemesterId(student.getId(), academicYear.getId(), semester.getId())
+                    .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(
+                            student.getId(), academicYear.getId(), semester.getId())
                 .orElse(new StudentEnrollment());
                 
         if (enrollment.getId() == null) {

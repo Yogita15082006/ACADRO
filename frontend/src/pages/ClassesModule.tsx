@@ -262,7 +262,7 @@ export const ClassesModule = () => {
     try {
       const endpoint = `/v1/lecture-materials/${m.id}/view`;
       const response = await api.get(endpoint, { responseType: 'blob' });
-      let contentType = response.headers['content-type'] || 'application/pdf';
+      let contentType = (response.headers['content-type'] as string) || 'application/pdf';
       const fName = (m.fileName || m.title || '').toLowerCase();
       if (fName.endsWith('.jpg') || fName.endsWith('.jpeg')) contentType = 'image/jpeg';
       else if (fName.endsWith('.png')) contentType = 'image/png';
@@ -285,7 +285,7 @@ export const ClassesModule = () => {
     try {
       const endpoint = `/v1/lecture-materials/${m.id}/download`;
       const response = await api.get(endpoint, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
+      const blob = new Blob([response.data], { type: (response.headers['content-type'] as string) || 'application/octet-stream' });
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;

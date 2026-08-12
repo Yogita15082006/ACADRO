@@ -49,13 +49,13 @@ export function AssignmentModule({ workspaceContext }: { workspaceContext?: any 
   useEffect(() => {
     const fetchRealData = async () => {
       try {
-        const targetUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}` : `/v1/assignments/all`;
+        const targetUrl = workspaceContext?.subjectId ? `/v1/assignments/subject/${workspaceContext.id}` : `/v1/assignments/all`;
         const res = await api.get(targetUrl);
         if (res?.data?.data && Array.isArray(res.data.data)) {
           setAssignments(res.data.data);
         }
         
-        const subUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}/my-submissions` : `/v1/assignments/subject/00000000-0000-0000-0000-000000000000/my-submissions`;
+        const subUrl = workspaceContext?.subjectId ? `/v1/assignments/subject/${workspaceContext.id}/my-submissions` : `/v1/assignments/subject/00000000-0000-0000-0000-000000000000/my-submissions`;
         const subRes = await api.get(subUrl);
         if (subRes?.data?.data && Array.isArray(subRes.data.data)) {
           setSubmissions(subRes.data.data);
@@ -1470,7 +1470,7 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
                 This file type cannot be previewed directly in the browser. Please download the file to view its contents.
               </p>
               <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-900/20" asChild>
-                <a href={fileUrl} download>
+                <a href={downloadUrl} download>
                   <Download className="w-4 h-4 mr-2" />
                   Download File
                 </a>
@@ -1552,7 +1552,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
   const onSubmit = async (data: AssignmentFormValues) => {
     try {
-      const targetId = workspaceContext?.id || data.subjectId || '00000000-0000-0000-0000-000000000000';
+      const targetId = workspaceContext?.subjectId || data.subjectId || '00000000-0000-0000-0000-000000000000';
       const formData = new FormData();
       if (file) formData.append('file', file);
       formData.append('title', data.title);

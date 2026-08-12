@@ -563,7 +563,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
 
             if (needNewEnrollment) {
                 Optional<StudentEnrollment> termEnrollment = studentEnrollmentRepository
-                    .findByStudentIdAndAcademicYearIdAndSemesterId(student.getId(), targetYear.getId(), targetSemester.getId());
+                  .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(student.getId(), targetYear.getId(), targetSemester.getId());
                 if (termEnrollment.isPresent()) {
                     StudentEnrollment e = termEnrollment.get();
                     e.setAcroClass(targetClass);
