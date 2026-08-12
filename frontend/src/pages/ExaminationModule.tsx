@@ -8,7 +8,7 @@ import {
   Award, BarChart3, 
   Users, AlertTriangle, ChevronRight, CalendarDays, DownloadCloud, 
   FileSpreadsheet, Save, X, FileIcon,
-  RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock
+  RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock, List
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -265,12 +265,27 @@ export const ExaminationModule = () => {
     setPersistentData('acronexus_seating', savedSeatingLists);
   }, [savedSeatingLists]);
 
+  useEffect(() => {
+    const fetchInvigilators = async () => {
+      try {
+        const res = await api.get('/users/invigilators');
+        if (res.data.success) {
+          setInvigilatorsList(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch invigilators", err);
+      }
+    };
+    fetchInvigilators();
+  }, []);
+
   // Room entry state
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomNumber, setNewRoomNumber] = useState('');
   const [newRoomBenches, setNewRoomBenches] = useState('');
   const [newRoomMaxPerBench, setNewRoomMaxPerBench] = useState('2');
-  const [newRoomInvigilator, setNewRoomInvigilator] = useState('');
+  const [newRoomInvigilators, setNewRoomInvigilators] = useState<string[]>([]);
+  const [invigilatorsList, setInvigilatorsList] = useState<any[]>([]);
   const [newRoomStartTime, setNewRoomStartTime] = useState('10:00 AM');
   const [newRoomEndTime, setNewRoomEndTime] = useState('12:00 PM');
 
@@ -729,26 +744,26 @@ export const ExaminationModule = () => {
             ) : (
               <div className="flex flex-wrap gap-3">
                 {allClasses.map(cls => (
-                  <label 
-                    key={cls.id} 
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-medium ${
-                      createClasses.includes(cls.id) 
-                        ? 'border-primary bg-primary/10 text-primary' 
-                        : 'border-border bg-card hover:border-primary/30 text-foreground'
-                    }`}
-                  >
-                    <input 
-                      type="checkbox" 
-                      checked={createClasses.includes(cls.id)} 
-                      onChange={() => {
-                        setCreateClasses(prev => 
-                          prev.includes(cls.id) ? prev.filter(c => c !== cls.id) : [...prev, cls.id]
-                        );
-                      }}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                    />
-                    {cls.section ? `${cls.name}-${cls.section}` : cls.name}
-                  </label>
+                    <label 
+                      key={cls.id} 
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-medium ${
+                        createClasses.includes(cls.id) 
+                          ? 'border-primary bg-primary/10 text-primary' 
+                          : 'border-border bg-card hover:border-primary/30 text-foreground'
+                      }`}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={createClasses.includes(cls.id)} 
+                        onChange={() => {
+                          setCreateClasses(prev => 
+                            prev.includes(cls.id) ? prev.filter(c => c !== cls.id) : [...prev, cls.id]
+                          );
+                        }}
+                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      {cls.section ? cls.section : cls.name}
+                    </label>
                 ))}
               </div>
             )}
@@ -2238,7 +2253,7 @@ export const ExaminationModule = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{selectedExam?.type || 'Mid Semester'}</span>
-                      <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{selectedExam?.academicYear || 'All'} - {selectedExam?.semester || 'All'}</span>
+                      <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{selectedExam?.academicYearName || 'All'} - {selectedExam?.semesterName || 'All'}</span>
                     </div>
                     <h4 className="font-extrabold text-foreground text-lg leading-tight line-clamp-1">{selectedExam?.name || 'Eligibility Report'}</h4>
                   </div>
@@ -2309,8 +2324,8 @@ export const ExaminationModule = () => {
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => setElgViewMode(isEligibilitySaved ? 'saved' : 'create')} className="rounded-full bg-accent hover:bg-primary hover:text-primary-foreground">
-                  <ChevronRight className="rotate-180" size={20}/>
+                <Button variant="outline" onClick={() => setElgViewMode(isEligibilitySaved ? 'saved' : 'create')} className="gap-2 font-semibold">
+                  <ChevronRight className="rotate-180" size={16}/> Back to List
                 </Button>
                 <div>
                   <h2 className="text-2xl font-black text-foreground flex items-center gap-2">
@@ -2327,6 +2342,7 @@ export const ExaminationModule = () => {
                     </Button>
                   )}
                 <Button variant="outline" className="gap-2 flex-1 sm:flex-none bg-accent hover:bg-primary hover:text-primary-foreground" onClick={() => setElgViewMode('create')}><BrainCircuit size={16}/> Generate List</Button>
+                  <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={() => setElgViewMode('saved')}><List size={16}/> Back to Saved Lists</Button>
                   <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
               </div>
             </div>
@@ -2418,7 +2434,7 @@ export const ExaminationModule = () => {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-max mx-auto shadow-sm",
-                          s.isEligible ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                          s.isEligible ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
                         )}>
                           {s.isEligible ? <CheckCircle size={12}/> : <X size={12}/>}
                           {s.isEligible ? 'Eligible' : 'Not Eligible'}
@@ -2572,111 +2588,106 @@ export const ExaminationModule = () => {
     setSeatRooms([...seatRooms, { 
       id: Date.now().toString(), 
       name: newRoomName, 
-      number: newRoomNumber, 
+      number: newRoomName, 
       benches: benches, 
       capacity: benches * maxPerBench,
       maxPerBench: maxPerBench,
-      invigilator: newRoomInvigilator,
+      invigilatorIds: newRoomInvigilators,
+      invigilatorNames: newRoomInvigilators.map(id => {
+        const invig = invigilatorsList.find(i => i.id === id);
+        return invig ? `${invig.firstName} ${invig.lastName || ''}`.trim() : '';
+      }),
       startTime: newRoomStartTime,
       endTime: newRoomEndTime
     }]);
     setNewRoomName('');
-    setNewRoomNumber('');
     setNewRoomBenches('');
-    setNewRoomInvigilator('');
+    setNewRoomInvigilators([]);
   };
 
 
 
   const handleGenerateSeatingClick = () => {
-    setIsSimulatingSeating(true);
-    setSimulationText('Analyzing class strengths and room capacities...');
+    const totalCapacity = seatRooms.reduce((acc, r) => acc + (r.benches * (r.maxPerBench || seatingConfig.maxPerBench)), 0);
+    // 1. Fetch Eligibility List if not loaded
+    let studentsForSeating = elgGeneratedList;
+    if (!studentsForSeating || studentsForSeating.length === 0) {
+      toast.error("No saved eligibility list found! Please generate and save an eligibility list first.");
+      return;
+    }
     
-    setTimeout(() => setSimulationText('Distributing students to avoid same-class adjacent seating...'), 1500);
-    setTimeout(() => setSimulationText('Finalizing AI seating matrix...'), 3000);
-    setTimeout(() => {
-      setIsSimulatingSeating(false);
-      
-      const totalCapacity = seatRooms.reduce((acc, r) => acc + (r.benches * (r.maxPerBench || seatingConfig.maxPerBench)), 0);
-      // 1. Fetch Eligibility List if not loaded
-      let studentsForSeating = elgGeneratedList;
-      if (!studentsForSeating || studentsForSeating.length === 0) {
-        toast.error("No saved eligibility list found! Please generate and save an eligibility list first.");
-        setIsSimulatingSeating(false);
-        return;
-      }
-      
-      const eligibleStudents = studentsForSeating.filter((s:any) => s.isEligible);
-      
-      if (eligibleStudents.length === 0) {
-        toast.error("No eligible students found in the list!");
-        setIsSimulatingSeating(false);
-        return;
-      }
-      
-      const totalStudents = eligibleStudents.length;
-      
-      if (totalCapacity < totalStudents) {
-         setSeatingGenerated({
-            totalStudents,
-            roomsUtilized: seatRooms.length,
-            totalCapacity,
-            unallocatedStudents: totalStudents - totalCapacity,
-            roomAllocations: []
-         });
-         setIsSimulatingSeating(false);
-         setSeatingViewMode('view');
-         return;
-      }
-      
-      // Basic allocation logic based on eligible students
-      let studentIndex = 0;
-      const roomAllocations = seatRooms.map((r) => {
-         const capacity = r.benches * (r.maxPerBench || seatingConfig.maxPerBench);
-         const studentsInRoom: any[] = [];
-         
-         let rNum = 1;
-         let bNum = 1;
-         let sNum = 0; // 0=LEFT, 1=RIGHT
-         
-         for (let i = 0; i < capacity && studentIndex < eligibleStudents.length; i++) {
-             const st = eligibleStudents[studentIndex++];
-             studentsInRoom.push({
-                ...st,
-                rowNum: `R${rNum}`,
-                benchNum: `B${bNum}`,
-                seatPosition: sNum === 0 ? 'LEFT' : 'RIGHT'
-             });
-             
-             sNum++;
-             if (sNum > 1) {
-                 sNum = 0;
-                 bNum++;
-                 if (bNum > (r.benches / 2)) {
-                     // simplistic layout assumption
-                     bNum = 1;
-                     rNum++;
-                 }
-             }
-         }
-         
-         return {
-           ...r,
-           allocated: studentsInRoom.length,
-           students: studentsInRoom,
-           classes: [...new Set(studentsInRoom.map((s:any) => s.className))]
-         };
-      });
-
-      setSeatingGenerated({
-        totalStudents,
-        roomsUtilized: seatRooms.length,
-        totalCapacity,
-        unallocatedStudents: 0,
-        roomAllocations
-      });
-      setSeatingViewMode('view');
-    }, 4500);
+    const eligibleStudents = studentsForSeating.filter((s:any) => s.isEligible);
+    
+    if (eligibleStudents.length === 0) {
+      toast.error("No eligible students found in the list!");
+      return;
+    }
+    
+    const totalStudents = eligibleStudents.length;
+    
+    if (totalCapacity < totalStudents) {
+       setSeatingGenerated({
+          totalStudents,
+          roomsUtilized: seatRooms.length,
+          totalCapacity,
+          unallocatedStudents: totalStudents - totalCapacity,
+          roomAllocations: []
+       });
+       setSeatingViewMode('view');
+       return;
+    }
+    
+    // Basic allocation logic based on eligible students
+    let studentIndex = 0;
+    const roomAllocations = seatRooms.map((r) => {
+       const capacity = r.benches * (r.maxPerBench || seatingConfig.maxPerBench);
+       const studentsInRoom: any[] = [];
+       
+       let rNum = 1;
+       let bNum = 1;
+       let sNum = 0; // 0=LEFT, 1=RIGHT
+       
+       for (let i = 0; i < capacity && studentIndex < eligibleStudents.length; i++) {
+           const st = eligibleStudents[studentIndex++];
+           studentsInRoom.push({
+              ...st,
+              rowNum: `R${rNum}`,
+              benchNum: `B${bNum}`,
+              seatPosition: sNum === 0 ? 'LEFT' : 'RIGHT'
+           });
+           
+           sNum++;
+           if (sNum > 1) {
+               sNum = 0;
+               bNum++;
+               if (bNum > (r.maxPerBench || seatingConfig.maxPerBench)) { // Assuming basic layout
+                   rNum++;
+               }
+           }
+       }
+       
+       return {
+          id: r.id,
+          name: r.name,
+          number: r.number,
+          benches: r.benches,
+          maxPerBench: r.maxPerBench,
+          allocated: studentsInRoom.length,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          invigilatorNames: r.invigilatorNames,
+          students: studentsInRoom
+       };
+    });
+    
+    setSeatingGenerated({
+       totalStudents,
+       roomsUtilized: seatRooms.length,
+       totalCapacity,
+       unallocatedStudents: 0,
+       roomAllocations
+    });
+    setSeatingViewMode('view');
   };
 
   const renderSeatingGenerator = () => {
@@ -2823,7 +2834,7 @@ export const ExaminationModule = () => {
                   <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={() => { 
                     setSeatingSaved(true); 
                     setSavedSeatingLists((prev: any[]) => [...prev, { id: Date.now(), exam: selectedExam, list: seatingGenerated, date: new Date().toLocaleDateString() }]);
-                    alert("Seating Arrangement Saved successfully!"); 
+                    toast.success("Seating Arrangement Saved successfully!"); 
                   }}>
                     <CheckCircle size={16}/> Save Seating
                   </Button>
@@ -2847,12 +2858,13 @@ export const ExaminationModule = () => {
                   <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm font-semibold">
                     <div className="flex"><span className="w-32 text-gray-600">Examination:</span> <span>{selectedExam?.name || 'Mid Semester Examination'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Room:</span> <span className="text-lg font-bold">{room.roomNumber || room.number}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Academic Year:</span> <span>{selectedExam?.academicYear || 'All Years'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Semester:</span> <span>{selectedExam?.semester?.semesterNumber || selectedExam?.semesterId || 'All Semesters'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Batch:</span> <span>{selectedExam?.batch || 'All Batches'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Academic Year:</span> <span>{selectedExam?.academicYearName || 'All Years'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Semester:</span> <span>{selectedExam?.semesterName || 'All Semesters'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Date:</span> <span>{selectedExam?.startDate || 'Scheduled Date'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Time:</span> <span>{room.startTime || '10:00 AM'} - {room.endTime || '12:00 PM'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Total Students:</span> <span>{room.allocated}</span></div>
-                    {room.invigilatorNames && room.invigilatorNames.length > 0 && <div className="flex"><span className="w-32 text-gray-600">Invigilator:</span> <span>{room.invigilatorNames.join(', ')}</span></div>}
+                    {room.invigilatorNames && room.invigilatorNames.length > 0 && <div className="flex col-span-2"><span className="w-32 text-gray-600">Invigilator:</span> <span>{room.invigilatorNames.join(', ')}</span></div>}
                   </div>
 
                   <table className="w-full text-left border-collapse border border-gray-300 print:border-gray-500" style={{ pageBreakInside: 'auto' }}>
@@ -2927,34 +2939,18 @@ export const ExaminationModule = () => {
         </div>
 
         <div className="bg-card border border-border rounded-xl shadow-sm p-8">
-          
-          {isSimulatingSeating ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-6">
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <BrainCircuit className="text-primary animate-pulse" size={32} />
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-foreground">AI Seating Generation in Progress</h3>
-                <p className="text-muted-foreground animate-pulse font-medium">{simulationText}</p>
-              </div>
-            </div>
-          ) : (
+            
             <div className="space-y-6 animate-in slide-in-from-right-4">
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Manage Examination Rooms</label>
                 <span className="text-xs font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">{seatRooms.length} Rooms Added</span>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-accent/30 p-5 rounded-xl border border-border">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold">Room Name/Type</label>
-                  <input type="text" placeholder="e.g. Lab 1, Hall A" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomName} onChange={e => setNewRoomName(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold">Room Number</label>
-                  <input type="text" placeholder="e.g. 101, 305" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomNumber} onChange={e => setNewRoomNumber(e.target.value)} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-accent/30 p-5 rounded-xl border border-border">
+                <div className="space-y-1 lg:col-span-2">
+                  <label className="text-xs font-semibold">Room Details</label>
+                  <input type="text" placeholder="e.g. Lab 225 A, 101, Hall B" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomName} onChange={e => setNewRoomName(e.target.value)} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Total Benches</label>
@@ -2973,15 +2969,28 @@ export const ExaminationModule = () => {
                   <input type="time" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomEndTime} onChange={e => setNewRoomEndTime(e.target.value)} />
                 </div>
                 <div className="space-y-1 lg:col-span-2">
-                  <label className="text-xs font-semibold">Invigilator Name</label>
-                  <select className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomInvigilator} onChange={e => setNewRoomInvigilator(e.target.value)}>
-                    <option value="">Select Invigilator (Optional)</option>
-                    <option value="Dr. Arvind Sharma">Dr. Arvind Sharma</option>
-                    <option value="Prof. Priya Patel">Prof. Priya Patel</option>
-                    <option value="Dr. Sanjay Gupta">Dr. Sanjay Gupta</option>
-                    <option value="Prof. Neha Verma">Prof. Neha Verma</option>
-                  </select>
-                </div>
+                    <label className="text-xs font-semibold">Invigilators (Select Multiple)</label>
+                    <div className="w-full h-24 overflow-y-auto p-2 text-sm border border-border rounded-lg bg-background flex flex-col gap-1">
+                      {invigilatorsList.length === 0 && <span className="text-muted-foreground text-xs p-1">Loading invigilators...</span>}
+                      {invigilatorsList.map(invig => (
+                        <label key={invig.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-accent rounded">
+                          <input 
+                            type="checkbox" 
+                            checked={newRoomInvigilators.includes(invig.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewRoomInvigilators([...newRoomInvigilators, invig.id]);
+                              } else {
+                                setNewRoomInvigilators(newRoomInvigilators.filter(id => id !== invig.id));
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span>{invig.firstName} {invig.lastName || ''}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 <div className="flex items-end lg:col-span-1">
                   <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" onClick={handleAddRoom} disabled={!newRoomName || !newRoomBenches}>
                     <Plus size={16} className="mr-2"/> Add Room
@@ -3004,8 +3013,8 @@ export const ExaminationModule = () => {
                         </Button>
                       </div>
                       <div className="space-y-1.5 text-xs">
-                        {room.invigilator && (
-                          <div className="flex items-center text-muted-foreground"><User size={12} className="mr-1.5 opacity-70"/> {room.invigilator}</div>
+                        {room.invigilatorNames && room.invigilatorNames.length > 0 && (
+                          <div className="flex items-center text-muted-foreground"><User size={12} className="mr-1.5 opacity-70"/> {room.invigilatorNames.join(', ')}</div>
                         )}
                         <div className="flex items-center text-muted-foreground"><Clock size={12} className="mr-1.5 opacity-70"/> {room.startTime} - {room.endTime}</div>
                         <div className="flex items-center text-muted-foreground"><Users size={12} className="mr-1.5 opacity-70"/> {room.capacity} Total Capacity</div>
@@ -3023,22 +3032,20 @@ export const ExaminationModule = () => {
                 </div>
               )}
               
-              <div className="flex justify-end pt-6 border-t border-border mt-8">
-                <Button 
-                  size="lg"
-                  className="bg-primary text-primary-foreground gap-2 font-bold px-8 shadow-md shadow-primary/20" 
-                  disabled={seatRooms.length === 0}
-                  onClick={handleGenerateSeatingClick}
-                >
-                  <BrainCircuit size={18} className="animate-pulse"/> Generate Plan
-                </Button>
+                <div className="flex justify-end pt-6 border-t border-border mt-8">
+                  <Button 
+                    size="lg"
+                    className="bg-primary text-primary-foreground gap-2 font-bold px-8 shadow-md shadow-primary/20" 
+                    disabled={seatRooms.length === 0}
+                    onClick={handleGenerateSeatingClick}
+                  >
+                    <BrainCircuit size={18} className="animate-pulse"/> Generate Plan
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    );
-  };
+        </motion.div>
+      );
+    };
 
 
 

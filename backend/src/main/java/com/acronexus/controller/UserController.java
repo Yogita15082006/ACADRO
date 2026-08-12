@@ -41,6 +41,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", users));
     }
 
+    @GetMapping("/invigilators")
+    public ResponseEntity<ApiResponse<List<UserResponseDto>>> getInvigilators() {
+        List<UserResponseDto> invigilators = userService.getInvigilators();
+        return ResponseEntity.ok(ApiResponse.success("Invigilators fetched successfully", invigilators));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID id) {
         userService.deleteUser(id);

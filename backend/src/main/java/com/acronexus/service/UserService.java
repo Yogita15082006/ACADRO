@@ -110,6 +110,15 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    public List<UserResponseDto> getInvigilators() {
+        List<User> users = userRepository.findByRoleIn(List.of(UserRole.FACULTY, UserRole.COORDINATOR, UserRole.HOD));
+        List<UserResponseDto> dtos = new java.util.ArrayList<>();
+        for (User user : users) {
+            dtos.add(userMapper.toDto(user, facultyRepository.findById(user.getId()).orElse(null)));
+        }
+        return dtos;
+    }
+
     @Transactional
     public UserResponseDto updateUser(UUID id, Map<String, Object> updates) {
         User user = userRepository.findById(id)
