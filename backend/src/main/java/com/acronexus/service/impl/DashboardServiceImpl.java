@@ -60,6 +60,7 @@ public class DashboardServiceImpl implements DashboardService {
         UUID departmentId = user.getDepartment().getId();
         UUID semesterId = enrollment.getSemester().getId();
         UUID academicYearId = enrollment.getAcademicYear().getId();
+        String batchYear = enrollment.getStudent().getBatchYear();
 
         return StudentDashboardResponse.builder()
                 .attendanceOverview(buildAttendanceOverview(student.getId()))
@@ -69,7 +70,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .upcomingQuizzes(buildUpcomingQuizzes(student.getId(), userId))
                 .recentQuizScores(buildRecentQuizScores(userId))
                 .upcomingExams(buildUpcomingExams(classId, academicYearId, semesterId, departmentId))
-                .latestNotices(buildStudentNotices(departmentId, classId))
+                .latestNotices(buildStudentNotices(classId, batchYear))
                 .latestNotifications(buildNotifications(userId))
                 .academicResources(buildStudentAcademicResources(classId))
                 .build();
@@ -238,8 +239,8 @@ public class DashboardServiceImpl implements DashboardService {
                 .collect(Collectors.toList());
     }
 
-    private List<StudentDashboardResponse.NoticeSummary> buildStudentNotices(UUID departmentId, UUID classId) {
-        List<Notice> notices = noticeRepository.findStudentFeed(departmentId, classId);
+    private List<StudentDashboardResponse.NoticeSummary> buildStudentNotices(UUID classId, String batchYear) {
+        List<Notice> notices = noticeRepository.findStudentFeed(classId, batchYear);
         return notices.stream()
                 .limit(5)
                 .map(n -> StudentDashboardResponse.NoticeSummary.builder()
@@ -344,7 +345,6 @@ public class DashboardServiceImpl implements DashboardService {
         List<Notice> allNotices = noticeRepository.findAll();
         return allNotices.stream()
                 .filter(n -> Boolean.TRUE.equals(n.getIsActive()) && !Boolean.TRUE.equals(n.getIsDeleted()))
-                .filter(n -> n.getTargetRole() == null || n.getTargetRole() == UserRole.FACULTY)
                 .sorted(Comparator.comparing(Notice::getPublishDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(5)
                 .map(n -> FacultyDashboardResponse.NoticeSummary.builder()

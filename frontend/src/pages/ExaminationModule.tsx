@@ -656,7 +656,7 @@ export const ExaminationModule = () => {
       });
       console.log("Got attachment response", response);
       
-      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
+      const blob = response.data;
       const fileUrl = window.URL.createObjectURL(blob);
       window.open(fileUrl, '_blank');
     } catch (error: any) {
@@ -2060,9 +2060,11 @@ export const ExaminationModule = () => {
         {notices.map(notice => (
           <div key={notice.id} className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2.5 py-1 rounded-full">
-                {notice.category}
-              </span>
+                <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                  notice.category === 'Admit Card Notice' ? 'bg-indigo-500 text-white' : 'bg-primary text-primary-foreground'
+                )}>
+                  {notice.category}
+                </span>
               <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded", 
                 notice.priority === 'High' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'
               )}>

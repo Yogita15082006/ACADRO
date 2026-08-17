@@ -80,19 +80,28 @@ public class NoticeServiceImpl implements NoticeService {
             notice.setFile(file);
         }
 
-        if (request.getDepartmentId() != null) {
-            Department dept = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
-            notice.setTargetDepartment(dept);
+        if (request.getTargets() != null && !request.getTargets().isEmpty()) {
+            java.util.List<NoticeTargetAssignment> targetAssignments = new java.util.ArrayList<>();
+            for (com.acronexus.dto.NoticeTargetAssignmentDto targetDto : request.getTargets()) {
+                NoticeTargetAssignment assignment = new NoticeTargetAssignment();
+                assignment.setNotice(notice);
+                assignment.setBatchYear(targetDto.getBatchYear());
+                assignment.setAcademicYear(targetDto.getAcademicYear());
+                assignment.setSemester(targetDto.getSemester());
+                assignment.setIsEntireBatch(targetDto.getIsEntireBatch() != null ? targetDto.getIsEntireBatch() : false);
+                
+                if (targetDto.getAcroClassId() != null) {
+                    AcroClass acroClass = acroClassRepository.findById(targetDto.getAcroClassId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + targetDto.getAcroClassId()));
+                    assignment.setAcroClass(acroClass);
+                }
+                
+                targetAssignments.add(assignment);
+            }
+            notice.setTargetAssignments(targetAssignments);
         }
 
-        if (request.getClassId() != null) {
-            AcroClass acroClass = acroClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
-            notice.setTargetClass(acroClass);
-        }
-
-        notice.setTargetRole(request.getTargetRole());
+        notice.setIsActive(true);
         notice.setPublishedBy(user);
         notice.setIsActive(true);
         notice.setIsDeleted(false);
@@ -137,23 +146,28 @@ public class NoticeServiceImpl implements NoticeService {
             notice.setFile(null);
         }
 
-        if (request.getDepartmentId() != null) {
-            Department dept = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
-            notice.setTargetDepartment(dept);
-        } else {
-            notice.setTargetDepartment(null);
+        notice.getTargetAssignments().clear();
+        
+        if (request.getTargets() != null && !request.getTargets().isEmpty()) {
+            for (com.acronexus.dto.NoticeTargetAssignmentDto targetDto : request.getTargets()) {
+                NoticeTargetAssignment assignment = new NoticeTargetAssignment();
+                assignment.setNotice(notice);
+                assignment.setBatchYear(targetDto.getBatchYear());
+                assignment.setAcademicYear(targetDto.getAcademicYear());
+                assignment.setSemester(targetDto.getSemester());
+                assignment.setIsEntireBatch(targetDto.getIsEntireBatch() != null ? targetDto.getIsEntireBatch() : false);
+                
+                if (targetDto.getAcroClassId() != null) {
+                    AcroClass acroClass = acroClassRepository.findById(targetDto.getAcroClassId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + targetDto.getAcroClassId()));
+                    assignment.setAcroClass(acroClass);
+                }
+                
+                notice.getTargetAssignments().add(assignment);
+            }
         }
 
-        if (request.getClassId() != null) {
-            AcroClass acroClass = acroClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Class not found"));
-            notice.setTargetClass(acroClass);
-        } else {
-            notice.setTargetClass(null);
-        }
-
-        notice.setTargetRole(request.getTargetRole());
+        notice = noticeRepository.save(notice);
 
         notice = noticeRepository.save(notice);
         return noticeMapper.toDto(notice);
@@ -211,10 +225,10 @@ public class NoticeServiceImpl implements NoticeService {
                 .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Active student enrollment not found"));
 
+        String batchYear = enrollment.getStudent().getBatchYear();
         UUID classId = enrollment.getAcroClass().getId();
-        UUID departmentId = enrollment.getAcroClass().getDepartment().getId();
 
-        return noticeRepository.findStudentFeed(departmentId, classId).stream()
+        return noticeRepository.findStudentFeed(classId, batchYear).stream()
                 .map(noticeMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -266,11 +280,13 @@ public class NoticeServiceImpl implements NoticeService {
             }
 
             if (filter.getDepartmentId() != null) {
-                predicates.add(cb.equal(root.get("targetDepartment").get("id"), filter.getDepartmentId()));
+                jakarta.persistence.criteria.Join<Notice, NoticeTargetAssignment> joinTa = root.join("targetAssignments", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.equal(joinTa.get("acroClass").get("department").get("id"), filter.getDepartmentId()));
             }
 
             if (filter.getClassId() != null) {
-                predicates.add(cb.equal(root.get("targetClass").get("id"), filter.getClassId()));
+                jakarta.persistence.criteria.Join<Notice, NoticeTargetAssignment> joinTa = root.join("targetAssignments", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.equal(joinTa.get("acroClass").get("id"), filter.getClassId()));
             }
 
             if (filter.getStartDate() != null) {
@@ -331,10 +347,10 @@ public class NoticeServiceImpl implements NoticeService {
                 .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Active student enrollment not found"));
 
+        String batchYear = enrollment.getStudent().getBatchYear();
         UUID classId = enrollment.getAcroClass().getId();
-        UUID departmentId = enrollment.getAcroClass().getDepartment().getId();
 
-        List<Notice> notices = noticeRepository.findStudentFeed(departmentId, classId);
+        List<Notice> notices = noticeRepository.findStudentFeed(classId, batchYear);
         
         com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
                 .insightType("NOTICE_HIGHLIGHTS")
@@ -360,10 +376,10 @@ public class NoticeServiceImpl implements NoticeService {
                 .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Active student enrollment not found"));
 
+        String batchYear = enrollment.getStudent().getBatchYear();
         UUID classId = enrollment.getAcroClass().getId();
-        UUID departmentId = enrollment.getAcroClass().getDepartment().getId();
 
-        List<Notice> notices = noticeRepository.findStudentFeed(departmentId, classId);
+        List<Notice> notices = noticeRepository.findStudentFeed(classId, batchYear);
         
         com.acronexus.dto.ai.AiAnalyticsRequest request = com.acronexus.dto.ai.AiAnalyticsRequest.builder()
                 .insightType("NOTICE_RECOMMENDATIONS")
@@ -379,5 +395,49 @@ public class NoticeServiceImpl implements NoticeService {
                 .build();
                 
         return aiService.getInsights(request);
+    }
+    @Override
+    @Transactional
+    public UUID uploadAttachment(org.springframework.web.multipart.MultipartFile file, UUID userId) {
+        try {
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get("uploads/notices/");
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            java.nio.file.Path filePath = uploadPath.resolve(fileName);
+            java.nio.file.Files.copy(file.getInputStream(), filePath);
+
+            com.acronexus.entity.FileStorage fs = new com.acronexus.entity.FileStorage();
+            fs.setFileName(file.getOriginalFilename());
+            fs.setDocumentUrl(filePath.toString());
+            fs.setFileType(file.getContentType());
+            fs.setUploadedBy(userRepository.findById(userId).orElse(null));
+            fs.setUploadedAt(java.time.ZonedDateTime.now());
+            fs.setIsActive(true);
+            fs.setIsDeleted(false);
+            fs = fileStorageRepository.save(fs);
+            return fs.getId();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to store file", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.http.ResponseEntity<byte[]> downloadAttachment(UUID fileId) {
+        com.acronexus.entity.FileStorage fs = fileStorageRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found"));
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(fs.getDocumentUrl());
+            byte[] fileBytes = java.nio.file.Files.readAllBytes(path);
+            
+            return org.springframework.http.ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fs.getFileName() + "\"")
+                    .contentType(org.springframework.http.MediaType.parseMediaType(fs.getFileType() != null ? fs.getFileType() : "application/octet-stream"))
+                    .body(fileBytes);
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Error reading file", e);
+        }
     }
 }

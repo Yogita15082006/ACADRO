@@ -31,18 +31,25 @@ public class NoticeMapper {
             dto.setPublishedByName(notice.getPublishedBy().getFirstName() + " " + notice.getPublishedBy().getLastName());
         }
         
-        if (notice.getTargetDepartment() != null) {
-            dto.setTargetDepartmentId(notice.getTargetDepartment().getId());
-            dto.setTargetDepartmentName(notice.getTargetDepartment().getName());
+        dto.setExpiryDate(notice.getExpiryDate());
+        
+        if (notice.getTargetAssignments() != null) {
+            java.util.List<com.acronexus.dto.NoticeTargetAssignmentDto> targets = notice.getTargetAssignments().stream().map(ta -> {
+                com.acronexus.dto.NoticeTargetAssignmentDto targetDto = new com.acronexus.dto.NoticeTargetAssignmentDto();
+                targetDto.setBatchYear(ta.getBatchYear());
+                targetDto.setAcademicYear(ta.getAcademicYear());
+                targetDto.setSemester(ta.getSemester());
+                targetDto.setIsEntireBatch(ta.getIsEntireBatch());
+                if (ta.getAcroClass() != null) {
+                    targetDto.setAcroClassId(ta.getAcroClass().getId());
+                    targetDto.setAcroClassName(ta.getAcroClass().getName() + 
+                        (ta.getAcroClass().getSection() != null ? " - " + ta.getAcroClass().getSection() : ""));
+                }
+                return targetDto;
+            }).collect(java.util.stream.Collectors.toList());
+            dto.setTargets(targets);
         }
         
-        if (notice.getTargetClass() != null) {
-            dto.setTargetClassId(notice.getTargetClass().getId());
-            dto.setTargetClassName(notice.getTargetClass().getName() + 
-                (notice.getTargetClass().getSection() != null ? " - " + notice.getTargetClass().getSection() : ""));
-        }
-        
-        dto.setTargetRole(notice.getTargetRole());
         dto.setIsActive(notice.getIsActive());
 
         return dto;

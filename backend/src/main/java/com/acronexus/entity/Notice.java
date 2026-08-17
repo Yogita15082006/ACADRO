@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 @Entity
 @Table(name = "notices")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Notice {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -27,12 +27,9 @@ public class Notice {
     private User publishedBy;
     private Boolean isActive = true;
     private Boolean isDeleted = false;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "target_department_id")
-    private Department targetDepartment;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "target_class_id")
-    private AcroClass targetClass;
-    @Enumerated(EnumType.STRING)
-    private UserRole targetRole;
+    private ZonedDateTime expiryDate;
+    
+    @OneToMany(mappedBy = "notice", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private java.util.List<NoticeTargetAssignment> targetAssignments = new java.util.ArrayList<>();
 }

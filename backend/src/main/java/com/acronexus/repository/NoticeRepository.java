@@ -15,28 +15,35 @@ import java.util.UUID;
 public interface NoticeRepository extends JpaRepository<Notice, UUID>, JpaSpecificationExecutor<Notice> {
 
     @Override
-    @EntityGraph(attributePaths = {"file", "publishedBy", "targetDepartment", "targetClass"})
+    @EntityGraph(attributePaths = {"file", "publishedBy", "targetAssignments"})
     List<Notice> findAll(org.springframework.data.jpa.domain.Specification<Notice> spec);
 
-    @EntityGraph(attributePaths = {"file", "publishedBy", "targetDepartment", "targetClass"})
-    @Query("""
-        SELECT n FROM Notice n
-        WHERE n.isActive = true 
-          AND n.isDeleted = false
-          AND (n.publishDate IS NULL OR n.publishDate <= CURRENT_TIMESTAMP)
-          AND (n.targetRole IS NULL OR n.targetRole = 'STUDENT')
-          AND (n.targetDepartment.id = :departmentId OR n.targetDepartment IS NULL)
-          AND (n.targetClass.id = :classId OR n.targetClass IS NULL)
-        ORDER BY n.priority DESC, n.publishDate DESC
-    """)
+    @Query("SELECT DISTINCT n FROM Notice n " +
+           "LEFT JOIN FETCH n.file " +
+           "LEFT JOIN FETCH n.publishedBy " +
+           "LEFT JOIN n.targetAssignments ta " +
+           "WHERE n.isActive = true " +
+           "  AND n.isDeleted = false " +
+           "  AND (n.publishDate IS NULL OR n.publishDate <= CURRENT_TIMESTAMP) " +
+           "  AND (n.expiryDate IS NULL OR n.expiryDate >= CURRENT_TIMESTAMP) " +
+           "  AND (" +
+           "    (ta IS NOT NULL AND (ta.acroClass.id = :classId OR (ta.isEntireBatch = true AND ta.batchYear = :batchYear))) " +
+           "    OR " +
+           "    (ta IS NULL AND NOT EXISTS (SELECT 1 FROM NoticeTargetAssignment nta WHERE nta.notice = n)) " +
+           "  ) " +
+           "ORDER BY n.priority DESC, n.publishDate DESC")
     List<Notice> findStudentFeed(
-            @Param("departmentId") UUID departmentId,
-            @Param("classId") UUID classId
+            @Param("classId") UUID classId,
+            @Param("batchYear") String batchYear
     );
     
-    @EntityGraph(attributePaths = {"file", "publishedBy", "targetDepartment", "targetClass"})
+    @EntityGraph(attributePaths = {"file", "publishedBy", "targetAssignments"})
     List<Notice> findAll();
 
     long countByIsDeletedFalseAndIsActiveTrue();
-    long countByTargetDepartmentIdAndIsDeletedFalseAndIsActiveTrue(UUID departmentId);
+    @Query("SELECT COUNT(DISTINCT n) FROM Notice n " +
+           "LEFT JOIN n.targetAssignments ta " +
+           "WHERE n.isDeleted = false AND n.isActive = true " +
+           "  AND (ta IS NULL OR ta.acroClass.department.id = :departmentId)")
+    long countByTargetDepartmentIdAndIsDeletedFalseAndIsActiveTrue(@Param("departmentId") UUID departmentId);
 }

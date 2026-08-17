@@ -198,8 +198,10 @@ public class ExaminationServiceImpl implements ExaminationService {
 
         entity.setName(requestDto.getName());
         entity.setType(requestDto.getType());
+        entity.setCustomType(requestDto.getCustomType());
         entity.setStartDate(requestDto.getStartDate());
         entity.setEndDate(requestDto.getEndDate());
+        entity.setDescription(requestDto.getDescription());
         entity.setDepartment(department);
         entity.setSemester(semester);
         

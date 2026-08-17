@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+const path = require('path');
+
+const content = `import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -8,8 +11,7 @@ import {
 import { Button } from '../components/ui/button';
 import { noticeService } from '../services/noticeService';
 import { eventService } from '../services/eventService';
-import { SpecificAssignmentRow } from '../components/events/CreateEventForm';
-import type { SpecificAssignment } from '../components/events/CreateEventForm';
+import { SpecificAssignmentRow, SpecificAssignment } from '../components/events/CreateEventForm';
 import { toast } from 'react-hot-toast';
 import { cn } from '../lib/utils';
 
@@ -24,15 +26,10 @@ export const NoticeModule = () => {
   const [currentView, setCurrentView] = useState<'dashboard' | 'create_notice'>('dashboard');
   const [notices, setNotices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [noticeToDelete, setNoticeToDelete] = useState<string | null>(null);
 
   // Form State
   const [newNotice, setNewNotice] = useState({
-    title: '',
-    description: '',
-    category: 'General',
-    priority: 'MEDIUM',
-    expiryDate: ''
+    title: '', description: '', category: 'General', priority: 'Normal', expiryDate: ''
   });
   const [noticeFile, setNoticeFile] = useState<File | null>(null);
 
@@ -124,54 +121,33 @@ export const NoticeModule = () => {
         }
       }
 
-      const targets: any[] = [];
+      const targets = [];
       if (entireBatch) {
         targets.push({ isEntireBatch: true, batchYear: entireBatch });
       }
       specificAssignments.forEach(sa => {
         if (sa.batch) {
-          if (sa.classId && sa.classId.includes(',')) {
-            // If multiple class IDs are selected (e.g., "All Sections" in a semester)
-            const classIds = sa.classId.split(',');
-            classIds.forEach(id => {
-              targets.push({
-                isEntireBatch: false,
-                batchYear: sa.batch,
-                academicYear: sa.year || null,
-                semester: sa.semester || null,
-                acroClassId: id,
-                acroClassName: sa.classSection || null
-              });
-            });
-          } else {
-            targets.push({
-              isEntireBatch: false,
-              batchYear: sa.batch,
-              academicYear: sa.year || null,
-              semester: sa.semester || null,
-              acroClassId: sa.classId || null,
-              acroClassName: sa.classSection || null
-            });
-          }
+          targets.push({
+            isEntireBatch: false,
+            batchYear: sa.batch,
+            academicYear: sa.year || null,
+            semester: sa.semester || null,
+            acroClassId: sa.classId || null,
+            acroClassName: sa.classSection || null
+          });
         }
       });
 
-        if (!newNotice.expiryDate) {
-          toast.error("Please select an Expiry Date.", { id: toastId });
-          setIsPublishing(false);
-          return;
-        }
-
-        const payload = {
-          title: newNotice.title,
-          description: newNotice.description,
-          category: newNotice.category,
-          priority: newNotice.priority,
-          expiryDate: new Date(newNotice.expiryDate).toISOString(),
-          publishDate: new Date().toISOString(),
-          fileId: fileId,
-          targets: targets
-        };
+      const payload = {
+        title: newNotice.title,
+        description: newNotice.description,
+        category: newNotice.category,
+        priority: newNotice.priority,
+        expiryDate: new Date(newNotice.expiryDate).toISOString(),
+        publishDate: new Date().toISOString(),
+        fileId: fileId,
+        targets: targets
+      };
 
       toast.loading("Saving notice...", { id: toastId });
       const createdNotice = await noticeService.createNotice(payload);
@@ -187,7 +163,7 @@ export const NoticeModule = () => {
       setCurrentView('dashboard');
       fetchNotices();
       // Reset form
-      setNewNotice({ title: '', description: '', category: 'General', priority: 'MEDIUM', expiryDate: '' });
+      setNewNotice({ title: '', description: '', category: 'General', priority: 'Normal', expiryDate: '' });
       setNoticeFile(null);
       setSpecificAssignments([]);
       setEntireBatch('');
@@ -207,18 +183,6 @@ export const NoticeModule = () => {
       window.open(fileUrl, '_blank');
     } catch (e) {
       toast.error("Failed to download attachment");
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await noticeService.deleteNotice(id);
-      toast.success("Notice deleted successfully");
-      fetchNotices();
-    } catch(e) {
-      toast.error("Failed to delete notice");
-    } finally {
-      setNoticeToDelete(null);
     }
   };
 
@@ -248,8 +212,8 @@ export const NoticeModule = () => {
           notices.map(notice => (
             <div key={notice.id} className={cn(
               "bg-card border-l-4 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden",
-              notice.priority === 'URGENT' ? 'border-l-rose-500' :
-              notice.priority === 'HIGH' ? 'border-l-amber-500' : 'border-l-blue-500'
+              notice.priority === 'Urgent' ? 'border-l-rose-500' :
+              notice.priority === 'High' ? 'border-l-amber-500' : 'border-l-blue-500'
             )}>
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -259,34 +223,20 @@ export const NoticeModule = () => {
                     </span>
                     <span className={cn(
                       "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                      notice.priority === 'URGENT' ? 'bg-rose-500 text-white' : 
-                      notice.priority === 'HIGH' ? 'bg-amber-500 text-white' : 'bg-blue-500/10 text-blue-500'
+                      notice.priority === 'Urgent' ? 'bg-rose-500 text-white' : 
+                      notice.priority === 'High' ? 'bg-amber-500 text-white' : 'bg-blue-500/10 text-blue-500'
                     )}>
                       {notice.priority}
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-foreground">{notice.title}</h3>
                 </div>
-                {canCreateNotice && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setNoticeToDelete(notice.id);
-                    }} 
-                    className="text-rose-500 hover:bg-rose-500/10 h-8 w-8 relative z-10"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                )}
               </div>
               <p className="text-muted-foreground text-sm mt-3 whitespace-pre-wrap">{notice.description}</p>
               
               <div className="mt-6 pt-4 border-t border-border/50 flex flex-wrap gap-4 items-center justify-between text-xs text-muted-foreground">
-                <div className="flex gap-4 flex-wrap">
-                  <span className="flex items-center gap-1"><Clock size={14} className="text-primary"/> Published: {new Date(notice.publishDate || new Date()).toLocaleString()}</span>
+                <div className="flex gap-4">
+                  <span className="flex items-center gap-1"><Clock size={14} className="text-primary"/> Published: {new Date(notice.publishDate).toLocaleString()}</span>
                   {notice.expiryDate && (
                     <span className="flex items-center gap-1"><Calendar size={14} className="text-rose-500"/> Expires: {new Date(notice.expiryDate).toLocaleDateString()}</span>
                   )}
@@ -345,10 +295,7 @@ export const NoticeModule = () => {
               <label className="text-sm font-bold">Priority</label>
               <select className="w-full p-3 border border-border rounded-xl bg-background"
                 value={newNotice.priority} onChange={e => setNewNotice({...newNotice, priority: e.target.value})}>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
+                {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
@@ -433,53 +380,10 @@ export const NoticeModule = () => {
   return (
     <div className="min-h-screen bg-background text-foreground p-6">
       {currentView === 'dashboard' ? renderDashboard() : renderCreateNotice()}
-
-      {/* Delete Confirmation Popup */}
-      <AnimatePresence>
-        {noticeToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setNoticeToDelete(null)}
-              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-card w-full max-w-md p-6 rounded-2xl shadow-xl border border-border"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="h-12 w-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mb-4">
-                  <Trash2 size={24} />
-                </div>
-                <h3 className="text-xl font-bold mb-2 text-foreground">Delete Notice</h3>
-                <p className="text-muted-foreground mb-6">
-                  Are you sure you want to delete this notice? This action cannot be undone and it will be removed from all student dashboards immediately.
-                </p>
-                <div className="flex gap-3 w-full">
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => setNoticeToDelete(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    className="flex-1"
-                    onClick={() => handleDelete(noticeToDelete)}
-                  >
-                    Delete Notice
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
+\`;
+
+fs.writeFileSync(path.join('C:', 'A', 'Development', 'AcroNexus', 'frontend', 'src', 'pages', 'NoticeModule.tsx'), content);
+console.log('NoticeModule.tsx rewritten.');

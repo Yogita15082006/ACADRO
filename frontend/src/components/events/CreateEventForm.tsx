@@ -10,7 +10,7 @@ import { eventService } from '../../services/eventService';
 import { toast } from 'react-hot-toast';
 
 // --- Interfaces ---
-interface SpecificAssignment {
+export interface SpecificAssignment {
   id: string;
   batch: string;
   year: string;
@@ -26,7 +26,7 @@ interface CustomField {
 }
 
 // --- Specific Assignment Row Component ---
-const SpecificAssignmentRow = ({ 
+export const SpecificAssignmentRow = ({ 
   assignment, 
   onChange, 
   onRemove,

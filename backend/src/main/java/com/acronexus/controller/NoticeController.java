@@ -27,7 +27,7 @@ public class NoticeController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<NoticeDto> createNotice(@Valid @RequestBody NoticeRequest request,
                                                   @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
@@ -35,8 +35,8 @@ public class NoticeController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
-    public ResponseEntity<NoticeDto> updateNotice(@PathVariable UUID id,
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<NoticeDto> updateNotice(@PathVariable("id") UUID id,
                                                   @Valid @RequestBody NoticeRequest request,
                                                   @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
@@ -44,8 +44,8 @@ public class NoticeController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
-    public ResponseEntity<Void> deleteNotice(@PathVariable UUID id,
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<Void> deleteNotice(@PathVariable("id") UUID id,
                                              @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
         noticeService.deleteNotice(id, userId);
@@ -53,16 +53,16 @@ public class NoticeController {
     }
 
     @PutMapping("/{id}/publish")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
-    public ResponseEntity<NoticeDto> publishNotice(@PathVariable UUID id,
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<NoticeDto> publishNotice(@PathVariable("id") UUID id,
                                                    @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
         return ResponseEntity.ok(noticeService.publishNotice(id, userId));
     }
 
     @PutMapping("/{id}/unpublish")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
-    public ResponseEntity<NoticeDto> unpublishNotice(@PathVariable UUID id,
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<NoticeDto> unpublishNotice(@PathVariable("id") UUID id,
                                                      @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
         return ResponseEntity.ok(noticeService.unpublishNotice(id, userId));
@@ -83,7 +83,7 @@ public class NoticeController {
     }
 
     @PostMapping("/search")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<List<NoticeDto>> searchNotices(@RequestBody NoticeSearchFilter filter,
                                                          @RequestHeader("Authorization") String token) {
         UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
@@ -108,5 +108,21 @@ public class NoticeController {
     public ResponseEntity<com.acronexus.dto.ai.AiInsightDto> getPersonalizedRecommendations(@RequestHeader("Authorization") String token) {
         UUID studentId = jwtUtils.getUserIdFromToken(token.substring(7));
         return ResponseEntity.ok(noticeService.getPersonalizedRecommendations(studentId));
+    }
+
+    @PostMapping("/upload")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<com.acronexus.dto.ApiResponse<UUID>> uploadAttachment(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader("Authorization") String token) {
+        UUID userId = jwtUtils.getUserIdFromToken(token.substring(7));
+        UUID fileId = noticeService.uploadAttachment(file, userId);
+        return ResponseEntity.ok(com.acronexus.dto.ApiResponse.success("File uploaded successfully", fileId));
+    }
+
+    @GetMapping("/file/{fileId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
+    public ResponseEntity<byte[]> downloadAttachment(@PathVariable UUID fileId) {
+        return noticeService.downloadAttachment(fileId);
     }
 }

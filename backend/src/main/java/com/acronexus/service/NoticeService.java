@@ -20,4 +20,7 @@ public interface NoticeService {
     com.acronexus.dto.ai.AiInsightDto summarizeNotice(UUID noticeId, UUID userId);
     com.acronexus.dto.ai.AiInsightDto getImportantNoticeHighlights(UUID studentId);
     com.acronexus.dto.ai.AiInsightDto getPersonalizedRecommendations(UUID studentId);
+    
+    UUID uploadAttachment(org.springframework.web.multipart.MultipartFile file, UUID userId);
+    org.springframework.http.ResponseEntity<byte[]> downloadAttachment(UUID fileId);
 }

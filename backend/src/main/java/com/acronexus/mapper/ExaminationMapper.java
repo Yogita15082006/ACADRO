@@ -20,6 +20,8 @@ public class ExaminationMapper {
         Examination entity = new Examination();
         entity.setName(dto.getName());
         entity.setType(dto.getType());
+        entity.setCustomType(dto.getCustomType());
+        entity.setBatch(dto.getBatch());
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
         entity.setDescription(dto.getDescription());
@@ -33,6 +35,7 @@ public class ExaminationMapper {
         dto.setId(entity.getId());
         dto.setName(entity.getName());
         dto.setType(entity.getType());
+        dto.setCustomType(entity.getCustomType());
         dto.setStatus(entity.getStatus());
         dto.setStartDate(entity.getStartDate());
         dto.setEndDate(entity.getEndDate());

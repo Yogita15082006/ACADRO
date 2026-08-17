@@ -26,15 +26,8 @@ public class NoticeRequest {
     private UUID fileId;
     
     private ZonedDateTime publishDate;
-    
-    // As per schema constraints, expiryDate, academicYearId, semesterId, and section cannot be persisted.
-    // They are included here to satisfy API payload requirements and basic validation.
     private ZonedDateTime expiryDate; 
-    private UUID departmentId;
-    private UUID academicYearId;
-    private UUID semesterId;
-    private UUID classId;
-    private String section;
     
+    private java.util.List<NoticeTargetAssignmentDto> targets;
     private UserRole targetRole;
 }

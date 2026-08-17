@@ -19,10 +19,8 @@ public class NoticeDto {
     private ZonedDateTime publishDate;
     private UUID publishedById;
     private String publishedByName;
-    private UUID targetDepartmentId;
-    private String targetDepartmentName;
-    private UUID targetClassId;
-    private String targetClassName;
+    private ZonedDateTime expiryDate;
+    private java.util.List<NoticeTargetAssignmentDto> targets;
     private UserRole targetRole;
     private Boolean isActive;
 }

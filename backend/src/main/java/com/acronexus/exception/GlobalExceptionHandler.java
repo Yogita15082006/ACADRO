@@ -67,7 +67,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
-        logToFile(ex, null);
+        try {
+            java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter("C:\\A\\Development\\AcroNexus\\backend\\error_log.txt", true));
+            pw.println("----- " + new java.util.Date() + " -----");
+            ex.printStackTrace(pw);
+            pw.close();
+        } catch (Exception ignored) {}
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("Access Denied: " + ex.getMessage()));
     }
