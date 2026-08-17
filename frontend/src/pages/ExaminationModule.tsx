@@ -52,6 +52,7 @@ export const ExaminationModule = () => {
 
   const [timetables] = useState<any[]>([]);
   const [notices, setNotices] = useState<any[]>([]);
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isCreatingExam, setIsCreatingExam] = useState(false);
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
@@ -105,9 +106,7 @@ export const ExaminationModule = () => {
     localStorage.setItem('acronexus_timetables', JSON.stringify(timetables));
   }, [timetables]);
 
-  useEffect(() => {
-    localStorage.setItem('acronexus_notices', JSON.stringify(notices));
-  }, [notices]);
+
   
   // Create Exam (Admin)
   const [createExamName, setCreateExamName] = useState('');
@@ -574,9 +573,7 @@ export const ExaminationModule = () => {
         const formData = new FormData();
         formData.append('file', createTimetableFile);
         try {
-          const uploadResponse = await api.post(`/examinations/${examData.id}/timetable`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
+          const uploadResponse = await api.post(`/examinations/${examData.id}/timetable`, formData);
           examData = uploadResponse.data.data;
         } catch (uploadError: any) {
           console.error("Timetable upload failed:", uploadError);
@@ -622,38 +619,116 @@ export const ExaminationModule = () => {
 
   // handle delete timetable removed
 
-  const handleDeleteNotice = (id: string) => {
-    setNotices(notices.filter(n => n.id !== id));
-    toast.success("Notice deleted successfully");
+  const fetchNotices = async () => {
+    if (!selectedExam) return;
+    try {
+      const response = await api.get(`/examination-notices/examination/${selectedExam.id}`);
+      if (response.data.success) {
+        setNotices(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching notices:", error);
+    }
   };
 
-  const handlePublishNotice = () => {
+  useEffect(() => {
+    if (selectedExam && activeTab === 'info') {
+      fetchNotices();
+    }
+  }, [selectedExam, activeTab]);
+
+  const handleDeleteNotice = async (id: string) => {
+    try {
+      await api.delete(`/examination-notices/${id}`);
+      toast.success("Notice deleted successfully");
+      fetchNotices();
+    } catch (error) {
+      toast.error("Failed to delete notice");
+    }
+    setExamToDelete(null);
+  };
+
+  const handleViewAttachment = async (fileId: string) => {
+    try {
+      console.log("Fetching attachment", fileId);
+      const response = await api.get(`/examination-notices/file/${fileId}`, {
+        responseType: 'blob'
+      });
+      console.log("Got attachment response", response);
+      
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' });
+      const fileUrl = window.URL.createObjectURL(blob);
+      window.open(fileUrl, '_blank');
+    } catch (error: any) {
+      console.error("View attachment error:", error);
+      toast.error(`Failed to fetch attachment: ${error.message}`);
+    }
+  };
+  
+  const handleEditNotice = (notice: any) => {
+    setEditingNoticeId(notice.id);
+    setPublishNoticeTitle(notice.title);
+    setPublishNoticeCategory(notice.category || '');
+    setPublishNoticePriority(notice.priority || 'Low');
+    setPublishNoticeDescription(notice.description);
+    setPublishNoticeFile(null);
+    setShowPublishNoticeModal(true);
+  };
+
+  const handleSaveNotice = async () => {
     if (!publishNoticeTitle || !publishNoticeCategory || !publishNoticeDescription) {
       toast.error("Please fill in all required fields.");
       return;
     }
     
-    const newNotice = {
-      id: `not-${Date.now()}`,
-      examId: selectedExam?.id,
-      title: publishNoticeTitle,
-      description: publishNoticeDescription,
-      category: publishNoticeCategory,
-      priority: publishNoticePriority,
-      publishDate: new Date().toISOString().split('T')[0],
-      attachment: publishNoticeFile ? publishNoticeFile.name : null
-    };
+    try {
+      let attachmentFileId = null;
+      if (publishNoticeFile) {
+        const formData = new FormData();
+        formData.append('file', publishNoticeFile);
+        const uploadRes = await api.post('/examination-notices/upload', formData);
+        if (uploadRes.data.success) {
+          attachmentFileId = uploadRes.data.data;
+        }
+      } else if (editingNoticeId) {
+          const existingNotice = notices.find(n => n.id === editingNoticeId);
+          if (existingNotice) {
+              attachmentFileId = existingNotice.attachmentFileId;
+          }
+      }
 
-    setNotices([newNotice, ...notices]);
-    setShowPublishNoticeModal(false);
-    toast.success("Notice published successfully");
-    
-    // Reset fields
-    setPublishNoticeTitle('');
-    setPublishNoticeCategory('');
-    setPublishNoticePriority('Low');
-    setPublishNoticeDescription('');
-    setPublishNoticeFile(null);
+      const noticeData = {
+        examinationId: selectedExam?.id,
+        title: publishNoticeTitle,
+        description: publishNoticeDescription,
+        category: publishNoticeCategory,
+        priority: publishNoticePriority,
+        publishDate: new Date().toISOString().split('T')[0],
+        attachmentFileId: attachmentFileId
+      };
+
+      if (editingNoticeId) {
+        await api.put(`/examination-notices/${editingNoticeId}`, noticeData);
+        toast.success("Notice updated successfully");
+      } else {
+        await api.post('/examination-notices', noticeData);
+        toast.success("Notice published successfully");
+      }
+      
+      setShowPublishNoticeModal(false);
+      fetchNotices();
+      
+      // Reset fields
+      setEditingNoticeId(null);
+      setPublishNoticeTitle('');
+      setPublishNoticeCategory('');
+      setPublishNoticePriority('Low');
+      setPublishNoticeDescription('');
+      setPublishNoticeFile(null);
+    } catch (error: any) {
+      console.error("Publish notice error:", error.response?.data || error);
+      toast.error(error.response?.data?.message || (editingNoticeId ? "Failed to update notice" : "Failed to publish notice"));
+    }
   };
 
   // --- RENDER: PUBLISH NOTICE MODAL ---
@@ -669,9 +744,17 @@ export const ExaminationModule = () => {
           >
             <div className="flex justify-between items-center p-4 border-b border-border bg-accent/30">
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <Plus size={18} className="text-primary"/> Publish Notice
+                <Plus size={18} className="text-primary"/> {editingNoticeId ? 'Edit Notice' : 'Publish Notice'}
               </h3>
-              <Button variant="ghost" size="icon" onClick={() => setShowPublishNoticeModal(false)} className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={() => {
+                setShowPublishNoticeModal(false);
+                setEditingNoticeId(null);
+                setPublishNoticeTitle('');
+                setPublishNoticeCategory('');
+                setPublishNoticePriority('Low');
+                setPublishNoticeDescription('');
+                setPublishNoticeFile(null);
+              }} className="h-8 w-8">
                 <X size={16} />
               </Button>
             </div>
@@ -758,7 +841,7 @@ export const ExaminationModule = () => {
             
             <div className="flex border-t border-border bg-accent/30 p-4 gap-3 mt-auto">
               <Button variant="outline" className="flex-1" onClick={() => setShowPublishNoticeModal(false)}>Cancel</Button>
-              <Button className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handlePublishNotice}>Publish Notice</Button>
+              <Button className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSaveNotice}>{editingNoticeId ? 'Save Changes' : 'Publish Notice'}</Button>
             </div>
           </motion.div>
         </div>
@@ -1022,7 +1105,7 @@ export const ExaminationModule = () => {
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border md:col-span-2">
           <Button variant="outline" onClick={() => setIsCreatingExam(false)}>Cancel</Button>
-          <Button className="bg-primary text-white" onClick={handleSaveExam}>{editingExamId ? 'Save Changes' : 'Publish Examination'}</Button>
+          <Button className="bg-primary text-white" onClick={handleSaveNotice}>{editingExamId ? 'Save Changes' : 'Publish Examination'}</Button>
         </div>
       </div>
     </motion.div>
@@ -1036,7 +1119,6 @@ export const ExaminationModule = () => {
           { id: 'eligibility', label: 'Eligible Students', icon: <Users size={16} /> },
           { id: 'seating', label: 'Seating Arrangement', icon: <LayoutGrid size={16} /> },
           { id: 'results', label: 'Result Management', icon: <Award size={16} /> },
-          { id: 'analytics', label: 'Result Analytics', icon: <BarChart3 size={16} /> },
           { id: 'info', label: 'Examination Information', icon: <FileText size={16} /> }
         ]
       : [
@@ -1155,9 +1237,7 @@ export const ExaminationModule = () => {
                 try {
                   const formData = new FormData();
                   formData.append('file', file);
-                  const uploadResponse = await api.post(`/examinations/${selectedExam.id}/timetable`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                  });
+                  const uploadResponse = await api.post(`/examinations/${selectedExam.id}/timetable`, formData);
                   const updatedExam = uploadResponse.data.data;
                   // Ensure timetables array exists
                   if (!updatedExam.timetables) updatedExam.timetables = [];
@@ -1984,10 +2064,10 @@ export const ExaminationModule = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {notices.filter(n => n.examId === selectedExam.id).map(notice => (
+        {notices.map(notice => (
           <div key={notice.id} className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-2.5 py-1 rounded-full">
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2.5 py-1 rounded-full">
                 {notice.category}
               </span>
               <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded", 
@@ -2002,13 +2082,14 @@ export const ExaminationModule = () => {
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground font-medium">Published: {notice.publishDate}</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-8 gap-1 text-xs"><Eye size={14}/> View</Button>
-                {notice.attachment && (
-                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs"><DownloadCloud size={14}/> Attachment</Button>
+                {notice.attachmentFileId && (
+                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={() => handleViewAttachment(notice.attachmentFileId)}>
+                    <Eye size={14}/> View Attachment
+                  </Button>
                 )}
                 {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
                   <>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50"><Edit size={14}/></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50" onClick={() => handleEditNotice(notice)}><Edit size={14}/></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteNotice(notice.id)}><Trash2 size={14}/></Button>
                   </>
                 )}
@@ -2016,7 +2097,7 @@ export const ExaminationModule = () => {
             </div>
           </div>
         ))}
-        {notices.filter(n => n.examId === selectedExam.id).length === 0 && (
+        {notices.length === 0 && (
           <div className="col-span-full p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
             <FileTextIcon size={48} className="mx-auto mb-4 opacity-20" />
             <p>No notices published for this examination yet.</p>
