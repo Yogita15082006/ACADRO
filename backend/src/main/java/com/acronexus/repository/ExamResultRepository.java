@@ -9,7 +9,7 @@ import java.util.Optional;
 @Repository
 public interface ExamResultRepository extends JpaRepository<ExamResult, UUID> {
     Optional<ExamResult> findByExaminationIdAndStudentIdAndSubjectId(UUID examinationId, UUID studentId, UUID subjectId);
-    @org.springframework.data.jpa.repository.Query("SELECT er FROM ExamResult er JOIN StudentEnrollment se ON er.student.id = se.student.id JOIN se.acroClass c WHERE er.examination.id = :examinationId AND (c.section = :className OR c.name = :className OR CONCAT(c.name, '-', c.section) = :className) AND se.isActive = true")
+    @org.springframework.data.jpa.repository.Query("SELECT er FROM ExamResult er LEFT JOIN StudentEnrollment se ON er.student.id = se.student.id LEFT JOIN se.acroClass c WHERE er.examination.id = :examinationId AND (er.className = :className OR c.section = :className OR c.name = :className OR CONCAT(c.name, '-', c.section) = :className)")
     java.util.List<ExamResult> findByExaminationIdAndClassName(@org.springframework.data.repository.query.Param("examinationId") UUID examinationId, @org.springframework.data.repository.query.Param("className") String className);
     
     java.util.List<ExamResult> findByExaminationId(UUID examinationId);

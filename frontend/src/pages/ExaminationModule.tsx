@@ -1350,29 +1350,37 @@ export const ExaminationModule = () => {
     let dataSource = [...classStudents];
     
     if (uploadStatus === 'completed' && uploadedMarks.length > 0) {
-       dataSource = classStudents.map(student => {
-           const uploaded = uploadedMarks.find(m => m.enrollmentNumber === student.enrollmentNumber);
-           if (uploaded) {
-               return { ...student, ...uploaded, status: 'Draft' };
+       const merged = [...classStudents];
+       uploadedMarks.forEach(uploaded => {
+           const idx = merged.findIndex(s => s.enrollmentNumber === uploaded.enrollmentNumber);
+           if (idx >= 0) {
+               merged[idx] = { ...merged[idx], ...uploaded, status: uploaded.status || 'Draft' };
+           } else {
+               merged.push({ ...uploaded, status: uploaded.status || 'Draft' });
            }
-           return student;
        });
+       dataSource = merged;
     } else if (resultViewMode === 'saved' && savedResults.length > 0) {
        const saved = savedResults.find(r => r.className === selectedClass);
        if (saved && saved.marks) {
-           dataSource = classStudents.map(student => {
-               const found = saved.marks.find((m: any) => m.enrollmentNumber === student.enrollmentNumber);
-               if (found) {
-                   return { ...student, ...found, status: 'Published' };
+           const merged = [...classStudents];
+           saved.marks.forEach((m: any) => {
+               const idx = merged.findIndex(s => s.enrollmentNumber === m.enrollmentNumber);
+               if (idx >= 0) {
+                   merged[idx] = { ...merged[idx], ...m, status: m.status || 'Published' };
+               } else {
+                   merged.push({ ...m, status: m.status || 'Published' });
                }
-               return student;
            });
+           dataSource = merged;
        }
     }
 
     // Apply filters
     const filteredData = dataSource.filter(student => {
-      const matchesSearch = student.name.toLowerCase().includes(resultSearch.toLowerCase()) || student.enrollmentNumber.toLowerCase().includes(resultSearch.toLowerCase());
+      const sName = student.name || student.studentName || 'Unknown';
+      const sEnrollment = student.enrollmentNumber || student.enrollmentNo || 'Unknown';
+      const matchesSearch = sName.toLowerCase().includes(resultSearch.toLowerCase()) || sEnrollment.toLowerCase().includes(resultSearch.toLowerCase());
       const matchesStatus = resultStatusFilter === 'All' ? true : student.status === resultStatusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -1499,8 +1507,8 @@ export const ExaminationModule = () => {
             <tbody className="divide-y divide-border">
               {filteredData.map(student => (
                 <tr key={student.id} className="hover:bg-accent/20">
-                  <td className="px-4 py-3 font-bold text-foreground">{student.name}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{student.enrollmentNumber}</td>
+                  <td className="px-4 py-3 font-bold text-foreground">{student.name || student.studentName || 'Unknown'}</td>
+                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{student.enrollmentNumber || student.enrollmentNo || 'Unknown'}</td>
                   <td className="px-4 py-3 text-center font-bold">{student.totalMarks}</td>
                   <td className="px-4 py-3 text-center font-bold">
                     <span className={cn(

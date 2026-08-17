@@ -388,6 +388,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
 
         result.setMarksObtained(marksObtained);
         result.setMaxMarks(maxMarks);
+        result.setClassName(className != null && !className.trim().isEmpty() ? className : data.className);
 
         examResultRepository.save(result);
 

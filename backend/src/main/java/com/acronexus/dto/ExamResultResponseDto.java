@@ -22,4 +22,6 @@ public class ExamResultResponseDto {
 
     @com.fasterxml.jackson.annotation.JsonProperty("isPublished")
     private Boolean isPublished;
+    
+    private String className;
 }

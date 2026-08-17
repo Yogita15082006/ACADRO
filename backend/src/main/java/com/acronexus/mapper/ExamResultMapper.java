@@ -8,9 +8,15 @@ import com.acronexus.entity.Student;
 import com.acronexus.entity.Subject;
 import org.springframework.stereotype.Component;
 
+import com.acronexus.repository.StudentEnrollmentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+
 @Component
 public class ExamResultMapper {
     
+    @Autowired
+    private StudentEnrollmentRepository enrollmentRepository;
+
     public ExamResult toEntity(ExamResultRequestDto dto) {
         if (dto == null) return null;
         ExamResult entity = new ExamResult();
@@ -63,6 +69,42 @@ public class ExamResultMapper {
         dto.setGrade(entity.getGrade());
         dto.setRemarks(entity.getRemarks());
         dto.setIsPublished(entity.getIsPublished());
+        
+        if (entity.getClassName() != null && !entity.getClassName().isEmpty()) {
+            dto.setClassName(entity.getClassName());
+        } else if (entity.getStudent() != null) {
+            String tempClassName = entity.getStudent().getSection();
+            if (tempClassName == null || tempClassName.isEmpty()) {
+                tempClassName = entity.getStudent().getCourse();
+            } else if (entity.getStudent().getCourse() != null) {
+                tempClassName = entity.getStudent().getCourse() + "-" + tempClassName;
+            }
+            final String classNameFallback = tempClassName;
+            
+            if (entity.getExamination() != null && entity.getExamination().getAcademicYear() != null && entity.getExamination().getSemester() != null) {
+                enrollmentRepository.findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(
+                        entity.getStudent().getId(), 
+                        entity.getExamination().getAcademicYear().getId(),
+                        entity.getExamination().getSemester().getId()
+                ).ifPresentOrElse(enr -> {
+                    if (enr.getAcroClass() != null) {
+                        dto.setClassName(enr.getAcroClass().getName() + (enr.getAcroClass().getSection() != null ? "-" + enr.getAcroClass().getSection() : ""));
+                    } else {
+                        dto.setClassName(classNameFallback);
+                    }
+                }, () -> dto.setClassName(classNameFallback));
+            } else {
+                enrollmentRepository.findFirstByStudentIdAndIsActiveTrueOrderByCreatedAtDesc(entity.getStudent().getId())
+                .ifPresentOrElse(enr -> {
+                    if (enr.getAcroClass() != null) {
+                        dto.setClassName(enr.getAcroClass().getName() + (enr.getAcroClass().getSection() != null ? "-" + enr.getAcroClass().getSection() : ""));
+                    } else {
+                        dto.setClassName(classNameFallback);
+                    }
+                }, () -> dto.setClassName(classNameFallback));
+            }
+        }
+        
         return dto;
     }
 }
