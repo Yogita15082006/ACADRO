@@ -164,47 +164,73 @@
 
 @media print {
   @page {
-    size: landscape; /* Forces landscape orientation */
+    size: A4 portrait; /* Force A4 portrait by default */
     margin: 0 !important; /* Setting margin to 0 hides the default browser headers/footers (like localhost url) */
   }
 
   body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    padding: 10mm !important; /* Re-add margin via body padding since @page margin is 0 */
-    /* Removed zoom: 85% because 'zoom' breaks CSS pagination/page-breaks in Chrome, causing rows to slice in half */
+    padding: 10mm !important; 
+  }
+
+  /* When printing the report card, hide the rest of the app and strictly format to one A4 page */
+  body.printing-report-card {
+    padding: 0 !important;
+  }
+  body.printing-report-card * {
+    visibility: hidden;
+  }
+  body.printing-report-card .print-wrapper,
+  body.printing-report-card .print-wrapper * {
+    visibility: visible;
+  }
+  body.printing-report-card .print-wrapper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm !important; 
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
+    padding: 15mm !important; 
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background-color: white !important;
   }
   
-  /* Disable max-heights and overflows on containers to allow page breaks and full width rendering */
-  .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+  /* Disable max-heights and overflows on containers to allow page breaks and full width rendering (for other tables) */
+  body:not(.printing-report-card) .overflow-hidden, 
+  body:not(.printing-report-card) .overflow-y-auto, 
+  body:not(.printing-report-card) .overflow-x-auto {
     overflow: visible !important;
     max-height: none !important;
   }
   
-  /* Fix table clipping and enforce structure */
-  table {
+  body:not(.printing-report-card) table {
     width: 100% !important;
     max-width: 100% !important;
     page-break-inside: auto;
-    table-layout: auto !important; /* Allow browser to calculate optimal column widths */
+    table-layout: auto !important; 
   }
   
-  /* Prevent word clipping and heavily compact the table to fit more rows per page */
-  th, td {
+  body:not(.printing-report-card) th, 
+  body:not(.printing-report-card) td {
     word-break: break-word !important;
     white-space: normal !important;
-    padding: 4px 6px !important; /* Extremely tight padding */
-    font-size: 11px !important; /* Smaller font to fit more rows */
+    padding: 4px 6px !important; 
+    font-size: 11px !important; 
     line-height: 1.2 !important;
   }
 
-  /* Compact the badges in print */
-  span {
+  body:not(.printing-report-card) span {
     padding: 2px 4px !important;
     font-size: 10px !important;
   }
 
-  /* Ensure rows do not split across pages */
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;

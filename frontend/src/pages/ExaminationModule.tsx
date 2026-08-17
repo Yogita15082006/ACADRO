@@ -389,6 +389,15 @@ export const ExaminationModule = () => {
   const [isStudentResultsLoading, setIsStudentResultsLoading] = useState(false);
 
   useEffect(() => {
+    if (viewingReportCard) {
+      document.body.classList.add('printing-report-card');
+    } else {
+      document.body.classList.remove('printing-report-card');
+    }
+    return () => document.body.classList.remove('printing-report-card');
+  }, [viewingReportCard]);
+
+  useEffect(() => {
     const fetchStudentResults = async () => {
       if (!selectedExam || role !== 'student' || activeTab !== 'results') return;
       setIsStudentResultsLoading(true);
@@ -2039,6 +2048,18 @@ export const ExaminationModule = () => {
     const mappedResults = studentResults.map(res => {
       const percentage = res.maxMarks > 0 ? Math.round((res.marksObtained / res.maxMarks) * 100) : 0;
       const isPass = percentage >= 40;
+      
+      let calcGrade = res.grade;
+      if (!calcGrade) {
+         if (percentage >= 90) calcGrade = 'A+';
+         else if (percentage >= 80) calcGrade = 'A';
+         else if (percentage >= 70) calcGrade = 'B+';
+         else if (percentage >= 60) calcGrade = 'B';
+         else if (percentage >= 50) calcGrade = 'C';
+         else if (percentage >= 40) calcGrade = 'P';
+         else calcGrade = 'F';
+      }
+
       return {
         id: res.id,
         code: res.subjectCode,
@@ -2046,7 +2067,7 @@ export const ExaminationModule = () => {
         obtained: res.marksObtained,
         max: res.maxMarks,
         percentage,
-        grade: res.grade,
+        grade: calcGrade,
         status: isPass ? 'Pass' : 'Fail'
       };
     });
@@ -2064,8 +2085,8 @@ export const ExaminationModule = () => {
           {mappedResults.map(res => (
             <div key={res.id} className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow group flex flex-col">
               <div className="flex justify-between items-start mb-4">
-                <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1",
-                  res.status === 'Pass' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700'
+                <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm",
+                  res.status === 'Pass' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
                 )}>
                   {res.status === 'Pass' ? <CheckCircle size={12}/> : <AlertTriangle size={12}/>}
                   {res.status}
@@ -2161,9 +2182,9 @@ export const ExaminationModule = () => {
 
     return (
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 print:hidden">
           <Button variant="ghost" onClick={() => setViewingReportCard(false)} className="gap-2 -ml-4"><ChevronRight className="rotate-180"/> Back to Results</Button>
-          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => window.print()}>
             <DownloadCloud size={16}/> Download PDF
           </Button>
         </div>
@@ -2177,8 +2198,8 @@ export const ExaminationModule = () => {
 
           <div className="flex justify-between items-start mb-10 text-sm font-bold text-slate-800 bg-slate-50 p-6 rounded-lg border border-slate-200">
             <div className="space-y-3">
-              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Student Name:</span> {user?.name}</p>
-              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Enrollment No:</span> {user?.enrollmentNumber || 'N/A'}</p>
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Student Name:</span> {studentResults.length > 0 ? studentResults[0].studentName : user?.name}</p>
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Enrollment No:</span> {studentResults.length > 0 ? studentResults[0].enrollmentNo : (user?.enrollmentNumber || 'N/A')}</p>
             </div>
             <div className="space-y-3 text-right">
               <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Examination:</span> {selectedExam?.name}</p>
@@ -2203,7 +2224,18 @@ export const ExaminationModule = () => {
                   <td className="border border-slate-300 p-4 font-bold text-slate-800">{sub.subjectName}</td>
                   <td className="border border-slate-300 p-4 text-center font-medium text-slate-500">{sub.maxMarks}</td>
                   <td className="border border-slate-300 p-4 text-center font-black text-slate-900">{sub.marksObtained}</td>
-                  <td className="border border-slate-300 p-4 text-center font-black text-emerald-600">{sub.grade}</td>
+                  <td className="border border-slate-300 p-4 text-center font-bold text-emerald-600">
+                    {sub.grade || (() => {
+                        const pct = sub.maxMarks > 0 ? (sub.marksObtained / sub.maxMarks) * 100 : 0;
+                        if (pct >= 90) return 'A+';
+                        if (pct >= 80) return 'A';
+                        if (pct >= 70) return 'B+';
+                        if (pct >= 60) return 'B';
+                        if (pct >= 50) return 'C';
+                        if (pct >= 40) return 'P';
+                        return 'F';
+                    })()}
+                  </td>
                 </tr>
               ))}
             </tbody>
