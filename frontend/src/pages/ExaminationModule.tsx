@@ -926,6 +926,7 @@ export const ExaminationModule = () => {
               </div>
             </div>
             <h3 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{exam.name}</h3>
+            {exam.description && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{exam.description}</p>}
               <div className="grid grid-cols-2 gap-y-2 text-sm text-muted-foreground mb-4 flex-grow">
                   <p className="flex items-center gap-2 col-span-2"><CalendarIcon size={14} className="text-primary"/> {new Date(exam.startDate).toLocaleDateString()} to {new Date(exam.endDate).toLocaleDateString()}</p>
                   <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Batch: <span className="font-medium text-foreground">{exam.batch}</span></p>
@@ -1006,14 +1007,6 @@ export const ExaminationModule = () => {
               ))}
             </select>
           </div>
-            {createType === 'OTHER' && (
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">Specify Custom Examination Type *</label>
-                <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Unit Test 1" value={customType} onChange={e => setCustomType(e.target.value)} />
-              </div>
-            )}
-
-
           <div className="space-y-2 md:col-span-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Classes *</label>
