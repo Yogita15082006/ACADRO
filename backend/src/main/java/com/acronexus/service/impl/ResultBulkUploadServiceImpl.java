@@ -17,10 +17,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,12 +46,11 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
     private final TransactionTemplate transactionTemplate;
 
     @Override
-    public BulkUploadResponseDto uploadResultList(MultipartFile file, UUID uploadedByUserId) {
+    public BulkUploadResponseDto uploadResultList(MultipartFile file, UUID uploadedByUserId, UUID examinationId, String className) {
         Instant startTime = Instant.now();
         User uploadedBy = userRepository.findById(uploadedByUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Uploader not found"));
 
-        // Create FileStorage entry
         FileStorage fileStorage = new FileStorage();
         fileStorage.setFileName(file.getOriginalFilename());
         fileStorage.setFileType(file.getContentType());
@@ -59,7 +59,6 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         fileStorage.setUploadedAt(ZonedDateTime.now());
         fileStorage = fileStorageRepository.save(fileStorage);
 
-        // Create BulkUpload entry
         BulkUpload bulkUpload = new BulkUpload();
         bulkUpload.setUploadType(UploadType.RESULT);
         bulkUpload.setFile(fileStorage);
@@ -69,17 +68,13 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
 
         UploadStats stats = new UploadStats();
 
-        // Process file
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
             if (filename.endsWith(".csv")) {
-                processCsv(file, uploadedBy, stats);
+                processCsv(file, uploadedBy, stats, examinationId, className);
             } else if (filename.endsWith(".xlsx") || filename.endsWith(".xls")) {
-                processExcel(file, uploadedBy, stats);
+                processExcel(file, uploadedBy, stats, examinationId, className);
             } else {
-                // NOTE (Future Enhancement)
-                // Add support for machine-generated PDF Result Sheets.
-                // Parse the PDF and route the extracted rows through the same validation and upload pipeline used for Excel/CSV.
                 throw new IllegalArgumentException("Unsupported file format. Please upload .csv or Excel files.");
             }
 
@@ -101,7 +96,6 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         bulkUpload.setFailedRecords(stats.failedRecords);
         bulkUpload.setCompletedAt(Instant.now());
 
-        // Map advanced logs into errorLog jsonb
         Map<String, Object> errorLogData = new HashMap<>();
         errorLogData.put("updatedRecords", stats.updatedRecords);
         errorLogData.put("skippedRecords", stats.skippedRecords);
@@ -119,112 +113,157 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         return buildResponseDto(bulkUpload, stats, fileStorage, processingTimeMs);
     }
 
-    private void processCsv(MultipartFile file, User uploadedBy, UploadStats stats) throws Exception {
-        CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setIgnoreHeaderCase(true)
-                .setTrim(true)
-                .build();
-        try (Reader reader = new InputStreamReader(file.getInputStream());
-             CSVParser csvParser = new CSVParser(reader, csvFormat)) {
-
-            int rowNumber = 1;
-            for (CSVRecord record : csvParser) {
-                rowNumber++;
-                stats.totalRecords++;
-                try {
-                    ResultRowData rowData = new ResultRowData(
-                            getSafeCsv(record, "Student Name"),
-                            getSafeCsv(record, "Enrollment No"),
-                            getSafeCsv(record, "College Email"),
-                            getSafeCsv(record, "Branch"),
-                            getSafeCsv(record, "Batch"),
-                            getSafeCsv(record, "Academic Year"),
-                            getSafeCsv(record, "Semester"),
-                            getSafeCsv(record, "Class"),
-                            getSafeCsv(record, "Subject Code"),
-                            getSafeCsv(record, "Subject Name"),
-                            getSafeCsv(record, "Exam Type"),
-                            getSafeCsv(record, "Max Marks"),
-                            getSafeCsv(record, "Obtained Marks")
-                    );
-                    executeRowInTransaction(rowNumber, rowData, uploadedBy, stats);
-                } catch (Exception e) {
-                    stats.failedRecords++;
-                    stats.addError(new UploadErrorDto(rowNumber, getSafeCsv(record, "Enrollment No"), getSafeCsv(record, "Subject Code"), "Invalid row data: " + e.getMessage()));
-                }
-            }
-        }
+    private String normalizeHeader(String header) {
+        if (header == null) return "";
+        return header.toLowerCase().replaceAll("[^a-z0-9]", "");
     }
 
-    private String getSafeCsv(CSVRecord record, String header) {
-        if (record.isMapped(header)) {
-            return record.get(header);
-        } else if (record.isMapped(header.toLowerCase())) {
-            return record.get(header.toLowerCase());
+    private String getSafeValue(Row row, org.apache.commons.csv.CSVRecord csvRecord, Map<String, Integer> excelHeaderMap, Map<String, String> csvHeaderMap, String... aliases) {
+        for (String alias : aliases) {
+            String norm = normalizeHeader(alias);
+            if (row != null && excelHeaderMap != null) {
+                Integer idx = excelHeaderMap.get(norm);
+                if (idx != null) {
+                    return getCellStringValue(row.getCell(idx));
+                }
+            } else if (csvRecord != null && csvHeaderMap != null) {
+                String val = csvHeaderMap.get(norm);
+                if (val != null) {
+                    return val;
+                }
+            }
         }
         return "";
     }
 
-    private void processExcel(MultipartFile file, User uploadedBy, UploadStats stats) throws Exception {
+    private void processExcel(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className) throws Exception {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
 
             Map<String, Integer> headerMap = new HashMap<>();
+            List<String> rawHeaders = new ArrayList<>();
             if (rows.hasNext()) {
                 Row headerRow = rows.next();
                 for (Cell cell : headerRow) {
-                    headerMap.put(getCellStringValue(cell).toLowerCase(), cell.getColumnIndex());
+                    String val = getCellStringValue(cell);
+                    rawHeaders.add(val);
+                    headerMap.put(normalizeHeader(val), cell.getColumnIndex());
                 }
             }
 
-            int rowNumber = 1;
-            while (rows.hasNext()) {
-                Row row = rows.next();
-                rowNumber++;
-                if (isRowEmpty(row)) continue;
+            processRowsDynamic(rows, null, headerMap, null, rawHeaders, uploadedBy, stats, examinationId, className);
+        }
+    }
 
-                stats.totalRecords++;
-                try {
-                    ResultRowData rowData = new ResultRowData(
-                            getSafeExcel(row, headerMap, "Student Name"),
-                            getSafeExcel(row, headerMap, "Enrollment No"),
-                            getSafeExcel(row, headerMap, "College Email"),
-                            getSafeExcel(row, headerMap, "Branch"),
-                            getSafeExcel(row, headerMap, "Batch"),
-                            getSafeExcel(row, headerMap, "Academic Year"),
-                            getSafeExcel(row, headerMap, "Semester"),
-                            getSafeExcel(row, headerMap, "Class"),
-                            getSafeExcel(row, headerMap, "Subject Code"),
-                            getSafeExcel(row, headerMap, "Subject Name"),
-                            getSafeExcel(row, headerMap, "Exam Type"),
-                            getSafeExcel(row, headerMap, "Max Marks"),
-                            getSafeExcel(row, headerMap, "Obtained Marks")
-                    );
-                    executeRowInTransaction(rowNumber, rowData, uploadedBy, stats);
-                } catch (Exception e) {
-                    stats.failedRecords++;
-                    stats.addError(new UploadErrorDto(rowNumber, getSafeExcel(row, headerMap, "Enrollment No"), getSafeExcel(row, headerMap, "Subject Code"), "Invalid row data: " + e.getMessage()));
+    private void processCsv(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className) throws Exception {
+        try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
+             org.apache.commons.csv.CSVParser csvParser = new org.apache.commons.csv.CSVParser(fileReader,
+                     org.apache.commons.csv.CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
+
+            Map<String, String> headerMap = new HashMap<>();
+            List<String> rawHeaders = new ArrayList<>();
+            for (String header : csvParser.getHeaderNames()) {
+                rawHeaders.add(header);
+                headerMap.put(normalizeHeader(header), header);
+            }
+
+            processRowsDynamic(null, csvParser.iterator(), null, headerMap, rawHeaders, uploadedBy, stats, examinationId, className);
+        }
+    }
+
+    private void processRowsDynamic(
+            Iterator<Row> excelRows,
+            Iterator<org.apache.commons.csv.CSVRecord> csvRows,
+            Map<String, Integer> excelHeaderMap,
+            Map<String, String> csvHeaderMap,
+            List<String> rawHeaders,
+            User uploadedBy, UploadStats stats, java.util.UUID examinationId, String className
+    ) {
+        boolean hasGenericMarks = false;
+        for (String alias : new String[]{"obtainedmarks", "marks", "obtained", "score", "totalmarks", "marksobtained"}) {
+            if (excelHeaderMap != null && excelHeaderMap.containsKey(alias)) hasGenericMarks = true;
+            if (csvHeaderMap != null && csvHeaderMap.containsKey(alias)) hasGenericMarks = true;
+        }
+
+        int rowNumber = 1;
+        while ((excelRows != null && excelRows.hasNext()) || (csvRows != null && csvRows.hasNext())) {
+            Row row = excelRows != null && excelRows.hasNext() ? excelRows.next() : null;
+            org.apache.commons.csv.CSVRecord csvRecord = csvRows != null && csvRows.hasNext() ? csvRows.next() : null;
+            rowNumber++;
+            
+            if (row != null && isRowEmpty(row)) continue;
+
+            try {
+                String studentName = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "studentname", "name");
+                String enrollmentNo = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "enrollmentno", "enrollmentnumber", "rollno", "studentid", "enrollment", "enrolmentno");
+                String collegeEmail = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "collegeemail", "email", "emailaddress");
+                String branch = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "branch", "department", "dept");
+                String batch = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "batch", "batchyear");
+                String academicYear = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "academicyear", "year");
+                String semester = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "semester", "sem", "semesterid");
+                String clazz = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "class", "section", "div", "classid");
+                String examType = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "examtype", "type");
+                
+                if (hasGenericMarks) {
+                    stats.totalRecords++;
+                    String subjectCode = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "subjectcode", "code", "coursecode", "subject");
+                    String subjectName = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "subjectname");
+                    String maxMarks = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "maxmarks", "maximummarks", "outof", "total", "maxscore");
+                    String obtainedMarks = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "obtainedmarks", "marks", "obtained", "score", "totalmarks", "marksobtained");
+
+                    ResultRowData rowData = new ResultRowData(studentName, enrollmentNo, collegeEmail, branch, batch, academicYear, semester, clazz, subjectCode, subjectName, examType, maxMarks, obtainedMarks);
+                    executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className);
+                } else {
+                    List<String> standardCols = List.of("studentname", "name", "enrollmentno", "enrollmentnumber", "rollno", "studentid", "enrollment", "enrolmentno", "collegeemail", "email", "emailaddress", "branch", "department", "dept", "batch", "batchyear", "academicyear", "year", "semester", "sem", "semesterid", "class", "section", "div", "classid", "examtype", "type");
+                    boolean foundAnySubject = false;
+
+                    for (String rawHeader : rawHeaders) {
+                        String norm = normalizeHeader(rawHeader);
+                        if (standardCols.contains(norm)) continue;
+                        
+                        String cellVal;
+                        if (row != null && excelHeaderMap != null) {
+                            Integer idx = excelHeaderMap.get(norm);
+                            cellVal = (idx != null) ? getCellStringValue(row.getCell(idx)) : "";
+                        } else {
+                            cellVal = (csvRecord != null && csvRecord.isSet(rawHeader)) ? csvRecord.get(rawHeader) : "";
+                        }
+                        
+                        if (cellVal == null || cellVal.trim().isEmpty()) continue;
+                        
+                        stats.totalRecords++;
+                        foundAnySubject = true;
+                        String subjName = rawHeader;
+                        if (norm.endsWith("marks")) {
+                            subjName = rawHeader.substring(0, rawHeader.toLowerCase().lastIndexOf("marks")).trim();
+                        }
+                        if (norm.endsWith("score")) {
+                            subjName = rawHeader.substring(0, rawHeader.toLowerCase().lastIndexOf("score")).trim();
+                        }
+
+                        ResultRowData rowData = new ResultRowData(studentName, enrollmentNo, collegeEmail, branch, batch, academicYear, semester, clazz, "", subjName, examType, "100", cellVal);
+                        executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className);
+                    }
+                    if (!foundAnySubject && !enrollmentNo.isEmpty()) {
+                        stats.failedRecords++;
+                        stats.addError(new UploadErrorDto(rowNumber, enrollmentNo, "", "No valid subject marks found in this row. Ensure columns are named correctly."));
+                    }
                 }
+            } catch (Exception e) {
+                stats.failedRecords++;
+                stats.addError(new UploadErrorDto(rowNumber, "", "", "Invalid row structure: " + e.getMessage()));
             }
         }
     }
 
-    private String getSafeExcel(Row row, Map<String, Integer> headerMap, String headerName) {
-        Integer idx = headerMap.get(headerName.toLowerCase());
-        if (idx == null) return "";
-        return getCellStringValue(row.getCell(idx));
-    }
-
-    private void executeRowInTransaction(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats) {
+    private void executeRowInTransaction(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className) {
         transactionTemplate.execute(status -> {
             try {
-                processRow(rowNumber, data, uploadedBy, stats);
+                processRow(rowNumber, data, uploadedBy, stats, examinationId, className);
                 return null;
             } catch (Exception e) {
-                status.setRollbackOnly(); // Rollback this row only
+                status.setRollbackOnly();
                 stats.failedRecords++;
                 stats.addError(new UploadErrorDto(rowNumber, data.enrollmentNo, data.subjectCode, e.getMessage()));
                 return null;
@@ -232,78 +271,98 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         });
     }
 
-    private void processRow(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats) {
+    private void processRow(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className) {
         if (data.enrollmentNo.isEmpty()) {
             throw new IllegalArgumentException("Enrollment No is strictly required.");
         }
-        if (data.subjectCode.isEmpty()) {
-            throw new IllegalArgumentException("Subject Code is strictly required.");
-        }
-        if (data.academicYear.isEmpty()) {
-            throw new IllegalArgumentException("Academic Year is strictly required.");
-        }
-        if (data.semester.isEmpty()) {
-            throw new IllegalArgumentException("Semester is strictly required.");
-        }
-        if (data.examType.isEmpty()) {
-            throw new IllegalArgumentException("Exam Type is strictly required.");
-        }
-        if (data.marksObtained.isEmpty() || data.maxMarks.isEmpty()) {
-            throw new IllegalArgumentException("Obtained Marks and Max Marks are strictly required.");
+        if (data.marksObtained.isEmpty()) {
+            throw new IllegalArgumentException("Obtained Marks is strictly required.");
         }
 
         Student student = studentRepository.findByEnrollmentNo(data.enrollmentNo)
                 .orElseThrow(() -> new IllegalArgumentException("Student with Enrollment No '" + data.enrollmentNo + "' not found."));
 
-        Subject subject = subjectRepository.findByCode(data.subjectCode)
-                .orElseThrow(() -> new IllegalArgumentException("Subject with code '" + data.subjectCode + "' not found."));
+        Examination examination = null;
+        if (examinationId != null) {
+            examination = examinationRepository.findById(examinationId)
+                    .orElseThrow(() -> new IllegalArgumentException("Examination not found: " + examinationId));
+        } else {
+            AcademicYear academicYear;
+            if (!data.academicYear.isEmpty()) {
+                academicYear = academicYearRepository.findByYear(data.academicYear)
+                        .orElseThrow(() -> new IllegalArgumentException("Academic Year not found: " + data.academicYear));
+            } else {
+                 academicYear = academicYearRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("No Academic Year available."));
+            }
 
-        AcademicYear academicYear = academicYearRepository.findByYear(data.academicYear)
-                .orElseThrow(() -> new IllegalArgumentException("Academic Year not found: " + data.academicYear));
+            Semester semester;
+            if (!data.semester.isEmpty()) {
+                int finalSemNumber;
+                try {
+                    finalSemNumber = (int) Double.parseDouble(data.semester);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid Semester Number: " + data.semester);
+                }
+                semester = semesterRepository.findBySemesterNumberAndAcademicYearId(finalSemNumber, academicYear.getId())
+                        .orElseThrow(() -> new IllegalArgumentException("Semester not found: " + finalSemNumber + " in year " + data.academicYear));
+            } else {
+                semester = semesterRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("No Semester available."));
+            }
 
-        int finalSemNumber;
-        try {
-            finalSemNumber = (int) Double.parseDouble(data.semester);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid Semester Number: " + data.semester);
+            ExamType type = ExamType.END_TERM;
+            if (!data.examType.isEmpty()) {
+                try {
+                    String rawType = data.examType.toUpperCase().replace(" ", "_");
+                    if (rawType.equals("END_SEM") || rawType.equals("END SEM")) {
+                        rawType = "END_TERM";
+                    }
+                    type = ExamType.valueOf(rawType);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Invalid Exam Type: " + data.examType);
+                }
+            }
+
+            Department department = student.getUser().getDepartment();
+
+            final ExamType finalType = type;
+            final Semester finalSemester = semester;
+            final AcademicYear finalAcademicYear = academicYear;
+
+            examination = examinationRepository.findByDepartmentIdAndSemesterIdAndType(department.getId(), finalSemester.getId(), finalType)
+                    .orElseGet(() -> {
+                        Examination newExam = new Examination();
+                        newExam.setDepartment(department);
+                        newExam.setSemester(finalSemester);
+                        newExam.setType(finalType);
+                        newExam.setName(finalAcademicYear.getYear() + " " + finalType.name() + " - " + department.getCode());
+                        newExam.setStatus(ExamStatus.COMPLETED);
+                        return examinationRepository.save(newExam);
+                    });
         }
 
-        Semester semester = semesterRepository.findBySemesterNumberAndAcademicYearId(finalSemNumber, academicYear.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Semester not found: " + finalSemNumber + " in year " + data.academicYear));
-
-        ExamType type;
-        try {
-            String rawType = data.examType.toUpperCase().replace(" ", "_");
-            // Map "END SEM" or "END_SEM" to whatever the ExamType enum actually has
-            // Checking the typical types
-            if (rawType.equals("END_SEM") || rawType.equals("END SEM")) {
-                rawType = "END_SEM";
-            }
-            type = ExamType.valueOf(rawType);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid Exam Type: " + data.examType);
+        Subject subject = null;
+        if (data.subjectCode != null && !data.subjectCode.isEmpty()) {
+            subject = subjectRepository.findByCode(data.subjectCode).orElse(null);
+        }
+        if (subject == null && data.subjectName != null && !data.subjectName.isEmpty()) {
+            subject = subjectRepository.findAll().stream()
+                    .filter(s -> s.getName().equalsIgnoreCase(data.subjectName) || s.getCode().equalsIgnoreCase(data.subjectName))
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (subject == null) {
+            throw new IllegalArgumentException("Subject '" + (data.subjectCode.isEmpty() ? data.subjectName : data.subjectCode) + "' not found in database.");
         }
 
         BigDecimal marksObtained, maxMarks;
         try {
             marksObtained = new BigDecimal(data.marksObtained);
-            maxMarks = new BigDecimal(data.maxMarks);
+            maxMarks = data.maxMarks.isEmpty() ? new BigDecimal("100") : new BigDecimal(data.maxMarks);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Marks Obtained and Maximum Marks must be valid numeric values.");
         }
-
-        Department department = subject.getDepartment();
-
-        Examination examination = examinationRepository.findByDepartmentIdAndSemesterIdAndType(department.getId(), semester.getId(), type)
-                .orElseGet(() -> {
-                    Examination newExam = new Examination();
-                    newExam.setDepartment(department);
-                    newExam.setSemester(semester);
-                    newExam.setType(type);
-                    newExam.setName(academicYear.getYear() + " " + type.name() + " - " + department.getCode());
-                    newExam.setStatus(ExamStatus.COMPLETED);
-                    return examinationRepository.save(newExam);
-                });
 
         boolean isUpdate = false;
         ExamResult result = examResultRepository.findByExaminationIdAndStudentIdAndSubjectId(examination.getId(), student.getId(), subject.getId())
@@ -317,7 +376,6 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         } else {
             isUpdate = true;
             if (result.getMarksObtained().compareTo(marksObtained) != 0) {
-                // Record history
                 ExamResultsHistory history = new ExamResultsHistory();
                 history.setResult(result);
                 history.setPreviousMarksObtained(result.getMarksObtained());

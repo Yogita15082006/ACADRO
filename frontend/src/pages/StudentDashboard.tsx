@@ -75,11 +75,29 @@ export const StudentDashboard = () => {
     { title: 'Web Dev Mini Project', type: 'Project', due: 'Next Monday', color: 'text-primary bg-primary/10 border-primary/20', icon: <Activity className="w-4 h-4" /> },
   ];
 
-  const recentGrades = [
-    { subject: 'Java Programming', title: 'Unit 1 Test', score: '18/20', grade: 'A', date: '2 days ago' },
-    { subject: 'Operating Systems', title: 'Quiz 1', score: '8/10', grade: 'B+', date: '5 days ago' },
-    { subject: 'DBMS', title: 'Lab Assignment 2', score: '10/10', grade: 'A+', date: '1 week ago' },
-  ];
+  const [recentGrades, setRecentGrades] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchGrades = async () => {
+      try {
+        const res = await api.get('/exam-results');
+        if (res.data?.data) {
+          const published = res.data.data.filter((r: any) => r.isPublished);
+          const mapped = published.map((r: any) => ({
+             subject: r.subjectName || 'Unknown Subject',
+             title: r.examinationName || 'Exam',
+             score: `${r.marksObtained}/${r.maxMarks}`,
+             grade: r.grade || 'N/A',
+             date: 'Recently'
+          }));
+          setRecentGrades(mapped.slice(0, 5)); // Show latest 5
+        }
+      } catch (err) {
+        console.error('Failed to fetch grades', err);
+      }
+    };
+    fetchGrades();
+  }, [user?.id]);
 
   const summaryCards = [
     { title: 'Overall Attendance', value: `${liveOverallAttendance}%`, icon: <CheckCircle />, color: liveOverallAttendance >= 75 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500' },
@@ -290,6 +308,11 @@ export const StudentDashboard = () => {
                     </div>
                   </div>
                 ))}
+                {recentGrades.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground text-sm">
+                    No published results yet.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -11,6 +11,7 @@ import com.acronexus.mapper.ExamResultMapper;
 import com.acronexus.repository.ExamResultRepository;
 import com.acronexus.repository.ExamResultsHistoryRepository;
 import com.acronexus.repository.UserRepository;
+import com.acronexus.repository.CoordinatorAssignmentRepository;
 import com.acronexus.security.UserDetailsImpl;
 import com.acronexus.service.ExamResultService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class ExamResultServiceImpl implements ExamResultService {
     private final ExamResultMapper mapper;
     private final ExamResultsHistoryRepository historyRepository;
     private final UserRepository userRepository;
+    private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
 
     @Override
     @Transactional
@@ -54,7 +56,7 @@ public class ExamResultServiceImpl implements ExamResultService {
         
         List<ExamResult> results;
         if (currentUser.getRole() == UserRole.STUDENT) {
-            results = repository.findByStudentId(currentUser.getId());
+            results = repository.findByStudentIdAndIsPublishedTrue(currentUser.getId());
         } else {
             results = repository.findAll();
         }
@@ -64,6 +66,25 @@ public class ExamResultServiceImpl implements ExamResultService {
                 .collect(Collectors.toList());
     }
     
+    @Override
+    public List<ExamResultResponseDto> findByExaminationAndClass(UUID examinationId, String className) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User currentUser = userRepository.getReferenceById(userDetails.getId());
+        
+        List<ExamResult> results;
+        if (currentUser.getRole() == com.acronexus.entity.UserRole.STUDENT) {
+            results = repository.findByExaminationIdAndStudentIdAndIsPublishedTrue(examinationId, currentUser.getId());
+        } else if (className != null && !className.trim().isEmpty()) {
+            results = repository.findByExaminationIdAndClassName(examinationId, className);
+        } else {
+            results = repository.findByExaminationId(examinationId);
+        }
+        
+        return results.stream()
+                .map(mapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     private void verifyStudentAccess(ExamResult result) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
@@ -110,5 +131,37 @@ public class ExamResultServiceImpl implements ExamResultService {
             throw new ResourceNotFoundException("ExamResult not found with id: " + id);
         }
         repository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public int publishResults(UUID examinationId, String className, UUID studentId) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User currentUser = userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<ExamResult> results;
+        if (studentId != null) {
+            results = repository.findByExaminationIdAndStudentId(examinationId, studentId);
+        } else if (className != null && !className.trim().isEmpty()) {
+            results = repository.findByExaminationIdAndClassName(examinationId, className);
+        } else {
+            results = repository.findByExaminationId(examinationId);
+        }
+        
+        System.out.println("PUBLISH_DEBUG: className=" + className + ", studentId=" + studentId + ", results.size()=" + results.size());
+
+        int count = 0;
+        for (ExamResult result : results) {
+            if (result.getIsPublished() == null || !result.getIsPublished()) {
+                result.setIsPublished(true);
+                count++;
+            }
+        }
+        
+        if (count > 0) {
+            repository.saveAll(results);
+        }
+        
+        return count;
     }
 }

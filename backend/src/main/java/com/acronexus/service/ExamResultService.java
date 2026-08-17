@@ -10,5 +10,7 @@ public interface ExamResultService {
     ExamResultResponseDto getById(UUID id);
     List<ExamResultResponseDto> getAll();
     ExamResultResponseDto update(UUID id, ExamResultRequestDto requestDto);
+    List<ExamResultResponseDto> findByExaminationAndClass(UUID examinationId, String className);
     void delete(UUID id);
+    int publishResults(UUID examinationId, String className, UUID studentId);
 }

@@ -43,6 +43,24 @@ public class ExamAiFeedbackController {
         return ResponseEntity.ok(ApiResponse.success("ExamAiFeedbacks fetched successfully", list));
     }
     
+    @PostMapping("/generate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
+    public ResponseEntity<ApiResponse<List<ExamAiFeedbackResponseDto>>> generate(
+            @RequestParam UUID examinationId, 
+            @RequestParam(required = false) String className) {
+        List<ExamAiFeedbackResponseDto> list = service.generateFeedbackForClass(examinationId, className);
+        return ResponseEntity.ok(ApiResponse.success("AI feedback generated successfully", list));
+    }
+    
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
+    public ResponseEntity<ApiResponse<List<ExamAiFeedbackResponseDto>>> search(
+            @RequestParam UUID examinationId, 
+            @RequestParam(required = false) String className) {
+        List<ExamAiFeedbackResponseDto> list = service.searchFeedback(examinationId, className);
+        return ResponseEntity.ok(ApiResponse.success("AI feedback fetched successfully", list));
+    }
+    
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY')")
     public ResponseEntity<ApiResponse<ExamAiFeedbackResponseDto>> update(@PathVariable UUID id, @Valid @RequestBody ExamAiFeedbackRequestDto requestDto) {

@@ -2,25 +2,44 @@ package com.acronexus.service.impl;
 
 import com.acronexus.dto.ExamAiFeedbackRequestDto;
 import com.acronexus.dto.ExamAiFeedbackResponseDto;
+import com.acronexus.dto.ai.AiAnalyticsRequest;
+import com.acronexus.dto.ai.AiInsightDto;
 import com.acronexus.entity.ExamAiFeedback;
+import com.acronexus.entity.ExamResult;
+import com.acronexus.entity.Examination;
+import com.acronexus.entity.Student;
+import com.acronexus.entity.User;
 import com.acronexus.exception.ResourceNotFoundException;
 import com.acronexus.mapper.ExamAiFeedbackMapper;
 import com.acronexus.repository.ExamAiFeedbackRepository;
+import com.acronexus.repository.ExamResultRepository;
+import com.acronexus.repository.ExaminationRepository;
+import com.acronexus.repository.UserRepository;
+import com.acronexus.security.UserDetailsImpl;
+import com.acronexus.service.AiService;
 import com.acronexus.service.ExamAiFeedbackService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
 
     private final ExamAiFeedbackRepository repository;
     private final ExamAiFeedbackMapper mapper;
+    private final ExamResultRepository examResultRepository;
+    private final ExaminationRepository examinationRepository;
+    private final UserRepository userRepository;
+    private final AiService aiService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -59,5 +78,162 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
             throw new ResourceNotFoundException("ExamAiFeedback not found with id: " + id);
         }
         repository.deleteById(id);
+    }
+    
+    @Override
+    @Transactional
+    public List<ExamAiFeedbackResponseDto> generateFeedbackForClass(UUID examinationId, String className) {
+        Examination examination = examinationRepository.findById(examinationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Examination not found: " + examinationId));
+                
+        List<ExamResult> results;
+        if (className != null && !className.trim().isEmpty()) {
+            results = examResultRepository.findByExaminationIdAndClassName(examinationId, className);
+        } else {
+            results = examResultRepository.findByExaminationId(examinationId);
+        }
+        
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("No results found for the given examination and class");
+        }
+        
+        // Group by student
+        Map<UUID, List<ExamResult>> resultsByStudent = results.stream()
+                .collect(Collectors.groupingBy(er -> er.getStudent().getId()));
+                
+        List<Map<String, Object>> allStudentsData = new ArrayList<>();
+        
+        for (Map.Entry<UUID, List<ExamResult>> entry : resultsByStudent.entrySet()) {
+            UUID studentId = entry.getKey();
+            List<ExamResult> studentResults = entry.getValue();
+            
+            java.math.BigDecimal totalMarksObtained = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalMaxMarks = java.math.BigDecimal.ZERO;
+
+            List<Map<String, Object>> marksData = new ArrayList<>();
+            for (ExamResult r : studentResults) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("subject", r.getSubject().getName());
+                m.put("subjectCode", r.getSubject().getCode());
+                m.put("marksObtained", r.getMarksObtained());
+                m.put("maxMarks", r.getMaxMarks());
+                marksData.add(m);
+                
+                totalMarksObtained = totalMarksObtained.add(r.getMarksObtained());
+                totalMaxMarks = totalMaxMarks.add(r.getMaxMarks() != null ? r.getMaxMarks() : new java.math.BigDecimal("100"));
+            }
+            
+            double percentage = 0.0;
+            if (totalMaxMarks.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                percentage = totalMarksObtained.doubleValue() / totalMaxMarks.doubleValue() * 100.0;
+            }
+            
+            Map<String, Object> dataPayload = new HashMap<>();
+            dataPayload.put("studentId", studentId);
+            dataPayload.put("examinationName", examination.getName());
+            dataPayload.put("marks", marksData);
+            dataPayload.put("totalMarksObtained", totalMarksObtained);
+            dataPayload.put("totalMaxMarks", totalMaxMarks);
+            dataPayload.put("percentage", String.format("%.2f%%", percentage));
+            
+            allStudentsData.add(dataPayload);
+        }
+        
+        try {
+            Map<String, Object> bulkPayload = new HashMap<>();
+            bulkPayload.put("students", allStudentsData);
+            
+            AiAnalyticsRequest request = new AiAnalyticsRequest();
+            request.setInsightType("BULK_EXAM_FEEDBACK");
+            request.setData(bulkPayload);
+            
+            log.info("Sending BULK_EXAM_FEEDBACK request for {} students", allStudentsData.size());
+            AiInsightDto insightDto = aiService.getInsights(request);
+            
+            if (insightDto.getRawInsights() == null || insightDto.getRawInsights().isEmpty() || insightDto.getRawInsights().equals("[]") || insightDto.getRawInsights().equals("{}")) {
+                throw new RuntimeException("AI Service returned empty rawInsights. Reasoning: " + insightDto.getReasoning());
+            }
+            
+            com.fasterxml.jackson.databind.JsonNode jsonArray = objectMapper.readTree(insightDto.getRawInsights());
+            if (!jsonArray.isArray()) {
+                throw new RuntimeException("AI Service returned invalid rawInsights format. Expected JSON array.");
+            }
+            
+            for (com.fasterxml.jackson.databind.JsonNode node : jsonArray) {
+                if (!node.has("studentId")) continue;
+                
+                String studentIdStr = node.get("studentId").asText();
+                UUID studentId = UUID.fromString(studentIdStr);
+                
+                ExamAiFeedback feedback = repository.findByExaminationIdAndStudentId(examinationId, studentId)
+                        .orElse(new ExamAiFeedback());
+                        
+                Student detachedStudent = new Student();
+                detachedStudent.setId(studentId);
+                
+                Examination detachedExam = new Examination();
+                detachedExam.setId(examinationId);
+                        
+                feedback.setExamination(detachedExam);
+                feedback.setStudent(detachedStudent);
+                
+                String reasoning = node.has("reasoning") ? node.get("reasoning").asText() : "Analysis completed.";
+                feedback.setOverallPerformance(reasoning);
+                
+                List<String> strengths = new ArrayList<>();
+                List<String> weaknesses = new ArrayList<>();
+                
+                if (node.has("recommendations") && node.get("recommendations").isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode recNode : node.get("recommendations")) {
+                        String insight = recNode.asText();
+                        if (insight.toLowerCase().contains("strength") || insight.toLowerCase().contains("good") || insight.toLowerCase().contains("excellent") || insight.toLowerCase().contains("keep it up")) {
+                            strengths.add(insight);
+                        } else {
+                            weaknesses.add(insight);
+                        }
+                    }
+                }
+                
+                feedback.setStrengths(strengths.toArray(new String[0]));
+                feedback.setAreasOfImprovement(weaknesses.toArray(new String[0]));
+                
+                if (!weaknesses.isEmpty()) {
+                    feedback.setActionPlan(String.join("\n", weaknesses));
+                } else if (!strengths.isEmpty() && weaknesses.isEmpty()) {
+                    feedback.setActionPlan(String.join("\n", strengths)); // fallback
+                } else {
+                    feedback.setActionPlan("Review your performance and continue consistent study habits.");
+                }
+                
+                repository.save(feedback);
+            }
+        } catch (Exception e) {
+            log.error("Failed to process bulk AI feedback for class " + className, e);
+            throw new RuntimeException("AI bulk generation failed: " + e.getMessage(), e);
+        }
+        
+        return searchFeedback(examinationId, className);
+    }
+    
+    @Override
+    public List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        User currentUser = userRepository.getReferenceById(userDetails.getId());
+
+        List<ExamAiFeedback> feedbacks;
+        if (currentUser.getRole() == com.acronexus.entity.UserRole.STUDENT) {
+            // Check if they have at least one published result for this exam
+            List<ExamResult> publishedResults = examResultRepository.findByExaminationIdAndStudentIdAndIsPublishedTrue(examinationId, currentUser.getId());
+            if (publishedResults.isEmpty()) {
+                return new ArrayList<>(); // Do not return feedback if results are not published
+            }
+            java.util.Optional<ExamAiFeedback> feedbackOpt = repository.findByExaminationIdAndStudentId(examinationId, currentUser.getId());
+            feedbacks = feedbackOpt.map(java.util.Collections::singletonList).orElseGet(java.util.Collections::emptyList);
+        } else if (className != null && !className.trim().isEmpty()) {
+            feedbacks = repository.findByExaminationIdAndClassName(examinationId, className);
+        } else {
+            feedbacks = repository.findByExaminationId(examinationId);
+        }
+        return feedbacks.stream().map(mapper::toDto).collect(Collectors.toList());
     }
 }

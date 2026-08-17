@@ -19,4 +19,7 @@ public class ExamResultResponseDto {
     private BigDecimal maxMarks;
     private String grade;
     private String remarks;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isPublished")
+    private Boolean isPublished;
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from "../services/api";
+import { examResultService } from '../services/examResultService';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -165,7 +166,7 @@ export const ExaminationModule = () => {
   // Results Management (Admin)
   const [selectedClass, setSelectedClass] = useState('');
   const [enteringMarksForStudent, setEnteringMarksForStudent] = useState<any>(null);
-  const [savedResults, setSavedResults] = useState<any[]>(() => getPersistentData('acronexus_results', []));
+  const [savedResults, setSavedResults] = useState<any[]>([]);
   const [resultViewMode, setResultViewMode] = useState<'saved' | 'create' | 'view'>('saved');
   const [resultSaved, setResultSaved] = useState(false);
   
@@ -181,61 +182,235 @@ export const ExaminationModule = () => {
   const [isGeneratingAIFeedback, setIsGeneratingAIFeedback] = useState(false);
   const [aiFeedbackStep, setAiFeedbackStep] = useState<string>('');
 
-  useEffect(() => {
-    setPersistentData('acronexus_results', savedResults);
-  }, [savedResults]);
+  const loadSavedResults = async () => {
+    if (!selectedExam) return;
+    try {
+      const res = await examResultService.getResultsByExamAndClass(selectedExam.id);
+      if (res.success && res.data) {
+        const groupedByClass = res.data.reduce((acc: any, r: any) => {
+           const cName = r.className || 'Unknown Class';
+           if (!acc[cName]) {
+              acc[cName] = {
+                 id: cName,
+                 examId: selectedExam.id,
+                 examName: selectedExam.name,
+                 className: cName,
+                 semester: selectedExam.semesterName,
+                 studentCount: new Set(),
+                 academicYear: selectedExam.academicYearName,
+                 status: 'Completed',
+                 generationDate: new Date().toLocaleDateString(),
+                 studentMap: {} // Store mapped students here
+              };
+           }
+           acc[cName].studentCount.add(r.studentId);
+           
+           if (!acc[cName].studentMap[r.studentId]) {
+               acc[cName].studentMap[r.studentId] = {
+                   id: r.studentId,
+                   studentName: r.studentName,
+                   enrollmentNumber: r.enrollmentNo,
+                   className: cName,
+                   status: r.isPublished ? 'Published' : 'Draft',
+                   subjectMarks: []
+               };
+           }
+           acc[cName].studentMap[r.studentId].subjectMarks.push({
+               name: r.subjectName || 'Subject',
+               subjectCode: r.subjectCode,
+               max: r.maxMarks || 100,
+               obtained: r.marksObtained || 0,
+               isPublished: r.isPublished
+           });
 
-  const handleGenerateAIFeedback = () => {
-    if (uploadedMarks.length === 0) return;
+           return acc;
+        }, {});
+        
+        const uiSaved = Object.values(groupedByClass).map((c: any) => {
+           const mappedMarks = Object.values(c.studentMap).map((student: any) => {
+               const totalMax = student.subjectMarks.reduce((sum: number, s: any) => sum + s.max, 0);
+               const totalMarks = student.subjectMarks.reduce((sum: number, s: any) => sum + s.obtained, 0);
+               const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
+               let grade = 'F';
+               if (percentage >= 90) grade = 'A+';
+               else if (percentage >= 80) grade = 'A';
+               else if (percentage >= 70) grade = 'B+';
+               else if (percentage >= 60) grade = 'B';
+               else if (percentage >= 50) grade = 'C';
+               else if (percentage >= 40) grade = 'P';
+               
+               return { ...student, totalMarks, percentage, grade };
+           });
+           return {
+               ...c,
+               marks: mappedMarks,
+               studentCount: c.studentCount.size
+           };
+        });
+        setSavedResults(uiSaved);
+        setSavedResults(uiSaved);
+      }
+    } catch (error) {
+      console.error("Failed to load saved results", error);
+    }
+  };
+
+  useEffect(() => {
+    if (resultViewMode === 'saved') {
+       loadSavedResults();
+    }
+  }, [selectedExam, resultViewMode]);
+
+  const handleGenerateAIFeedback = async () => {
+    if (uploadedMarks.length === 0 || !selectedExam || !selectedClass) return;
     setIsGeneratingAIFeedback(true);
-    setAiFeedbackStep('Initializing AI...');
-    
-    setTimeout(() => {
-      setAiFeedbackStep('Analyzing marks...');
-      setTimeout(() => {
-        setAiFeedbackStep('Drafting subject feedback...');
-        setTimeout(() => {
-          setAiFeedbackStep('Writing overall summaries...');
-          setTimeout(() => {
-            const updatedMarks = uploadedMarks.map(student => {
-              const newSubjectMarks = student.subjectMarks.map((sm: any) => {
-                let remark = '';
-                const p = (sm.obtained / sm.max) * 100;
-                if (p >= 90) remark = 'Excellent understanding. Keep it up!';
-                else if (p >= 75) remark = 'Good performance. Work on advanced applications.';
-                else if (p >= 60) remark = 'Satisfactory, but needs more practice.';
-                else if (p >= 40) remark = 'Below average. Focused revision is required.';
-                else remark = 'Poor performance. Immediate remedial action needed.';
-                
-                return { ...sm, remarks: remark };
-              });
-              
-              let overallFeedback = '';
-              const totalObtained = student.subjectMarks.reduce((s:number,m:any)=>s+(Number(m.obtained)||0),0);
-              const totalMax = student.subjectMarks.reduce((s:number,m:any)=>s+m.max,0);
-              const totalP = (totalObtained / totalMax) * 100;
-              
-              if (totalP >= 90) overallFeedback = 'Outstanding overall performance. The student demonstrates excellent analytical skills.';
-              else if (totalP >= 75) overallFeedback = 'Very good overall progress. Shows consistent effort across most subjects.';
-              else if (totalP >= 60) overallFeedback = 'Average performance. Needs to allocate more time to weaker subjects.';
-              else overallFeedback = 'Needs significant improvement. Consistent daily study is highly recommended.';
-              
-              return { ...student, subjectMarks: newSubjectMarks, overallFeedback };
-            });
-            setUploadedMarks(updatedMarks);
-            setIsGeneratingAIFeedback(false);
-            setAiFeedbackStep('');
-            toast.success('AI feedback generated successfully for all students.');
-          }, 1500);
-        }, 1500);
-      }, 1500);
-    }, 1000);
+    setAiFeedbackStep('Initializing AI & generating feedback...');
+    try {
+      const res = await examResultService.generateAIFeedback(selectedExam.id, selectedClass);
+      if (res.success) {
+         toast.success('AI feedback generated successfully for all students.');
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to generate AI feedback.');
+    } finally {
+      setIsGeneratingAIFeedback(false);
+      setAiFeedbackStep('');
+    }
   };
   
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const handlePublishAll = async () => {
+    if (!selectedExam || !selectedClass) return;
+    setIsPublishing(true);
+    try {
+      const res = await examResultService.publishResults(selectedExam.id, selectedClass);
+      if (res.success) {
+        const count = res.data || 0;
+        toast.success(`${count} result${count === 1 ? '' : 's'} published successfully`);
+        
+        // Refresh the 'uploadedMarks' (Draft View) from the actual DB state
+        const dbRes = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+        if (dbRes.success && dbRes.data) {
+             const grouped = dbRes.data.reduce((acc: any, row: any) => {
+                 if (!acc[row.studentId]) {
+                     acc[row.studentId] = {
+                         id: row.studentId,
+                         name: row.studentName || 'Student',
+                         enrollmentNumber: row.enrollmentNo,
+                         className: selectedClass,
+                         status: row.isPublished ? 'Published' : 'Draft',
+                         subjectMarks: []
+                     };
+                 }
+                 acc[row.studentId].subjectMarks.push({
+                     name: row.subjectName || 'Subject',
+                     subjectCode: row.subjectCode,
+                     max: row.maxMarks || 100,
+                     obtained: row.marksObtained || 0,
+                     isPublished: row.isPublished
+                 });
+                 return acc;
+             }, {});
+             
+             const mappedMarks = Object.values(grouped).map((student: any) => {
+                 const totalMax = student.subjectMarks.reduce((sum: number, s: any) => sum + s.max, 0);
+                 const totalMarks = student.subjectMarks.reduce((sum: number, s: any) => sum + s.obtained, 0);
+                 const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
+                 let grade = 'F';
+                 if (percentage >= 90) grade = 'A+';
+                 else if (percentage >= 80) grade = 'A';
+                 else if (percentage >= 70) grade = 'B+';
+                 else if (percentage >= 60) grade = 'B';
+                 else if (percentage >= 50) grade = 'C';
+                 else if (percentage >= 40) grade = 'P';
+                 
+                 return {
+                     ...student,
+                     totalMarks,
+                     percentage: Number(percentage.toFixed(2)),
+                     grade
+                 };
+             });
+             setUploadedMarks(mappedMarks);
+        }
+        
+        // Refresh the global published results view
+        await loadSavedResults();
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to publish results.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handlePublishResult = async (studentId: string) => {
+    if (!selectedExam) return;
+    try {
+      const res = await examResultService.publishResults(selectedExam.id, undefined, studentId);
+      if (res.success) {
+        toast.success('Student result published!');
+        setUploadedMarks(prev => prev.map(m => m.id === studentId ? { ...m, status: 'Published' } : m));
+        if (enteringMarksForStudent && enteringMarksForStudent.id === studentId) {
+            setEnteringMarksForStudent(null);
+        }
+      }
+    } catch (e) {
+      toast.error('Failed to publish student result.');
+    }
+  };
+  
+  const handleOpenStudentResult = async (student: any) => {
+      setEnteringMarksForStudent(student);
+      try {
+         if (selectedExam) {
+             const aiFeedback = await examResultService.getAIFeedback(selectedExam.id, student.className || selectedClass);
+             if (aiFeedback && aiFeedback.data) {
+                 const studentFeedback = aiFeedback.data.find((f: any) => f.studentId === student.id || f.studentId === student.studentId);
+                 if (studentFeedback) {
+                     setEnteringMarksForStudent({
+                         ...student,
+                         overallFeedback: studentFeedback.overallPerformance,
+                     });
+                 }
+             }
+         }
+      } catch (e) {
+          console.error('Failed to load AI feedback', e);
+      }
+  };
+
   // Results (Student)
   const [viewingSubjectResult, setViewingSubjectResult] = useState<any>(null);
   const [viewingReportCard, setViewingReportCard] = useState(false);
+  const [studentResults, setStudentResults] = useState<any[]>([]);
+  const [studentAiFeedback, setStudentAiFeedback] = useState<any>(null);
+  const [isStudentResultsLoading, setIsStudentResultsLoading] = useState(false);
 
+  useEffect(() => {
+    const fetchStudentResults = async () => {
+      if (!selectedExam || role !== 'student' || activeTab !== 'results') return;
+      setIsStudentResultsLoading(true);
+      try {
+        const res = await examResultService.getResultsByExamAndClass(selectedExam.id);
+        if (res.success && res.data) {
+          setStudentResults(res.data);
+        }
+        
+        const aiRes = await examResultService.getAIFeedback(selectedExam.id);
+        if (aiRes.success && aiRes.data && aiRes.data.length > 0) {
+          setStudentAiFeedback(aiRes.data[0]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch student results:", err);
+      } finally {
+        setIsStudentResultsLoading(false);
+      }
+    };
+    
+    fetchStudentResults();
+  }, [selectedExam, activeTab, role]);
   // Eligibility Generator (Admin)
   const [elgCriteria, setElgCriteria] = useState({ attendance: true, assignment: false, quiz: false, internalMarks: false, event: false });
   const [elgSettings, setElgSettings] = useState({ attendance: 75, assignment: 80, quiz: 40, internal: 40 });
@@ -291,7 +466,33 @@ export const ExaminationModule = () => {
 
   // Constants
   // Helper to get students for a class
-  const classStudents: any[] = []; // Removed mock data usage for result management base list
+  const [classStudents, setClassStudents] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (selectedClass) {
+      setIsLoadingData(true);
+      api.get(`/v1/students?className=${encodeURIComponent(selectedClass)}&size=1000`)
+        .then(res => {
+          if (res.data.success && res.data.data && res.data.data.content) {
+            const mappedStudents = res.data.data.content.map((s: any) => ({
+                id: s.id,
+                name: s.name || 'Unknown',
+                enrollmentNumber: s.enrollmentNumber || 'Unknown',
+                className: selectedClass,
+                status: 'Pending',
+                subjectMarks: [],
+                totalMarks: '-',
+                grade: '-'
+            }));
+            setClassStudents(mappedStudents);
+          }
+        })
+        .catch(err => console.error("Failed to fetch class students", err))
+        .finally(() => setIsLoadingData(false));
+    } else {
+      setClassStudents([]);
+    }
+  }, [selectedClass]);
 
   const openCreateForm = (exam: any = null) => {
     if (exam) {
@@ -990,8 +1191,7 @@ export const ExaminationModule = () => {
                 <Button variant="outline" className="w-full text-xs h-9" onClick={() => handleDownloadTimetable(tt.id, tt.fileName, false)}><DownloadCloud size={14} className="mr-1"/> Download</Button>
                 {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
                   <Button variant="outline" className="w-full col-span-2 text-xs h-9 text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200" onClick={() => handleDeleteTimetable(tt.id)}>
-                    <Trash2 size={14} className="mr-1"/> Delete
-                  </Button>
+                    <Trash2 size={14} className="mr-1"/> Delete</Button>
                 )}
               </div>
             </div>
@@ -1009,8 +1209,6 @@ export const ExaminationModule = () => {
 
   // --- RENDER: RESULT MANAGEMENT (ADMIN) ---
   const handleFileUpload = async (file: File) => {
-    // TODO
-    // Enable PDF uploads after the Document Processing module is implemented.
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('PDF uploads are currently unavailable for Result Bulk Uploads. Support for machine-generated PDFs will be added in a future release. Please upload an Excel (.xlsx/.xls) or CSV (.csv) file.');
       return;
@@ -1020,118 +1218,69 @@ export const ExaminationModule = () => {
     setIsUploading(true);
     setUploadStatus('reading');
     
-    const formData = new FormData();
-    formData.append('file', file);
-    
     try {
       setUploadStatus('extracting');
-      const response = await api.post('/v1/bulk-upload/results', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await examResultService.uploadResults(file, selectedExam?.id, selectedClass);
+      
+      if (response && response.processingStatus === 'COMPLETED' || response.processingStatus === 'PARTIAL_SUCCESS') {
+         toast.success(`Upload processed. Inserted: ${response.successfullyInserted || 0}, Updated: ${response.updatedRecords || 0}`);
+         if (response.failedRecords > 0) {
+             toast.warning(`Failed records: ${response.failedRecords}`);
+         }
+      } else {
+         toast.error(`Upload failed.`);
+      }
       
       setUploadStatus('completed');
       setIsUploading(false);
       
-      if (response.data && response.data.details && response.data.details.length > 0) {
-        // Group by enrollment number to create student objects
-        const groupedMarks = response.data.details.reduce((acc: any, row: any) => {
-          if (!acc[row.enrollmentNo]) {
-            acc[row.enrollmentNo] = {
-              id: row.enrollmentNo,
-              name: row.studentName || `Student`,
-              enrollmentNumber: row.enrollmentNo,
-              className: selectedClass,
-              status: 'Draft',
-              subjectMarks: [],
-            };
-          }
-          acc[row.enrollmentNo].subjectMarks.push({
-            name: row.subjectCode || 'Subject',
-            max: row.maxMarks || 100,
-            obtained: row.marksObtained || 0
-          });
-          return acc;
-        }, {});
-        
-        const mappedMarks = Object.values(groupedMarks).map((student: any) => {
-          const totalMax = student.subjectMarks.reduce((sum: number, s: any) => sum + s.max, 0);
-          const totalMarks = student.subjectMarks.reduce((sum: number, s: any) => sum + s.obtained, 0);
-          const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
-          
-          let grade = 'F';
-          if (percentage >= 90) grade = 'A+';
-          else if (percentage >= 80) grade = 'A';
-          else if (percentage >= 70) grade = 'B+';
-          else if (percentage >= 60) grade = 'B';
-          else if (percentage >= 50) grade = 'C';
-          else if (percentage >= 40) grade = 'D';
-
-          return { ...student, totalMarks, percentage, grade };
-        });
-        
-        setUploadedMarks(mappedMarks);
-        toast.success(`Upload processed. Success: ${response.data.successCount}, Failed: ${response.data.failureCount}`);
-      } else {
-        generateMockMarks(file);
+      if (selectedExam && selectedClass) {
+         const res = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+         if (res.success && res.data) {
+             const grouped = res.data.reduce((acc: any, row: any) => {
+                 if (!acc[row.studentId]) {
+                     acc[row.studentId] = {
+                         id: row.studentId,
+                         name: row.studentName || 'Student',
+                         enrollmentNumber: row.enrollmentNo,
+                         className: selectedClass,
+                         status: row.isPublished ? 'Published' : 'Draft',
+                         subjectMarks: []
+                     };
+                 }
+                 acc[row.studentId].subjectMarks.push({
+                     name: row.subjectName || 'Subject',
+                     subjectCode: row.subjectCode,
+                     max: row.maxMarks || 100,
+                     obtained: row.marksObtained || 0,
+                     isPublished: row.isPublished
+                 });
+                 return acc;
+             }, {});
+             
+             const mappedMarks = Object.values(grouped).map((student: any) => {
+                 const totalMax = student.subjectMarks.reduce((sum: number, s: any) => sum + s.max, 0);
+                 const totalMarks = student.subjectMarks.reduce((sum: number, s: any) => sum + s.obtained, 0);
+                 const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
+                 let grade = 'F';
+                 if (percentage >= 90) grade = 'A+';
+                 else if (percentage >= 80) grade = 'A';
+                 else if (percentage >= 70) grade = 'B+';
+                 else if (percentage >= 60) grade = 'B';
+                 else if (percentage >= 50) grade = 'C';
+                 else if (percentage >= 40) grade = 'D';
+                 return { ...student, totalMarks, percentage, grade };
+             });
+             setUploadedMarks(mappedMarks);
+         }
       }
+      
     } catch (error) {
       console.error("Upload failed", error);
-      toast.error("API upload failed. Falling back to local extraction.");
-      generateMockMarks(file);
+      toast.error("API upload failed.");
+      setUploadStatus('error');
+      setIsUploading(false);
     }
-  };
-
-  const generateMockMarks = (file: File) => {
-    setUploadStatus('completed');
-    setIsUploading(false);
-    
-    // Generate some mock uploaded marks based on classStudents
-    const DEMO_SUBJECTS = [
-      'Object Oriented Programming',
-      'Database Management System',
-      'Operating Systems',
-      'Computer Networks',
-      'Software Engineering',
-      'Machine Learning'
-    ];
-
-    const generatedMarks = classStudents.map(student => {
-      const subjects = DEMO_SUBJECTS.map(name => ({
-        name,
-        max: 30,
-        obtained: Math.floor(Math.random() * 11) + 20 // Random marks between 20 and 30
-      }));
-      const totalMax = subjects.reduce((sum, s) => sum + s.max, 0);
-      const totalMarks = subjects.reduce((sum, s) => sum + s.obtained, 0);
-      const percentage = (totalMarks / totalMax) * 100;
-      
-      let grade = 'F';
-      if (percentage >= 90) grade = 'A+';
-      else if (percentage >= 80) grade = 'A';
-      else if (percentage >= 70) grade = 'B+';
-      else if (percentage >= 60) grade = 'B';
-      else if (percentage >= 50) grade = 'C';
-      else if (percentage >= 40) grade = 'D';
-
-      return {
-        ...student,
-        status: 'Draft',
-        subjectMarks: subjects,
-        totalMarks,
-        percentage,
-        grade
-      };
-    });
-    setUploadedMarks(generatedMarks);
-    toast.success("Marks extracted successfully from " + file.name);
-  };
-
-  const handleLoadDemoResult = () => {
-    const dummyContent = new Uint8Array(1024 * 145);
-    const demoFile = new File([dummyContent], "MidSem_Result_IT2_OOPS.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", lastModified: Date.now() });
-    handleFileUpload(demoFile);
   };
 
   const renderUploadSection = () => {
@@ -1147,12 +1296,9 @@ export const ExaminationModule = () => {
              <h3 className="text-xl font-bold mb-2">Upload Result File</h3>
              <p className="text-sm text-muted-foreground mb-6">Drag and drop your Excel (.xlsx, .xls) or CSV file here, or click to browse.</p>
              <div className="flex gap-4 items-center">
-               <label>
-                 <Button className="pointer-events-none gap-2"><FileSpreadsheet size={16} /> Browse Files</Button>
-                 <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0])} />
-               </label>
-               <Button variant="secondary" className="gap-2 border-dashed border-2 bg-background hover:bg-accent/50" onClick={handleLoadDemoResult}>
-                 <Target size={16} className="text-emerald-500" /> Load Demo Result
+               <input id="result-upload-file" type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={(e) => { if (e.target.files && e.target.files.length > 0) handleFileUpload(e.target.files[0]); }} />
+               <Button onClick={() => document.getElementById('result-upload-file')?.click()} className="gap-2">
+                 <FileSpreadsheet size={16} /> Browse Files
                </Button>
              </div>
            </>
@@ -1201,34 +1347,28 @@ export const ExaminationModule = () => {
 
   const renderResultsTable = () => {
     // Determine data source
-    const dataSource = uploadStatus === 'completed' ? uploadedMarks : classStudents.map(s => {
-        const isDraft = s.id.length % 2 === 0;
-        const isPublished = s.id.length % 3 === 0;
-        const status = isPublished ? 'Published' : (isDraft ? 'Draft' : 'Pending');
-        
-        const DEMO_SUBJECTS = [
-          'Object Oriented Programming',
-          'Database Management System',
-          'Operating Systems',
-          'Computer Networks',
-          'Software Engineering',
-          'Machine Learning'
-        ];
-        
-        const subjectMarks = DEMO_SUBJECTS.map((name, idx) => ({
-            name,
-            max: 30,
-            obtained: 20 + ((s.id.charCodeAt(s.id.length - 1) + idx * 3) % 11) // Deterministic mock score between 20-30
-        }));
-        
-        return {
-          ...s,
-          status: status,
-          subjectMarks,
-          totalMarks: '-',
-          grade: '-'
-        };
-    });
+    let dataSource = [...classStudents];
+    
+    if (uploadStatus === 'completed' && uploadedMarks.length > 0) {
+       dataSource = classStudents.map(student => {
+           const uploaded = uploadedMarks.find(m => m.enrollmentNumber === student.enrollmentNumber);
+           if (uploaded) {
+               return { ...student, ...uploaded, status: 'Draft' };
+           }
+           return student;
+       });
+    } else if (resultViewMode === 'saved' && savedResults.length > 0) {
+       const saved = savedResults.find(r => r.className === selectedClass);
+       if (saved && saved.marks) {
+           dataSource = classStudents.map(student => {
+               const found = saved.marks.find((m: any) => m.enrollmentNumber === student.enrollmentNumber);
+               if (found) {
+                   return { ...student, ...found, status: 'Published' };
+               }
+               return student;
+           });
+       }
+    }
 
     // Apply filters
     const filteredData = dataSource.filter(student => {
@@ -1266,15 +1406,13 @@ export const ExaminationModule = () => {
             </select>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
-            {isAllDraft && (
+            {!isAllPublished && filteredData.length > 0 && (
                 <Button 
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 w-full md:w-auto"
-                  onClick={() => {
-                    setUploadedMarks(prev => prev.map(m => ({ ...m, status: 'Published' })));
-                    toast.success('All results published successfully');
-                  }}
+                  onClick={handlePublishAll}
+                  disabled={isPublishing}
                 >
-                  <CheckCircle size={16} /> Bulk Approve All
+                  <CheckCircle size={16} /> {isPublishing ? 'Publishing...' : 'Publish All'}
                 </Button>
             )}
             {isAllPublished && resultViewMode === 'create' && (
@@ -1331,15 +1469,17 @@ export const ExaminationModule = () => {
              </div>
              <div className="text-center">
                <p className="text-xs text-muted-foreground font-semibold uppercase">Highest Score</p>
-               <p className="text-xl font-black text-emerald-500">{Math.max(...uploadedMarks.map(m => m.totalMarks || 0))}</p>
+               <p className="text-xl font-black text-emerald-500">{uploadedMarks.length > 0 ? Math.max(...uploadedMarks.map(m => Number(m.totalMarks) || 0)) : 0}</p>
              </div>
              <div className="text-center">
                <p className="text-xs text-muted-foreground font-semibold uppercase">Average Score</p>
-               <p className="text-xl font-black text-blue-500">{(uploadedMarks.reduce((acc, curr) => acc + (curr.totalMarks || 0), 0) / (uploadedMarks.length || 1)).toFixed(1)}</p>
+               <p className="text-xl font-black text-blue-500">{uploadedMarks.length > 0 ? (uploadedMarks.reduce((acc, curr) => acc + (Number(curr.totalMarks) || 0), 0) / uploadedMarks.length).toFixed(1) : 0}</p>
              </div>
              <div className="text-center">
-               <p className="text-xs text-muted-foreground font-semibold uppercase">Status</p>
-               <p className="text-xl font-black text-amber-500">Draft</p>
+                 <p className="text-xs text-muted-foreground font-semibold uppercase">Status</p>
+                 <p className={cn("text-xl font-black", uploadedMarks.length > 0 && uploadedMarks.every(m => m.status === 'Published') ? "text-emerald-500" : "text-amber-500")}>
+                    {uploadedMarks.length > 0 && uploadedMarks.every(m => m.status === 'Published') ? 'Published' : 'Draft'}
+                 </p>
              </div>
           </div>
         )}
@@ -1378,16 +1518,16 @@ export const ExaminationModule = () => {
                       student.status === 'Draft' ? 'bg-amber-100 text-amber-700' :
                       'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     )}>
-                      {student.status}
+                      {student.status || 'Draft'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">
-                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setEnteringMarksForStudent(student)}>
+                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleOpenStudentResult(student)}>
                          <Edit size={14} className="text-blue-500" />
                        </Button>
                        {student.status === 'Draft' && (
-                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handlePublishResult(student.id || student.studentId)}>
                            <CheckCircle size={14} className="text-emerald-500" />
                          </Button>
                        )}
@@ -1411,7 +1551,7 @@ export const ExaminationModule = () => {
   };
 
   const renderResultManagement = () => {
-    const examClasses = selectedExam?.class ? selectedExam.class.split(',').map((c: string) => c.trim()) : [];
+    const examClasses = selectedExam?.classNames || [];
 
     if (enteringMarksForStudent) return renderStudentResultEntry();
 
@@ -1655,7 +1795,7 @@ export const ExaminationModule = () => {
           <tbody className="divide-y divide-border">
             {(enteringMarksForStudent.subjectMarks || []).map((subject: any, idx: number) => (
               <tr key={idx}>
-                <td className="px-6 py-4 font-mono text-muted-foreground">SUB-10{idx + 1}</td>
+                <td className="px-4 py-3 text-muted-foreground">{subject.subjectCode || 'N/A'}</td>
                 <td className="px-6 py-4 font-bold">{subject.name}</td>
                 <td className="px-6 py-4 font-bold text-muted-foreground">{subject.max}</td>
                 <td className="px-6 py-4">
@@ -1874,13 +2014,34 @@ export const ExaminationModule = () => {
     if (viewingSubjectResult) return renderStudentSubjectDetail();
     if (viewingReportCard) return renderStudentReportCard();
 
-    // Mock subject results
-    const subjectResults = [
-      { id: 'sub-1', name: 'Java Programming', obtained: 85, max: 100, percentage: 85, grade: 'A', status: 'Pass' },
-      { id: 'sub-2', name: 'DBMS', obtained: 72, max: 100, percentage: 72, grade: 'B+', status: 'Pass' },
-      { id: 'sub-3', name: 'Operating Systems', obtained: 91, max: 100, percentage: 91, grade: 'A+', status: 'Pass' },
-      { id: 'sub-4', name: 'Software Engineering', obtained: 42, max: 100, percentage: 42, grade: 'P', status: 'Pass' },
-    ];
+    if (isStudentResultsLoading) {
+      return <div className="flex justify-center py-12"><RefreshCw className="animate-spin text-primary" size={32} /></div>;
+    }
+
+    if (!studentResults || studentResults.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 text-center bg-accent/20 rounded-xl border border-border">
+          <AlertTriangle size={48} className="text-muted-foreground mb-4" />
+          <h3 className="text-xl font-bold text-foreground mb-2">Results Not Available</h3>
+          <p className="text-muted-foreground max-w-md">Your results for this examination have not been published yet. Please check back later or contact your class coordinator.</p>
+        </div>
+      );
+    }
+
+    const mappedResults = studentResults.map(res => {
+      const percentage = res.maxMarks > 0 ? Math.round((res.marksObtained / res.maxMarks) * 100) : 0;
+      const isPass = percentage >= 40;
+      return {
+        id: res.id,
+        code: res.subjectCode,
+        name: res.subjectName,
+        obtained: res.marksObtained,
+        max: res.maxMarks,
+        percentage,
+        grade: res.grade,
+        status: isPass ? 'Pass' : 'Fail'
+      };
+    });
 
     return (
       <div className="space-y-6">
@@ -1892,7 +2053,7 @@ export const ExaminationModule = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subjectResults.map(res => (
+          {mappedResults.map(res => (
             <div key={res.id} className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow group flex flex-col">
               <div className="flex justify-between items-start mb-4">
                 <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1",
@@ -1935,7 +2096,7 @@ export const ExaminationModule = () => {
         <div className={cn("absolute top-0 left-0 right-0 h-2", viewingSubjectResult.status === 'Pass' ? 'bg-emerald-500' : 'bg-rose-500')} />
         
         <h2 className="text-3xl font-black text-foreground mb-2 mt-4">{viewingSubjectResult.name}</h2>
-        <p className="text-muted-foreground font-medium mb-8">Faculty: Prof. A. Sharma</p>
+        <p className="text-muted-foreground font-medium mb-8">Subject Code: {viewingSubjectResult.code}</p>
         
         <div className="flex justify-center items-center gap-12 mb-8">
           <div className="text-center">
@@ -1951,98 +2112,122 @@ export const ExaminationModule = () => {
           </div>
         </div>
 
-        <div className="bg-accent/30 rounded-xl p-5 text-left border border-border">
-          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Remarks / Feedback</h4>
-          <p className="text-sm leading-relaxed text-foreground">Excellent performance in practical implementations. Keep up the good work for finals.</p>
-        </div>
+        {studentAiFeedback && (
+          <div className="bg-accent/30 rounded-xl p-5 text-left border border-border mt-8">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">AI Performance Feedback</h4>
+            <div className="space-y-4">
+              {studentAiFeedback.strengths && studentAiFeedback.strengths.length > 0 && (
+                 <div>
+                   <p className="font-semibold text-emerald-600 mb-1">Strengths:</p>
+                   <ul className="list-disc list-inside text-sm text-foreground ml-2">
+                     {studentAiFeedback.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                   </ul>
+                 </div>
+              )}
+              {studentAiFeedback.areasOfImprovement && studentAiFeedback.areasOfImprovement.length > 0 && (
+                 <div>
+                   <p className="font-semibold text-rose-600 mb-1">Areas for Improvement:</p>
+                   <ul className="list-disc list-inside text-sm text-foreground ml-2">
+                     {studentAiFeedback.areasOfImprovement.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                   </ul>
+                 </div>
+              )}
+              {studentAiFeedback.actionPlan && (
+                 <div>
+                   <p className="font-semibold text-indigo-600 mb-1">Action Plan:</p>
+                   <p className="text-sm text-foreground">{studentAiFeedback.actionPlan}</p>
+                 </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
 
-  const renderStudentReportCard = () => (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" onClick={() => setViewingReportCard(false)} className="gap-2 -ml-4"><ChevronRight className="rotate-180"/> Back to Results</Button>
-        <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
-          <DownloadCloud size={16}/> Download PDF
-        </Button>
-      </div>
+  const renderStudentReportCard = () => {
+    const totalObtained = studentResults.reduce((sum, res) => sum + (res.marksObtained || 0), 0);
+    const totalMax = studentResults.reduce((sum, res) => sum + (res.maxMarks || 0), 0);
+    const overallPercentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : "0.0";
+    const isOverallPass = studentResults.every(res => res.maxMarks > 0 && (res.marksObtained / res.maxMarks) * 100 >= 40);
 
-      {/* Official Report Card UI */}
-      <div className="bg-white text-black p-12 rounded-xl shadow-2xl border border-slate-200 print-wrapper">
-        <div className="text-center border-b-4 border-slate-900 pb-6 mb-8">
-          <h1 className="text-4xl font-black uppercase tracking-[0.2em] text-slate-900 mb-3">Acropolis Institute</h1>
-          <p className="text-base font-bold text-slate-600 uppercase tracking-widest">Official Examination Report Card</p>
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" onClick={() => setViewingReportCard(false)} className="gap-2 -ml-4"><ChevronRight className="rotate-180"/> Back to Results</Button>
+          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+            <DownloadCloud size={16}/> Download PDF
+          </Button>
         </div>
 
-        <div className="flex justify-between items-start mb-10 text-sm font-bold text-slate-800 bg-slate-50 p-6 rounded-lg border border-slate-200">
-          <div className="space-y-3">
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Student Name:</span> {user?.name}</p>
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Enrollment No:</span> {user?.enrollmentNumber || '0827IT201010'}</p>
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Program:</span> B.Tech Information Technology</p>
+        {/* Official Report Card UI */}
+        <div className="bg-white text-black p-12 rounded-xl shadow-2xl border border-slate-200 print-wrapper">
+          <div className="text-center border-b-4 border-slate-900 pb-6 mb-8">
+            <h1 className="text-4xl font-black uppercase tracking-[0.2em] text-slate-900 mb-3">Acropolis Institute</h1>
+            <p className="text-base font-bold text-slate-600 uppercase tracking-widest">Official Examination Report Card</p>
           </div>
-          <div className="space-y-3 text-right">
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Examination:</span> {selectedExam?.name}</p>
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Semester:</span> {selectedExam?.semester}</p>
-            <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Issue Date:</span> {new Date().toLocaleDateString()}</p>
-          </div>
-        </div>
 
-        <table className="w-full text-sm border-collapse border-2 border-slate-800 mb-10">
-          <thead className="bg-slate-800 text-white uppercase tracking-wider text-xs">
-            <tr>
-              <th className="border border-slate-700 p-4 text-left font-bold">Subject Code</th>
-              <th className="border border-slate-700 p-4 text-left font-bold w-2/5">Subject Name</th>
-              <th className="border border-slate-700 p-4 text-center font-bold">Max Marks</th>
-              <th className="border border-slate-700 p-4 text-center font-bold">Obtained</th>
-              <th className="border border-slate-700 p-4 text-center font-bold">Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { code: 'IT-501', name: 'Java Programming', max: 100, obt: 85, grd: 'A' },
-              { code: 'IT-502', name: 'DBMS', max: 100, obt: 72, grd: 'B+' },
-              { code: 'IT-503', name: 'Operating Systems', max: 100, obt: 91, grd: 'A+' },
-              { code: 'IT-504', name: 'Software Engineering', max: 100, obt: 42, grd: 'P' },
-              { code: 'IT-505', name: 'Computer Networks', max: 100, obt: 78, grd: 'A' },
-            ].map((sub, i) => (
-              <tr key={i} className="hover:bg-slate-50">
-                <td className="border border-slate-300 p-4 font-mono text-slate-600 font-semibold">{sub.code}</td>
-                <td className="border border-slate-300 p-4 font-bold text-slate-800">{sub.name}</td>
-                <td className="border border-slate-300 p-4 text-center font-medium text-slate-500">{sub.max}</td>
-                <td className="border border-slate-300 p-4 text-center font-black text-slate-900">{sub.obt}</td>
-                <td className="border border-slate-300 p-4 text-center font-black text-emerald-600">{sub.grd}</td>
+          <div className="flex justify-between items-start mb-10 text-sm font-bold text-slate-800 bg-slate-50 p-6 rounded-lg border border-slate-200">
+            <div className="space-y-3">
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Student Name:</span> {user?.name}</p>
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Enrollment No:</span> {user?.enrollmentNumber || 'N/A'}</p>
+            </div>
+            <div className="space-y-3 text-right">
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Examination:</span> {selectedExam?.name}</p>
+              <p className="text-base"><span className="text-slate-500 uppercase tracking-wider text-xs mr-2">Issue Date:</span> {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <table className="w-full text-sm border-collapse border-2 border-slate-800 mb-10">
+            <thead className="bg-slate-800 text-white uppercase tracking-wider text-xs">
+              <tr>
+                <th className="border border-slate-700 p-4 text-left font-bold">Subject Code</th>
+                <th className="border border-slate-700 p-4 text-left font-bold w-2/5">Subject Name</th>
+                <th className="border border-slate-700 p-4 text-center font-bold">Max Marks</th>
+                <th className="border border-slate-700 p-4 text-center font-bold">Obtained</th>
+                <th className="border border-slate-700 p-4 text-center font-bold">Grade</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-slate-100 font-black border-t-2 border-slate-800 text-base">
-            <tr>
-              <td colSpan={3} className="border border-slate-300 p-4 text-right uppercase tracking-widest text-slate-600">Total Performance</td>
-              <td className="border border-slate-300 p-4 text-center text-slate-900">368 / 500</td>
-              <td className="border border-slate-300 p-4 text-center text-emerald-600">73.6%</td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="border border-slate-300 p-4 text-right uppercase tracking-widest text-slate-600">Overall Status & Rank</td>
-              <td colSpan={2} className="border border-slate-300 p-4 text-center text-slate-900 tracking-wider">
-                <span className="text-emerald-600">PASS</span> • Rank 14/120
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {studentResults.map((sub, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="border border-slate-300 p-4 font-mono text-slate-600 font-semibold">{sub.subjectCode}</td>
+                  <td className="border border-slate-300 p-4 font-bold text-slate-800">{sub.subjectName}</td>
+                  <td className="border border-slate-300 p-4 text-center font-medium text-slate-500">{sub.maxMarks}</td>
+                  <td className="border border-slate-300 p-4 text-center font-black text-slate-900">{sub.marksObtained}</td>
+                  <td className="border border-slate-300 p-4 text-center font-black text-emerald-600">{sub.grade}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-100 font-black border-t-2 border-slate-800 text-base">
+              <tr>
+                <td colSpan={3} className="border border-slate-300 p-4 text-right uppercase tracking-widest text-slate-600">Total Performance</td>
+                <td className="border border-slate-300 p-4 text-center text-slate-900">{totalObtained} / {totalMax}</td>
+                <td className="border border-slate-300 p-4 text-center text-emerald-600">{overallPercentage}%</td>
+              </tr>
+              <tr>
+                <td colSpan={3} className="border border-slate-300 p-4 text-right uppercase tracking-widest text-slate-600">Overall Status</td>
+                <td colSpan={2} className="border border-slate-300 p-4 text-center text-slate-900 tracking-wider">
+                  <span className={isOverallPass ? "text-emerald-600" : "text-rose-600"}>{isOverallPass ? "PASS" : "FAIL"}</span>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
 
-        <div className="flex justify-between items-end pt-24 px-8">
-          <div className="text-center w-48">
-            <div className="w-full border-b-2 border-slate-400 mb-3"></div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Class Coordinator</p>
-          </div>
-          <div className="text-center w-48">
-            <div className="w-full border-b-2 border-slate-400 mb-3"></div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controller of Exams</p>
+          <div className="flex justify-between items-end pt-24 px-8">
+            <div className="text-center w-48">
+              <div className="w-full border-b-2 border-slate-400 mb-3"></div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Class Coordinator</p>
+            </div>
+            <div className="text-center w-48">
+              <div className="w-full border-b-2 border-slate-400 mb-3"></div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controller of Exams</p>
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   const handleGenerateClick = () => {
     setIsSimulating(true);

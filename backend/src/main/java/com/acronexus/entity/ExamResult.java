@@ -31,5 +31,8 @@ public class ExamResult extends BaseAuditableEntity {
 
     @Column(columnDefinition = "TEXT")
     private String remarks;
+    
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean isPublished = false;
 
 }

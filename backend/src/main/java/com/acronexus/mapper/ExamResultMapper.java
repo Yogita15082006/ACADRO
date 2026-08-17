@@ -62,6 +62,7 @@ public class ExamResultMapper {
         dto.setMaxMarks(entity.getMaxMarks());
         dto.setGrade(entity.getGrade());
         dto.setRemarks(entity.getRemarks());
+        dto.setIsPublished(entity.getIsPublished());
         return dto;
     }
 }

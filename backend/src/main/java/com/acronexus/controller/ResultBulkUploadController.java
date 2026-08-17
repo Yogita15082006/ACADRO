@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import com.acronexus.repository.SubjectRepository;
+import com.acronexus.repository.BulkUploadRepository;
 
 @RestController
 @RequestMapping("/api/v1/bulk-upload/results")
@@ -27,9 +29,22 @@ import java.util.UUID;
 public class ResultBulkUploadController {
 
     private final ResultBulkUploadService resultBulkUploadService;
+    private final SubjectRepository subjectRepository;
+    private final BulkUploadRepository bulkUploadRepository;
+
+    @GetMapping("/debug")
+    public ResponseEntity<java.util.Map<String, Object>> getDebugInfo() {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("subjects", subjectRepository.findAll());
+        var uploads = bulkUploadRepository.findAll();
+        if (!uploads.isEmpty()) {
+            map.put("last_upload", uploads.get(uploads.size() - 1));
+        }
+        return ResponseEntity.ok(map);
+    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     @Operation(
             summary = "Upload Exam Results List (CSV/Excel)",
             description = "Uploads an exam results list. Requires ADMIN, HOD, or COORDINATOR role.",
@@ -44,14 +59,16 @@ public class ResultBulkUploadController {
     public ResponseEntity<BulkUploadResponseDto> uploadResultList(
             @Parameter(description = "CSV or Excel file containing the exam result records", required = true)
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "examinationId", required = false) UUID examinationId,
+            @RequestParam(value = "className", required = false) String className,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId());
+        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId(), examinationId, className);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{uploadId}/error-report")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     @Operation(
             summary = "Download Error Report CSV",
             description = "Downloads a CSV file containing rows that failed processing. Requires ADMIN, HOD, or COORDINATOR role.",

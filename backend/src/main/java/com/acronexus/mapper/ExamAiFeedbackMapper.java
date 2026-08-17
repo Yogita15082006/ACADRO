@@ -21,7 +21,17 @@ public class ExamAiFeedbackMapper {
         if(entity.getId() != null) {
             dto.setId(entity.getId());
         }
-        // Map fields
+        if (entity.getExamination() != null) {
+            dto.setExaminationId(entity.getExamination().getId());
+        }
+        if (entity.getStudent() != null) {
+            dto.setStudentId(entity.getStudent().getId());
+        }
+        dto.setOverallPerformance(entity.getOverallPerformance());
+        dto.setStrengths(entity.getStrengths());
+        dto.setAreasOfImprovement(entity.getAreasOfImprovement());
+        dto.setActionPlan(entity.getActionPlan());
+        dto.setGeneratedAt(entity.getGeneratedAt());
         return dto;
     }
 }

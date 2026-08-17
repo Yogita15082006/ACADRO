@@ -6,5 +6,11 @@ import java.util.UUID;
 @Data
 public class ExamAiFeedbackResponseDto {
     private UUID id;
-    // Add extra fields here
+    private UUID examinationId;
+    private UUID studentId;
+    private String overallPerformance;
+    private String[] strengths;
+    private String[] areasOfImprovement;
+    private String actionPlan;
+    private java.time.Instant generatedAt;
 }

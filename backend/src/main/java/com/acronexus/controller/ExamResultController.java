@@ -37,9 +37,18 @@ public class ExamResultController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<List<ExamResultResponseDto>>> getAll() {
         List<ExamResultResponseDto> list = service.getAll();
+        return ResponseEntity.ok(ApiResponse.success("ExamResults fetched successfully", list));
+    }
+    
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
+    public ResponseEntity<ApiResponse<List<ExamResultResponseDto>>> search(
+            @RequestParam UUID examinationId,
+            @RequestParam(required = false) String className) {
+        List<ExamResultResponseDto> list = service.findByExaminationAndClass(examinationId, className);
         return ResponseEntity.ok(ApiResponse.success("ExamResults fetched successfully", list));
     }
     
@@ -55,5 +64,15 @@ public class ExamResultController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("ExamResult deleted successfully", null));
+    }
+    
+    @PostMapping("/publish")
+    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> publishResults(
+            @RequestParam UUID examinationId,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) UUID studentId) {
+        int count = service.publishResults(examinationId, className, studentId);
+        return ResponseEntity.ok(ApiResponse.success("Results published successfully", count));
     }
 }

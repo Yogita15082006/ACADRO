@@ -135,6 +135,30 @@ async def analyze_data(request: AnalyticsRequest):
     elif request.insightType == "TIMETABLE_OPTIMIZATION":
         user_prompt = f"Analyze this timetable and suggest optimizations or highlight potential fatigue issues for students/faculty: {json.dumps(request.data)}"
 
+    # ─── Result Management AI ────────────────────────────────────────
+    elif request.insightType == "EXAM_FEEDBACK":
+        user_prompt = (
+            f"You are an expert academic counselor and mentor. Analyze this student's exam marks: {json.dumps(request.data)}. "
+            f"CRITICAL RULE: DO NOT simply restate the marks or list the scores. The student already knows their marks! "
+            f"Your goal is to provide deeply constructive, actionable, and encouraging feedback to help the student improve. "
+            f"In the 'reasoning' field, write a 2-3 sentence holistic summary of their performance trends (e.g., 'You show a strong aptitude for analytical subjects, but theoretical concepts require more attention.'). "
+            f"In the 'recommendations' array, provide 3 to 4 HIGHLY SPECIFIC, actionable steps for improvement. "
+            f"Instead of saying 'Work hard on Deep Learning', say 'For Deep Learning, focus on understanding backpropagation mathematically and practice implementing neural networks from scratch'. "
+            f"Acknowledge their strengths and give concrete study strategies for their weaknesses. "
+            f"Always use an encouraging and supportive tone, speaking directly to the student."
+        )
+    elif request.insightType == "BULK_EXAM_FEEDBACK":
+        user_prompt = (
+            f"You are an expert academic counselor. Analyze the exam marks for these {len(request.data.get('students', []))} students: {json.dumps(request.data)}. "
+            f"Provide deeply constructive feedback for EACH student separately. "
+            f"CRITICAL RULE: DO NOT simply restate the marks. Give encouraging and actionable advice. "
+            f"IMPORTANT: Return a valid JSON object with 'confidence' (number), 'reasoning' (string), 'recommendations' (array of strings), and 'rawInsights' (a JSON array of objects). "
+            f"'rawInsights' MUST be a direct JSON array `[...]` of objects (NOT stringified), where each object has exactly three fields: "
+            f"1. 'studentId' (matching the input exactly), "
+            f"2. 'reasoning' (2-3 sentence holistic summary of their performance trends), "
+            f"3. 'recommendations' (an array of 3 to 4 HIGHLY SPECIFIC, actionable steps for improvement)."
+        )
+
     else:
         logger.warning("Unknown insightType '%s' — using generic fallback", request.insightType)
         user_prompt = f"Analyze the following data and provide insights: {json.dumps(request.data)}"
@@ -142,8 +166,8 @@ async def analyze_data(request: AnalyticsRequest):
     ai_req = AiGenericRequest(
         systemPrompt=system_prompt,
         userPrompt=user_prompt,
-        maxTokens=2800 if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else 2500,
-        temperature=0.8 if request.insightType in ["QUIZ_QUESTION_GENERATION", "QUIZ_ANSWER_KEY_GENERATION"] else (0.1 if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else 0.3)
+        maxTokens=6000 if request.insightType == "BULK_EXAM_FEEDBACK" else (2800 if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else 2500),
+        temperature=0.8 if request.insightType in ["QUIZ_QUESTION_GENERATION", "QUIZ_ANSWER_KEY_GENERATION"] else (0.1 if request.insightType in ["QUIZ_URL_QUESTION_EXTRACTION", "BULK_EXAM_FEEDBACK"] else 0.3)
     )
     
     try:
