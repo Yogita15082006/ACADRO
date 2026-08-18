@@ -56,7 +56,8 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
     const targetId = studentIdParam || user?.id;
     if (targetId) {
       setIsLoadingProfile(true);
-      api.get(`/v1/profile/${targetId}`).then(res => {
+      const endpoint = (targetId === user?.id) ? `/v1/profile` : `/v1/profile/${targetId}`;
+      api.get(endpoint).then(res => {
         setFetchedStudent(res.data?.data);
       }).catch(err => console.error("Failed to fetch student profile", err))
       .finally(() => setIsLoadingProfile(false));
@@ -246,10 +247,12 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                         <Building className="w-4 h-4" />
                         <span>{getSafeString(profileUser.department) || getSafeString(profileUser.departmentName) || getSafeString(profileUser.branch) || 'Not Specified'}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Hash className="w-4 h-4" />
-                        <span className="font-medium text-foreground">{profileUser.enrollmentNumber || 'N/A'}</span>
-                      </div>
+                      {profileUser.enrollmentNumber && (
+                        <div className="flex items-center gap-2">
+                          <Hash className="w-4 h-4" />
+                          <span className="font-medium text-foreground">{profileUser.enrollmentNumber}</span>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>
@@ -319,11 +322,11 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                             style={{ strokeDasharray: circumference, strokeDashoffset: strokeDashoffset }}
                           />
                         </svg>
-                        <div className="absolute flex flex-col items-center justify-center text-center">
-                          <span className={`text-xl font-bold ${status.color}`}>
-                            {displayPercentage}
-                          </span>
-                        </div>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                            <span className={`text-base sm:text-lg font-bold tracking-tighter whitespace-nowrap ${status.color}`}>
+                              {displayPercentage}
+                            </span>
+                          </div>
                       </div>
                       
                       <div className="flex-1 text-center sm:text-left space-y-2.5">

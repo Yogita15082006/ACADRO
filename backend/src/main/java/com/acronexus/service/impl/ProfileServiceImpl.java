@@ -136,19 +136,7 @@ public class ProfileServiceImpl implements ProfileService {
                 builder.resumeUploadedAt(student.getResumeUploadedAt());
                 builder.resumeUrl(student.getResumeUrl());
 
-                // Academic Stats
-                try {
-                    OverallAttendanceDto attendance = attendanceDashboardService.getStudentOverallAttendance(userId);
-                    if (attendance != null) {
-                        builder.overallAttendance(attendance.getOverallPercentage());
-                        builder.totalClassesConducted(attendance.getTotalClasses());
-                        builder.totalClassesAttended(attendance.getTotalPresent());
-                    }
-                } catch (Exception e) {
-                    System.err.println("Error fetching attendance for user " + userId + ": " + e.getMessage());
-                    e.printStackTrace();
-                    // Ignore attendance fetch errors to prevent profile failure
-                }
+
                 
                 builder.activeBacklogs(student.getActiveBacklogs());
                 builder.historyBacklogs(student.getHistoryBacklogs());
@@ -246,6 +234,20 @@ public class ProfileServiceImpl implements ProfileService {
                 }).collect(Collectors.toList());
                 builder.achievements(achievements);
             });
+
+            // Academic Stats (Always fetch, even if Student entity doesn't exist yet)
+            try {
+                OverallAttendanceDto attendance = attendanceDashboardService.getStudentOverallAttendance(userId);
+                if (attendance != null) {
+                    builder.overallAttendance(attendance.getOverallPercentage());
+                    builder.totalClassesConducted(attendance.getTotalClasses());
+                    builder.totalClassesAttended(attendance.getTotalPresent());
+                }
+            } catch (Exception e) {
+                System.err.println("Error fetching attendance for user " + userId + ": " + e.getMessage());
+                e.printStackTrace();
+                // Ignore attendance fetch errors to prevent profile failure
+            }
         }
 
         return builder.build();
@@ -338,6 +340,7 @@ public class ProfileServiceImpl implements ProfileService {
             Student student = studentRepository.findById(userId).orElse(null);
             if (student == null) {
                 student = new Student();
+                student.setId(userId);
                 isNewStudent = true;
             }
             student.setUser(user);
@@ -408,7 +411,7 @@ public class ProfileServiceImpl implements ProfileService {
                     student.setSgpaSem8(profileDto.getSgpa().getSem8());
                 }
 
-                studentRepository.save(student);
+                studentRepository.saveAndFlush(student);
 
                 // Update Academic Records (10th/12th)
                 List<AcademicRecord> existingRecords = academicRecordRepository.findByStudentId(userId);

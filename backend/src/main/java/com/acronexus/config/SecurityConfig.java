@@ -72,6 +72,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/auth/verify-account").permitAll()
                             .requestMatchers("/api/auth/activate-account").permitAll()
                             .requestMatchers("/api/public/**").permitAll()
+                            .requestMatchers("/api/attendance-dashboard/test/**").permitAll()
+                            .requestMatchers("/api/v1/profile/test/**").permitAll()
                             .requestMatchers("/api/events/file/**").permitAll()
                             .requestMatchers("/api/events/banner/**").permitAll()
                             .requestMatchers("/api/v1/bulk-upload/**").permitAll().requestMatchers("/api/exam-results/publish").permitAll().requestMatchers("/api/exam-results/search").permitAll()

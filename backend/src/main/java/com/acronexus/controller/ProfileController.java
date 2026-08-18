@@ -22,6 +22,11 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.success("Profile fetched successfully", profileService.getFullProfile(userDetails.getId())));
     }
 
+    @GetMapping("/test/{userId}")
+    public ResponseEntity<ApiResponse<ProfileDto>> testProfile(@PathVariable java.util.UUID userId) {
+        return ResponseEntity.ok(ApiResponse.success("Test profile fetched successfully", profileService.getFullProfile(userId)));
+    }
+
     @GetMapping("/{userId}")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<ProfileDto>> getProfileById(@PathVariable java.util.UUID userId) {

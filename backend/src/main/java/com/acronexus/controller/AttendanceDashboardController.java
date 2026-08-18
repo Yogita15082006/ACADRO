@@ -79,6 +79,11 @@ public class AttendanceDashboardController {
         ));
     }
 
+    @GetMapping("/test/{studentId}")
+    public ResponseEntity<ApiResponse<OverallAttendanceDto>> testOverall(@PathVariable UUID studentId) {
+        return ResponseEntity.ok(ApiResponse.success("Test fetch", dashboardService.getStudentOverallAttendance(studentId)));
+    }
+
     @GetMapping("/student/{studentId}/overall")
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN', 'COORDINATOR', 'FACULTY', 'HOD')")
     public ResponseEntity<ApiResponse<OverallAttendanceDto>> getStudentOverallAttendance(@PathVariable UUID studentId) {
