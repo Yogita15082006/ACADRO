@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -14,12 +14,18 @@ const GithubIcon = ({ className }: { className?: string }) => (
 interface ProjectsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const Projects: React.FC<ProjectsProps> = ({ data, readOnly, onUpdate }) => {
   const [projects, setProjects] = useState<any[]>(data?.projects || []);
   const [isEditing, setIsEditing] = useState(false);
+  
+  useEffect(() => {
+    if (data?.projects) {
+      setProjects(data.projects);
+    }
+  }, [data]);
   
   const [newItem, setNewItem] = useState({
     title: '',
@@ -33,11 +39,11 @@ export const Projects: React.FC<ProjectsProps> = ({ data, readOnly, onUpdate }) 
     if (newItem.title) {
       const updated = [...projects, { 
         ...newItem, 
-        id: Date.now(),
+        id: crypto.randomUUID(),
         techStack: newItem.techStack.split(',').map(t => t.trim()).filter(t => t)
       }];
       setProjects(updated);
-      onUpdate(updated);
+      onUpdate({ projects: updated });
       setNewItem({ title: '', description: '', techStack: '', githubLink: '', liveLink: '' });
     }
   };
@@ -45,7 +51,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, readOnly, onUpdate }) 
   const handleDelete = (id: number) => {
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
-    onUpdate(updated);
+    onUpdate({ projects: updated });
   };
 
   return (

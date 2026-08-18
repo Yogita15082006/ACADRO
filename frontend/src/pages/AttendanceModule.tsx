@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { getAssetUrl } from '@/lib/utils';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -1386,7 +1387,8 @@ const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: {
               </TableHeader>
               <TableBody>
                 {filtered.map((student) => {
-                  const fallbackPhoto = `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=4F46E5&color=fff&size=128`;
+                  // @ts-ignore
+                  const fallbackPhoto = student.profilePictureUrl ? getAssetUrl(student.profilePictureUrl) : student.avatar ? getAssetUrl(student.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=4F46E5&color=fff&size=128`;
                   return (
                   <TableRow key={student.id} className="hover:bg-muted/30 transition-colors border-b border-border/50 cursor-pointer" onClick={() => onSelectStudent(student.id)}>
                     <TableCell className="py-3">
@@ -1690,7 +1692,8 @@ export const AttendanceModule = () => {
                   enrollment: s.enrollmentNumber || 'N/A',
                   section: coordinatorSectionData?.className || 'N/A',
                   semester: coordinatorSectionData?.semester || 'N/A',
-                  photo: s.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
+                  // @ts-ignore
+                  photo: s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.photo ? getAssetUrl(s.photo) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
                   attendance: s.overallAttendance ? Math.round(s.overallAttendance) : 0
                 };
               })()}
@@ -1718,7 +1721,7 @@ export const AttendanceModule = () => {
                 enrollment: studentOverall?.email || user?.email || 'N/A',
                 section: studentOverall?.className || 'N/A',
                 semester: studentOverall?.semester || 'N/A',
-                photo: studentOverall?.profilePictureUrl || user?.profilePictureUrl || user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentOverall?.studentName || user?.name || 'Student')}&background=4F46E5&color=fff&size=128`,
+                photo: studentOverall?.profilePictureUrl ? getAssetUrl(studentOverall.profilePictureUrl) : user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(studentOverall?.studentName || user?.name || 'Student')}&background=4F46E5&color=fff&size=128`,
                 attendance: studentOverall?.overallPercentage ? Math.round(studentOverall.overallPercentage) : 0
               }}
               subjectData={studentSubjectWise}

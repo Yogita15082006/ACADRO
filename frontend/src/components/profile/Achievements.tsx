@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -8,12 +8,18 @@ import { Trophy, Plus, Trash2, Calendar, Link as LinkIcon, Edit, Save } from 'lu
 interface AchievementsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const Achievements: React.FC<AchievementsProps> = ({ data, readOnly, onUpdate }) => {
-  const [achievements, setAchievements] = useState<any[]>(data.achievements || []);
+  const [achievements, setAchievements] = useState<any[]>(data?.achievements || []);
   const [isEditing, setIsEditing] = useState(false);
+  
+  useEffect(() => {
+    if (data?.achievements) {
+      setAchievements(data.achievements);
+    }
+  }, [data]);
   
   // Temp state for new item
   const [newItem, setNewItem] = useState({
@@ -26,9 +32,9 @@ export const Achievements: React.FC<AchievementsProps> = ({ data, readOnly, onUp
 
   const handleAdd = () => {
     if (newItem.title && newItem.category) {
-      const updated = [...achievements, { ...newItem, id: Date.now() }];
+      const updated = [...achievements, { ...newItem, id: crypto.randomUUID() }];
       setAchievements(updated);
-      onUpdate(updated);
+      onUpdate({ achievements: updated });
       setNewItem({ title: '', category: '', date: '', description: '', link: '' });
     }
   };
@@ -36,7 +42,7 @@ export const Achievements: React.FC<AchievementsProps> = ({ data, readOnly, onUp
   const handleDelete = (id: number) => {
     const updated = achievements.filter(a => a.id !== id);
     setAchievements(updated);
-    onUpdate(updated);
+    onUpdate({ achievements: updated });
   };
 
   return (

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Users, ClipboardList, CheckCircle2, TrendingUp, Search, Eye, Filter, Sparkles, Calendar, Loader2 } from 'lucide-react';
+import { getAssetUrl } from '@/lib/utils';
 import api from "../services/api";
 
 export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: any }) => {
@@ -258,7 +259,7 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
                     <tr key={student.id} className="hover:bg-muted/10 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img src={`https://ui-avatars.com/api/?name=${student.name.replace(/ /g, '+')}&background=4F46E5&color=fff&size=40`} alt={student.name} className="w-10 h-10 rounded-xl object-cover ring-2 ring-background shadow-sm" />
+                          <img src={student.profilePictureUrl ? getAssetUrl(student.profilePictureUrl) : student.avatar ? getAssetUrl(student.avatar) : `https://ui-avatars.com/api/?name=${student.name.replace(/ /g, '+')}&background=4F46E5&color=fff&size=40`} alt={student.name} className="w-10 h-10 rounded-xl object-cover ring-2 ring-background shadow-sm" />
                           <div>
                             <p className="font-bold text-foreground">{student.name}</p>
                             <p className="text-xs text-muted-foreground">{student.email}</p>

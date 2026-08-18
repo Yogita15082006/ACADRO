@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,12 +7,18 @@ import { Award, Plus, Trash2, Calendar, Link as LinkIcon, Edit, Save } from 'luc
 interface CertificationsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const Certifications: React.FC<CertificationsProps> = ({ data, readOnly, onUpdate }) => {
   const [certifications, setCertifications] = useState<any[]>(data?.certifications || []);
   const [isEditing, setIsEditing] = useState(false);
+  
+  useEffect(() => {
+    if (data?.certifications) {
+      setCertifications(data.certifications);
+    }
+  }, [data]);
   
   // Temp state for new item
   const [newItem, setNewItem] = useState({
@@ -24,9 +30,9 @@ export const Certifications: React.FC<CertificationsProps> = ({ data, readOnly, 
 
   const handleAdd = () => {
     if (newItem.title && newItem.issuer) {
-      const updated = [...certifications, { ...newItem, id: Date.now() }];
+      const updated = [...certifications, { ...newItem, id: crypto.randomUUID() }];
       setCertifications(updated);
-      onUpdate(updated);
+      onUpdate({ certifications: updated });
       setNewItem({ title: '', issuer: '', date: '', link: '' });
     }
   };
@@ -34,7 +40,7 @@ export const Certifications: React.FC<CertificationsProps> = ({ data, readOnly, 
   const handleDelete = (id: number) => {
     const updated = certifications.filter(c => c.id !== id);
     setCertifications(updated);
-    onUpdate(updated);
+    onUpdate({ certifications: updated });
   };
 
   return (

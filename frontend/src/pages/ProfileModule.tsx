@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import api from '../services/api';
+import { getAssetUrl } from '../lib/utils';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Mail, Hash, Users, GraduationCap, Building, Moon, Sun, LogOut, Info, Key, Camera, Eye, EyeOff, Save, Smartphone, CheckCircle2, Lock, Edit } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
@@ -42,33 +44,47 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
   };
 
   const [fetchedStudent, setFetchedStudent] = useState<any>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(!!studentIdParam);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   useEffect(() => {
-    if (studentIdParam && !viewingStudent) {
+    if (viewingStudent) {
+      setFetchedStudent(viewingStudent);
+      setIsLoadingProfile(false);
+      return;
+    }
+    
+    const targetId = studentIdParam || user?.id;
+    if (targetId) {
       setIsLoadingProfile(true);
-      api.get(`/v1/profile/${studentIdParam}`).then(res => {
+      api.get(`/v1/profile/${targetId}`).then(res => {
         setFetchedStudent(res.data?.data);
       }).catch(err => console.error("Failed to fetch student profile", err))
       .finally(() => setIsLoadingProfile(false));
+    } else {
+      setIsLoadingProfile(false);
     }
-  }, [studentIdParam, viewingStudent]);
+  }, [studentIdParam, viewingStudent, user?.id]);
 
   const isReadOnlyView = !!viewingStudent || !!studentIdParam;
-  const rawProfileUser = viewingStudent || fetchedStudent || (studentIdParam ? null : user);
+  const rawProfileUser = fetchedStudent || user;
   const profileUser = sanitizeProfileData(rawProfileUser);
 
   // Profile Edit State
   const [email, setEmail] = useState(profileUser?.email || '');
   const [phone, setPhone] = useState(profileUser?.phone || '');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(profileUser?.avatar || profileUser?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser?.name || profileUser?.firstName || 'User')}&background=4F46E5&color=fff&size=128`);
+  const [avatarPreview, setAvatarPreview] = useState(profileUser?.profilePictureUrl || '');
+  const displayAvatar = (() => {
+    if (!avatarPreview) return `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser?.firstName ? `${profileUser.firstName} ${profileUser.lastName || ''}`.trim() : profileUser?.name || 'User')}&background=4F46E5&color=fff&size=128`;
+    if (avatarPreview.startsWith('http') || avatarPreview.startsWith('blob:') || avatarPreview.startsWith('data:')) return avatarPreview;
+    return avatarPreview.startsWith('/') ? `http://localhost:8080${avatarPreview}` : `http://localhost:8080/${avatarPreview}`;
+  })();
   
   useEffect(() => {
     if (profileUser) {
       setEmail(profileUser.email || '');
       setPhone(profileUser.phone || '');
-      setAvatarPreview(profileUser.avatar || profileUser.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser.name || profileUser.firstName || 'User')}&background=4F46E5&color=fff&size=128`);
+      setAvatarPreview(profileUser.profilePictureUrl || '');
     }
   }, [profileUser]);
 
@@ -88,31 +104,68 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
   const [adminClasses, setAdminClasses] = useState<string[]>(profileUser?.classes || []);
   const [isEditingClasses, setIsEditingClasses] = useState(false);
 
-  const handleProfileSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsEditingProfile(false);
+  const handleSectionUpdate = async (updatedData: any) => {
+    try {
+      const payload = { ...profileUser, ...updatedData };
+      const res = await api.put('/v1/profile', payload);
+      if (res.data?.data) {
+        setFetchedStudent(res.data.data);
+        window.dispatchEvent(new Event('sync-auth-profile'));
+        toast.success("Profile updated successfully!");
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.error("Failed to update profile", err);
+      toast.error(err.response?.data?.message || "Failed to update profile");
+      return false;
+    }
   };
 
-  const handlePasswordUpdate = (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) return;
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    try {
+      const response = await api.put('/v1/profile', { email, phone });
+      if (response.data?.data) {
+        setFetchedStudent(response.data.data);
+        window.dispatchEvent(new Event('sync-auth-profile'));
+        toast.success("Profile updated successfully!");
+        setIsEditingProfile(false);
+      }
+    } catch (err: any) {
+      toast.error("Failed to update profile");
+    }
+  };
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match!");
+      return;
+    }
+    try {
+      await api.post('/auth/change-password', {
+         currentPassword,
+         newPassword
+      });
+      toast.success("Password changed successfully!");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch(err: any) {
+      toast.error(err.response?.data?.message || "Failed to change password. Ensure current password is correct.");
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const url = URL.createObjectURL(e.target.files[0]);
-      setAvatarPreview(url);
-    }
-  };
-
-  const toggleClass = (classId: string) => {
-    if (adminClasses.includes(classId)) {
-      setAdminClasses(adminClasses.filter(id => id !== classId));
-    } else {
-      setAdminClasses([...adminClasses, classId]);
+      const formData = new FormData();
+      formData.append('file', e.target.files[0]);
+      api.post('/v1/profile/upload-avatar', formData).then(res => {
+         setAvatarPreview(res.data.url);
+         window.dispatchEvent(new Event('sync-auth-profile'));
+         toast.success("Avatar updated");
+      }).catch(() => toast.error("Upload failed"));
     }
   };
 
@@ -137,11 +190,18 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
         {/* Banner */}
         <div className="h-32 bg-gradient-to-r from-primary/80 to-primary w-full relative">
           <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
+          <div className="absolute bottom-[85px] sm:bottom-4 left-0 w-full px-6 sm:px-10 flex sm:justify-start justify-center">
+            <div className="sm:pl-[150px] lg:pl-[180px]">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight drop-shadow-sm">
+                {profileUser.firstName ? `${profileUser.firstName} ${profileUser.lastName || ''}`.trim() : profileUser.name}
+              </h1>
+            </div>
+          </div>
         </div>
         
         <CardContent className="px-6 sm:px-10 pb-8 relative pt-0">
           <div className="flex flex-col lg:flex-row gap-6 lg:gap-10 items-center lg:items-start w-full justify-between">
-            <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start flex-1">
+            <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start flex-1 w-full">
               
               {/* Avatar with Camera Overlay */}
               <div 
@@ -150,7 +210,7 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
               >
                 <div className="relative">
                   <img 
-                    src={avatarPreview} 
+                    src={displayAvatar} 
                     alt={profileUser.name} 
                     className="w-32 h-32 sm:w-40 sm:h-40 rounded-full border-4 border-background shadow-xl object-cover bg-muted transition-all duration-300 group-hover/avatar:scale-[1.02] ring-2 ring-primary/20"
                   />
@@ -168,25 +228,16 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
               </div>
 
               {/* Profile Info */}
-              <div className="pt-2 sm:pt-6 flex-1 text-center sm:text-left space-y-3">
-                <div>
-                  <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-                    {profileUser.name}
-                  </h1>
-                  <div className="text-lg text-primary font-medium mt-1 flex items-center justify-center sm:justify-start gap-2">
-                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                      {isReadOnlyView ? 'Student' : (['faculty', 'hod', 'coordinator', 'both'].includes(role) ? 'Administrator' : 'Student')}
-                    </Badge>
-                  </div>
+              <div className="pt-2 sm:pt-4 flex-1 text-center sm:text-left space-y-3 w-full">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                    {isReadOnlyView ? 'Student' : (['faculty', 'hod', 'coordinator', 'both'].includes(role) ? 'Administrator' : 'Student')}
+                  </Badge>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground mt-4">
+                <div className="flex flex-col sm:flex-row flex-wrap items-center sm:items-center justify-center sm:justify-start gap-x-6 gap-y-3 text-sm text-muted-foreground mt-4">
                   {(isReadOnlyView || role === 'student') ? (
                     <>
-                      <div className="flex items-center gap-2">
-                        <Hash className="w-4 h-4" />
-                        <span className="font-medium text-foreground">{profileUser.enrollmentNumber}</span>
-                      </div>
                       <div className="flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" />
                         <span>{getSafeString(profileUser.course) && getSafeString(profileUser.section) ? `${getSafeString(profileUser.course)} (Section: ${getSafeString(profileUser.section)})` : getSafeString(profileUser.className) || 'Unassigned'}</span>
@@ -194,6 +245,10 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4" />
                         <span>{getSafeString(profileUser.department) || getSafeString(profileUser.departmentName) || getSafeString(profileUser.branch) || 'Not Specified'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Hash className="w-4 h-4" />
+                        <span className="font-medium text-foreground">{profileUser.enrollmentNumber || 'N/A'}</span>
                       </div>
                     </>
                   ) : (
@@ -231,9 +286,11 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                   else if (percentage >= 75) status = { label: 'Good', color: 'text-yellow-500', stroke: 'stroke-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', icon: '🟡' };
                   else if (percentage >= 60) status = { label: 'Average', color: 'text-orange-500', stroke: 'stroke-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: '🟠' };
                   
-                  const conducted = profileUser.totalClassesConducted || 126;
-                  const attended = profileUser.totalClassesAttended || Math.round((percentage / 100) * conducted);
-                  const missed = conducted - attended;
+                  const conducted = profileUser.totalClassesConducted || 0;
+                  const attended = profileUser.totalClassesAttended || 0;
+                  const missed = Math.max(0, conducted - attended);
+                  
+                  let displayPercentage = percentage.toFixed(1) + '%';
                   
                   const radius = 36;
                   const circumference = 2 * Math.PI * radius;
@@ -263,7 +320,9 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                           />
                         </svg>
                         <div className="absolute flex flex-col items-center justify-center text-center">
-                          <span className={`text-xl font-bold ${status.color}`}>{percentage}%</span>
+                          <span className={`text-xl font-bold ${status.color}`}>
+                            {displayPercentage}
+                          </span>
                         </div>
                       </div>
                       
@@ -301,16 +360,16 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
           
           {isReadOnlyView || role === 'student' ? (
             <div className="space-y-6">
-              <PersonalDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <FamilyDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <AddressDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <AcademicRecord data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <ProfessionalDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <Internships data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <Projects data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <DocumentsProofs data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <Certifications data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
-              <Achievements data={profileUser} readOnly={isReadOnlyView} onUpdate={() => {}} />
+              <PersonalDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <FamilyDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <AddressDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <AcademicRecord data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <ProfessionalDetails data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <Internships data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <Projects data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <DocumentsProofs data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <Certifications data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
+              <Achievements data={profileUser} readOnly={isReadOnlyView} onUpdate={handleSectionUpdate} />
               {!isReadOnlyView && <ConsentDeclaration onSave={() => {}} isSaving={false} />}
             </div>
           ) : (
@@ -549,27 +608,56 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
 
                 <hr className="border-border/40" />
 
-                {/* Notifications */}
+                {/* Password Update */}
                 <div className="space-y-4">
-                  <label className="text-sm font-semibold text-muted-foreground">Notifications</label>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Email Alerts</span>
-                    <button 
-                      onClick={() => setEmailNotif(!emailNotif)}
-                      className={`w-10 h-5 rounded-full transition-colors relative flex items-center shadow-inner ${emailNotif ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute w-4 h-4 rounded-full bg-white transition-all shadow-sm ${emailNotif ? 'left-[22px]' : 'left-0.5'}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">SMS Alerts</span>
-                    <button 
-                      onClick={() => setSmsNotif(!smsNotif)}
-                      className={`w-10 h-5 rounded-full transition-colors relative flex items-center shadow-inner ${smsNotif ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute w-4 h-4 rounded-full bg-white transition-all shadow-sm ${smsNotif ? 'left-[22px]' : 'left-0.5'}`} />
-                    </button>
-                  </div>
+                  <label className="text-sm font-semibold text-muted-foreground">Change Password</label>
+                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="relative group">
+                        <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Current Password"
+                          className="pl-10 pr-10 bg-background"
+                          required
+                        />
+                        <button type="button" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors" onClick={() => setShowPassword(!showPassword)}>
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="relative group">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="New Password"
+                          className="pl-10 pr-10 bg-background"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="relative group">
+                        <CheckCircle2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm New Password"
+                          className="pl-10 pr-10 bg-background"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full" disabled={!currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}>
+                      Update Password
+                    </Button>
+                  </form>
                 </div>
 
               </CardContent>

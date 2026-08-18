@@ -1,21 +1,31 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Edit, Save, User, Calendar, Droplets, Map, Hash, Home, Phone, GraduationCap, FileText, Camera } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
+import { getAssetUrl } from '@/lib/utils';
+import api from '../../services/api';
+import { toast } from 'sonner';
 
 interface PersonalDetailsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState(data.photo || `https://ui-avatars.com/api/?name=${data.name || 'Student'}&background=4F46E5&color=fff&size=128`);
+  const [photoPreview, setPhotoPreview] = useState(data.profilePictureUrl || data.avatar || data.photo || '');
+  const displayPhoto = photoPreview ? getAssetUrl(photoPreview) : `https://ui-avatars.com/api/?name=${data.name || 'Student'}&background=4F46E5&color=fff&size=128`;
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!isEditing) {
+      setPhotoPreview(data.profilePictureUrl || data.avatar || data.photo || '');
+    }
+  }, [data, isEditing]);
 
   const [formData, setFormData] = useState({
     // Basic Info
@@ -50,13 +60,44 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
     skills: data.skills ? (Array.isArray(data.skills) ? data.skills.join(', ') : data.skills) : ''
   });
 
-  const handleSave = () => {
+  useEffect(() => {
+    setFormData({
+      name: data.name || (data.firstName ? `${data.firstName} ${data.lastName}`.trim() : '') || '',
+      gender: data.gender ? (data.gender.charAt(0).toUpperCase() + data.gender.slice(1).toLowerCase()) : '',
+      dob: data.dob || '',
+      category: data.category || '',
+      bloodGroup: data.bloodGroup ? data.bloodGroup.replace('_PLUS', '+').replace('_MINUS', '-') : '',
+      nationality: data.nationality || '',
+      religion: data.religion || '',
+      aadhaarNumber: data.aadhaarNumber || '',
+      residenceType: data.residenceType || '',
+      mobileNumber: data.phone || data.mobileNumber || '',
+      whatsappNumber: data.whatsappNumber || '',
+      personalEmail: data.personalEmail || '',
+      collegeEmail: data.collegeEmail || data.email || '',
+      rgpvEnrollment: data.enrollmentNumber || data.enrollmentNo || data.rgpvEnrollment || '',
+      instituteEnrollment: data.instituteEnrollment || data.admissionYear || data.rollNo || data.rollNumber || '',
+      course: data.course || '',
+      branch: data.department || data.departmentName || data.branch || '',
+      batchYear: data.batchYear || data.batch || '',
+      currentSemester: data.currentSemester || data.semester || '',
+      section: data.section || (data.className !== 'Unassigned' ? data.className : '') || '',
+      clubs: data.clubs || '',
+      hobbies: data.hobbies || '',
+      skills: data.skills ? (Array.isArray(data.skills) ? data.skills.join(', ') : data.skills) : ''
+    });
+  }, [data]);
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const handleSave = async () => {
     const nameParts = formData.name.trim().split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
     const mapBloodGroup = (bg: string) => {
-      switch(bg) {
+      if (!bg || bg.trim() === '') return null;
+      switch(bg.trim()) {
         case "A+": return "A_PLUS";
         case "A-": return "A_MINUS";
         case "B+": return "B_PLUS";
@@ -69,26 +110,52 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
       }
     };
 
-    const updatedData = {
+    const updatedData: any = {
       ...formData,
       firstName,
       lastName,
-      phone: formData.mobileNumber,
-      departmentName: formData.branch,
-      enrollmentNo: formData.rgpvEnrollment,
+      phone: formData.mobileNumber || null,
+      departmentName: formData.branch || null,
+      enrollmentNo: formData.rgpvEnrollment || null,
       bloodGroup: mapBloodGroup(formData.bloodGroup),
-      gender: formData.gender.toUpperCase(),
-      profilePictureUrl: photoPreview,
-      skills: formData.skills.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '')
+      gender: formData.gender ? formData.gender.toUpperCase() : null,
+      dob: formData.dob || null, // FIX for empty date causing Jackson parse error
+      skills: formData.skills ? formData.skills.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '') : []
     };
-    onUpdate(updatedData);
-    setIsEditing(false);
+    
+    if (selectedFile) {
+      const photoFormData = new FormData();
+      photoFormData.append('file', selectedFile);
+      try {
+        const response = await api.post('/v1/profile/photo', photoFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (response.data?.data?.url) {
+          updatedData.profilePictureUrl = response.data.data.url;
+          window.dispatchEvent(new Event('sync-auth-profile'));
+        } else {
+          throw new Error("No URL returned from backend");
+        }
+      } catch (err: any) {
+        console.error("Failed to upload photo", err);
+        toast.error(err.response?.data?.message || "Failed to upload photo. Please try again.");
+        return; // Stop the save process so the user can fix the issue
+      }
+    }
+
+    const success = await onUpdate(updatedData);
+    if (success !== false) {
+      setIsEditing(false);
+      setSelectedFile(null);
+    }
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const url = URL.createObjectURL(e.target.files[0]);
-      setPhotoPreview(url);
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPhotoPreview(url); // Temporary preview
     }
   };
 
@@ -132,7 +199,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                 <div className="flex-shrink-0 flex flex-col items-center gap-2">
                   <div className="relative group/photo cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                     <img 
-                      src={photoPreview} 
+                      src={displayPhoto} 
                       alt="Passport" 
                       className="w-32 h-40 object-cover rounded-md border-2 border-border shadow-sm group-hover/photo:opacity-80 transition-opacity"
                     />
@@ -312,7 +379,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex-shrink-0">
                   <img 
-                    src={photoPreview} 
+                    src={displayPhoto} 
                     alt="Passport" 
                     className="w-32 h-40 object-cover rounded-md border border-border shadow-sm"
                   />

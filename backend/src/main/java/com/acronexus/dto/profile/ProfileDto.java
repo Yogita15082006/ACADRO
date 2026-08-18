@@ -63,8 +63,12 @@ public class ProfileDto {
     private String relocation;
     private String resumeFileName;
     private String resumeUploadedAt;
+    private String resumeUrl;
 
     // Academic Stats
+    private Double overallAttendance;
+    private Integer totalClassesConducted;
+    private Integer totalClassesAttended;
     private Integer activeBacklogs;
     private Integer historyBacklogs;
     private Integer studyGap;

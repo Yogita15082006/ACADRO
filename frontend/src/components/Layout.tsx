@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { getAssetUrl } from '@/lib/utils';
 import { 
   LayoutDashboard, Users, 
   Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen
@@ -107,7 +108,7 @@ export const Layout = () => {
         <div className="p-3 border-t border-border bg-sidebar">
           <div className="flex items-center gap-2 p-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer mb-1" onClick={() => navigate(isStaff ? '/admin/profile' : '/student/profile')}>
             <img 
-              src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name}&background=4F46E5&color=fff`} 
+              src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || (user?.firstName ? (user.firstName + ' ' + (user.lastName || '')) : 'Student'))}&background=4F46E5&color=fff`}
               alt="Profile" 
               className="w-8 h-8 rounded-full ring-1 ring-border object-cover"
             />
@@ -191,7 +192,7 @@ export const Layout = () => {
               onClick={() => navigate(isStaff ? '/admin/profile' : '/student/profile')}
             >
               <img 
-                src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name}&background=4F46E5&color=fff`} 
+                src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || (user?.firstName ? (user.firstName + ' ' + (user.lastName || '')) : 'Student'))}&background=4F46E5&color=fff`}
                 alt="Profile" 
                 className="w-8 h-8 rounded-full ring-2 ring-primary/20 object-cover"
               />

@@ -78,7 +78,10 @@ public class ClassSubjectService {
     }
 
     public void deleteWorkspace(UUID id) {
-        classSubjectRepository.deleteById(id);
+        ClassSubject classSubject = classSubjectRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("ClassSubject not found"));
+        classSubject.setIsActive(false);
+        classSubjectRepository.save(classSubject);
     }
 
     private ClassSubjectResponseDto mapToDto(ClassSubject classSubject) {

@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { authService } from '../services/authService';
+import { getAssetUrl } from '@/lib/utils';
 import { profileService } from '../services/profileService';
 import { dashboardService } from '../services/dashboardService';
 
@@ -310,7 +311,7 @@ export const Login = () => {
           <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white flex items-center gap-4">
             <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-lg">
               {profileData?.profilePictureUrl ? (
-                <img src={profileData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+                <img src={getAssetUrl(profileData.profilePictureUrl)} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <User size={40} className="text-white/80" />
               )}

@@ -11,6 +11,9 @@ public class ClassSubjectEntityListener {
     @PreUpdate
     public void onPrePersistOrUpdate(ClassSubject classSubject) {
         try {
+            if (Boolean.FALSE.equals(classSubject.getIsActive())) {
+                return;
+            }
             ClassSubjectService service = SpringContext.getBean(ClassSubjectService.class);
             if (service != null && classSubject.getSyllabusSubject() == null) {
                 service.linkSyllabusToClassSubject(classSubject);

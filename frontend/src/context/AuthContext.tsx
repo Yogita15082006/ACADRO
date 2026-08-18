@@ -42,7 +42,11 @@ export const AuthProvider = ({ children }) => {
     };
 
     window.addEventListener('sync-attendance-data', handleSync);
-    return () => window.removeEventListener('sync-attendance-data', handleSync);
+    window.addEventListener('sync-auth-profile', handleSync);
+    return () => {
+      window.removeEventListener('sync-attendance-data', handleSync);
+      window.removeEventListener('sync-auth-profile', handleSync);
+    };
   }, []);
 
   const login = async (credentials: any) => {

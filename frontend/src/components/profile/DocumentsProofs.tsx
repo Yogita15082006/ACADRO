@@ -1,13 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
-import { FileText, Upload, Eye, Trash2 } from 'lucide-react';
+import { FileText, Upload, Eye, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../../services/api';
+import { getAssetUrl } from '@/lib/utils';
 
 interface DocumentsProofsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const DocumentsProofs: React.FC<DocumentsProofsProps> = ({ data, readOnly, onUpdate }) => {
@@ -18,6 +20,12 @@ export const DocumentsProofs: React.FC<DocumentsProofsProps> = ({ data, readOnly
     twelfthMarksheet: null,
   });
 
+  useEffect(() => {
+    if (data.documents) {
+      setDocuments(data.documents);
+    }
+  }, [data]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeDocType, setActiveDocType] = useState<string | null>(null);
 
@@ -26,28 +34,64 @@ export const DocumentsProofs: React.FC<DocumentsProofsProps> = ({ data, readOnly
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && activeDocType) {
       const file = e.target.files[0];
+      const tempUrl = URL.createObjectURL(file);
+      
       const newDocs = {
         ...documents,
         [activeDocType]: {
           name: file.name,
-          url: URL.createObjectURL(file), // Mock URL
+          url: tempUrl,
           type: file.type
         }
       };
       setDocuments(newDocs);
-      onUpdate({ documents: newDocs });
-      toast.success(`${file.name} uploaded successfully.`);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        // Now using the proper endpoint for documents so we don't overwrite the profile photo
+        const response = await api.post('/v1/profile/document', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        if (response.data?.data?.url) {
+          const finalDocs = {
+            ...documents,
+            [activeDocType]: {
+              name: file.name,
+              url: response.data.data.url,
+              type: file.type
+            }
+          };
+          setDocuments(finalDocs);
+          const success = await onUpdate({ documents: finalDocs });
+          if (success !== false) {
+            toast.success(`${file.name} uploaded successfully.`);
+          } else {
+            setDocuments(documents); // rollback on failure
+          }
+        }
+      } catch (err) {
+        console.error("Failed to upload document", err);
+        toast.error(`Failed to upload ${file.name}`);
+        setDocuments(documents); // rollback on failure
+      }
     }
     setActiveDocType(null);
   };
 
-  const handleDelete = (docType: string) => {
+  const handleDelete = async (docType: string) => {
     const newDocs = { ...documents, [docType]: null };
     setDocuments(newDocs);
-    onUpdate({ documents: newDocs });
+    const success = await onUpdate({ documents: newDocs });
+    if (success === false) {
+       setDocuments(documents); // rollback
+    }
+
     toast.success(`Document removed.`);
   };
 
@@ -69,8 +113,18 @@ export const DocumentsProofs: React.FC<DocumentsProofsProps> = ({ data, readOnly
         <div className="flex items-center gap-2">
           {doc ? (
             <>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(doc.url, '_blank')}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(getAssetUrl(doc.url), '_blank')}>
                 <Eye className="w-4 h-4 text-primary" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                const link = document.createElement('a');
+                link.href = getAssetUrl(doc.url);
+                link.download = doc.name || 'document';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}>
+                <Download className="w-4 h-4 text-primary" />
               </Button>
               {!readOnly && (
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(docType)}>

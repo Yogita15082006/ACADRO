@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { getAssetUrl } from '@/lib/utils';
 import { 
   BookOpen, CheckCircle, Clock, FileText, Calendar as CalendarIcon, 
   Bell, Activity, LayoutDashboard, Target, Trophy, 
@@ -19,7 +20,7 @@ export const StudentDashboard = () => {
   const studentName = user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Student';
   const firstName = user?.firstName || (studentName ? studentName.split(' ')[0] : 'Student');
   const enrollmentNo = user?.enrollmentNo || user?.enrollmentNumber || 'N/A';
-  const avatarUrl = user?.avatar || user?.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=4F46E5&color=fff`;
+  const avatarUrl = user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=4F46E5&color=fff`;
   const overallAttendance = user?.overallAttendance || 78;
   const pendingAssignments = 3;
   const todaysClasses = 4;

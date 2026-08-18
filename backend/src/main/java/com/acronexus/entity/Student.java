@@ -80,6 +80,9 @@ public class Student implements Persistable<java.util.UUID> {
 
     @Column(name = "resume_uploaded_at")
     private String resumeUploadedAt;
+    
+    @Column(name = "resume_url")
+    private String resumeUrl;
 
     // Academic Stats
     @Column(name = "active_backlogs")
@@ -300,6 +303,14 @@ public class Student implements Persistable<java.util.UUID> {
     }
     public void setResumeUploadedAt(String resumeUploadedAt) {
         this.resumeUploadedAt = resumeUploadedAt;
+    }
+
+    public String getResumeUrl() {
+        return this.resumeUrl;
+    }
+
+    public void setResumeUrl(String resumeUrl) {
+        this.resumeUrl = resumeUrl;
     }
 
     public Integer getActiveBacklogs() {

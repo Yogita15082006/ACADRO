@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { getAssetUrl } from '@/lib/utils';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
@@ -198,7 +199,7 @@ export const StudentsModule = () => {
       phone: `+91 9${Math.floor(Math.random() * 999999999)}`,
       classId: '', className: 'Unassigned', year, semester: semester.replace('Semester ', ''),
       batch: form.batch, branch: 'Information Technology',
-      overallAttendance: 0, avatar: `https://ui-avatars.com/api/?name=${form.name}&background=4F46E5&color=fff`,
+      overallAttendance: 0, avatar: `https://ui-avatars.com/api/?name=${form.name}&background=4F46E5&color=fff`, profilePictureUrl: null,
       status: 'Active', sgpa: {}, cgpa: '0.00', activeBacklogs: 0, subjects: [], batchCoordinator: '-',
     };
     setStudents([newStudent, ...students]);
@@ -378,7 +379,7 @@ export const StudentsModule = () => {
                     <tr key={s.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <img src={s.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || 'Student')}&background=4F46E5&color=fff`} alt="" className="w-8 h-8 rounded-full border border-border object-cover" />
+                          <img src={s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || 'Student')}&background=4F46E5&color=fff`} alt="" className="w-8 h-8 rounded-full border border-border object-cover" />
                           <span className="font-semibold text-foreground">{s.name}</span>
                         </div>
                       </td>

@@ -1,10 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
 import { Edit, Save, Briefcase, Globe, X, Plus, Upload, Download, Eye, FileText, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../../services/api';
+import { getAssetUrl } from '@/lib/utils';
 
 const Github = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
@@ -21,7 +24,7 @@ const CodeIcon = ({ className }: { className?: string }) => (
 interface ProfessionalDetailsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, readOnly, onUpdate }) => {
@@ -39,14 +42,63 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
     hackerrank: data?.hackerrank || '',
     domains: data?.domains || [],
     jobPreferences: data?.jobPreferences || '',
-    relocation: data?.relocation || '',
+    relocation: data?.relocation || false,
     resumeFileName: data?.resumeFileName || '',
     resumeUploadedAt: data?.resumeUploadedAt || '',
+    resumeUrl: data?.resumeUrl || ''
   });
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
+  useEffect(() => {
+    setFormData({
+      skills: data?.skills || [],
+      linkedin: data?.linkedin || '',
+      github: data?.github || '',
+      portfolio: data?.portfolio || '',
+      leetcode: data?.leetcode || '',
+      hackerrank: data?.hackerrank || '',
+      domains: data?.domains || [],
+      jobPreferences: data?.jobPreferences || '',
+      relocation: data?.relocation || false,
+      resumeFileName: data?.resumeFileName || '',
+      resumeUploadedAt: data?.resumeUploadedAt || '',
+      resumeUrl: data?.resumeUrl || ''
+    });
+  }, [data]);
+
+  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(null);
+
+  const handleSave = async () => {
+    const updatedData = { ...formData };
+    
+    if (selectedResumeFile) {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', selectedResumeFile);
+      
+      try {
+        const response = await api.post('/v1/profile/document', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        if (response.data?.data?.url) {
+          updatedData.resumeUrl = response.data.data.url;
+          updatedData.resumeFileName = selectedResumeFile.name;
+          updatedData.resumeUploadedAt = new Date().toLocaleDateString();
+        } else {
+          throw new Error("No URL returned from backend");
+        }
+      } catch (err: any) {
+        console.error("Failed to upload resume", err);
+        toast.error(err.response?.data?.message || "Failed to upload resume");
+        return; // Stop the save process so the user can fix the issue
+      }
+    }
+
+    setFormData(updatedData);
+    const success = await onUpdate(updatedData);
+    if (success !== false) {
+      setIsEditing(false);
+      setSelectedResumeFile(null);
+    }
   };
 
   const handleAddSkill = () => {
@@ -71,13 +123,14 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
     setFormData({ ...formData, domains: formData.domains.filter((d: string) => d !== domain) });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      setSelectedResumeFile(file);
       setFormData({ 
         ...formData, 
         resumeFileName: file.name,
-        resumeUploadedAt: new Date().toLocaleDateString()
+        resumeUploadedAt: 'Pending Save'
       });
     }
   };
@@ -198,7 +251,7 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
                   ref={fileInputRef} 
                   className="hidden" 
                   accept=".pdf,.doc,.docx"
-                  onChange={handleFileChange}
+                  onChange={handleResumeUpload}
                 />
                 
                 {formData.resumeFileName ? (
@@ -214,7 +267,11 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
                       <Button type="button" variant="outline" size="sm" onClick={triggerFileUpload}>
                         <Upload className="w-4 h-4 mr-2" /> Replace Resume
                       </Button>
-                      <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                      <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => {
+                        setSelectedResumeFile(null);
+                        setFormData({ ...formData, resumeFileName: '', resumeUrl: '', resumeUploadedAt: '' });
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}>
                         <X className="w-4 h-4 mr-2" /> Remove
                       </Button>
                     </div>
@@ -327,10 +384,17 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open(getAssetUrl(formData.resumeUrl), '_blank')}>
                       <Eye className="w-4 h-4" /> Preview
                     </Button>
-                    <Button variant="default" size="sm" className="gap-2">
+                    <Button variant="default" size="sm" className="gap-2" onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = getAssetUrl(formData.resumeUrl);
+                      link.download = formData.resumeFileName || 'resume.pdf';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}>
                       <Download className="w-4 h-4" /> Download
                     </Button>
                   </div>

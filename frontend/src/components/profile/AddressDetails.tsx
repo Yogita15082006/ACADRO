@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,7 +7,7 @@ import { Edit, Save, MapPin, Home } from 'lucide-react';
 interface AddressDetailsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const AddressDetails: React.FC<AddressDetailsProps> = ({ data, readOnly, onUpdate }) => {
@@ -23,9 +23,24 @@ export const AddressDetails: React.FC<AddressDetailsProps> = ({ data, readOnly, 
     permanentPincode: data.addressDetails?.permanentPincode || '',
   });
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
+  useEffect(() => {
+    setFormData({
+      localAddress: data.addressDetails?.localAddress || '',
+      localCity: data.addressDetails?.localCity || '',
+      localState: data.addressDetails?.localState || '',
+      localPincode: data.addressDetails?.localPincode || '',
+      permanentAddress: data.addressDetails?.permanentAddress || '',
+      permanentCity: data.addressDetails?.permanentCity || '',
+      permanentState: data.addressDetails?.permanentState || '',
+      permanentPincode: data.addressDetails?.permanentPincode || '',
+    });
+  }, [data]);
+
+  const handleSave = async () => {
+    const success = await onUpdate({ addressDetails: formData });
+    if (success !== false) {
+      setIsEditing(false);
+    }
   };
 
   const copyToPermanent = () => {

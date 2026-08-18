@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -8,7 +8,7 @@ import { Edit, Save, BookOpen, GraduationCap, X, Plus } from 'lucide-react';
 interface AcademicRecordProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, onUpdate }) => {
@@ -47,9 +47,45 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
     twelfthYear: data.twelfthYear || '',
   });
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
+  useEffect(() => {
+    setFormData({
+      year: data.year || '',
+      semester: data.semester || '',
+      batch: data.batch || '',
+      course: data.course || '',
+      section: data.section || (data.className !== 'Unassigned' ? data.className : '') || '',
+      cgpa: data.cgpa || '',
+      activeBacklogs: data.activeBacklogs || 0,
+      historyBacklogs: data.historyBacklogs || 0,
+      studyGap: data.studyGap || 0,
+      batchCoordinator: data.batchCoordinator || '',
+      sgpa: {
+        sem1: data.sgpa?.sem1 || '',
+        sem2: data.sgpa?.sem2 || '',
+        sem3: data.sgpa?.sem3 || '',
+        sem4: data.sgpa?.sem4 || '',
+        sem5: data.sgpa?.sem5 || '',
+        sem6: data.sgpa?.sem6 || '',
+        sem7: data.sgpa?.sem7 || '',
+        sem8: data.sgpa?.sem8 || '',
+      },
+      subjects: data.subjects || [],
+      tenthSchoolName: data.tenthSchoolName || '',
+      tenthBoard: data.tenthBoard || '',
+      tenthPercentage: data.tenthPercentage || '',
+      tenthYear: data.tenthYear || '',
+      twelfthSchoolName: data.twelfthSchoolName || '',
+      twelfthBoard: data.twelfthBoard || '',
+      twelfthPercentage: data.twelfthPercentage || '',
+      twelfthYear: data.twelfthYear || '',
+    });
+  }, [data]);
+
+  const handleSave = async () => {
+    const success = await onUpdate(formData);
+    if (success !== false) {
+      setIsEditing(false);
+    }
   };
 
   const handleAddSubject = () => {

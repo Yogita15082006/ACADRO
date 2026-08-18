@@ -33,4 +33,32 @@ public class ProfileController {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", profileService.updateFullProfile(userDetails.getId(), profileDto)));
     }
+
+    @PostMapping("/photo")
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadProfilePhoto(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        try {
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String photoUrl = profileService.uploadProfilePhoto(userDetails.getId(), file);
+            return ResponseEntity.ok(ApiResponse.success("Profile photo uploaded successfully", java.util.Map.of("url", photoUrl)));
+        } catch (Exception e) {
+            try {
+                java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter("error_log.txt", true));
+                pw.println("Error uploading photo:");
+                e.printStackTrace(pw);
+                pw.close();
+            } catch (Exception ex) {}
+            throw e;
+        }
+    }
+
+    @PostMapping("/document")
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadProfileDocument(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        try {
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String documentUrl = profileService.uploadProfileDocument(userDetails.getId(), file);
+            return ResponseEntity.ok(ApiResponse.success("Profile document uploaded successfully", java.util.Map.of("url", documentUrl)));
+        } catch (Exception e) {
+            throw e;
+        }
+    }
 }

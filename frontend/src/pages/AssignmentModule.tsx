@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getAssetUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
@@ -883,7 +884,7 @@ function AdminSubmissionsModal({ assignment, submissions, onClose, onSubmissionU
                 id: s.studentId,
                 name: s.studentName || s.name || 'Student',
                 enrollmentNumber: s.studentEnrollmentNo || s.enrollmentNumber || 'STU-' + String(s.studentId).slice(0, 4),
-                avatar: s.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.studentName || 'Student')}`,
+                avatar: s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.studentName || 'Student')}`,
                 classId: assignment.classId
               }));
             return [...prev, ...extra];

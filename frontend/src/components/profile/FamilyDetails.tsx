@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,7 +7,7 @@ import { Edit, Save, Users, User, Briefcase, IndianRupee, Heart, Phone } from 'l
 interface FamilyDetailsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const FamilyDetails: React.FC<FamilyDetailsProps> = ({ data, readOnly, onUpdate }) => {
@@ -29,9 +29,30 @@ export const FamilyDetails: React.FC<FamilyDetailsProps> = ({ data, readOnly, on
     annualIncome: data.familyDetails?.annualIncome || '',
   });
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
+  useEffect(() => {
+    setFormData({
+      fatherName: data.familyDetails?.fatherName || '',
+      fatherMobile: data.familyDetails?.fatherMobile || '',
+      fatherOccupation: data.familyDetails?.fatherOccupation || '',
+      fatherDesignation: data.familyDetails?.fatherDesignation || '',
+      fatherOrganization: data.familyDetails?.fatherOrganization || '',
+      motherName: data.familyDetails?.motherName || '',
+      motherMobile: data.familyDetails?.motherMobile || '',
+      motherOccupation: data.familyDetails?.motherOccupation || '',
+      motherDesignation: data.familyDetails?.motherDesignation || '',
+      motherOrganization: data.familyDetails?.motherOrganization || '',
+      familyStatus: data.familyDetails?.familyStatus || '',
+      numberOfBrothers: data.familyDetails?.numberOfBrothers || '',
+      numberOfSisters: data.familyDetails?.numberOfSisters || '',
+      annualIncome: data.familyDetails?.annualIncome || '',
+    });
+  }, [data]);
+
+  const handleSave = async () => {
+    const success = await onUpdate({ familyDetails: formData });
+    if (success !== false) {
+      setIsEditing(false);
+    }
   };
 
   const renderField = (label: string, value: string | number, icon?: React.ReactNode) => (

@@ -79,6 +79,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/users/admin-setup").permitAll()
                             .requestMatchers("/api/v1/timetables/*/test-ai-match").permitAll()
                             .requestMatchers("/api/v1/assignments/*/view", "/api/v1/assignments/*/download", "/api/v1/assignments/submissions/*/view", "/api/v1/assignments/submissions/*/download").permitAll()
+                            .requestMatchers("/api/v1/resources/download/**").permitAll()
                             .requestMatchers("/api/events/banner/**").permitAll()
                             .requestMatchers("/favicon.ico", "/error", "/uploads/**").permitAll()
                             .anyRequest().authenticated()

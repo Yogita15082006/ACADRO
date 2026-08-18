@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -10,12 +10,18 @@ import { Textarea } from '../ui/textarea';
 interface InternshipsProps {
   data: any;
   readOnly: boolean;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: any) => any;
 }
 
 export const Internships: React.FC<InternshipsProps> = ({ data, readOnly, onUpdate }) => {
   const [internships, setInternships] = useState<any[]>(data?.internships || []);
   const [isEditing, setIsEditing] = useState(false);
+  
+  useEffect(() => {
+    if (data?.internships) {
+      setInternships(data.internships);
+    }
+  }, [data]);
   
   const [newItem, setNewItem] = useState({
     role: '',
@@ -31,11 +37,11 @@ export const Internships: React.FC<InternshipsProps> = ({ data, readOnly, onUpda
     if (newItem.role && newItem.company) {
       const updated = [...internships, { 
         ...newItem, 
-        id: Date.now(),
+        id: crypto.randomUUID(),
         technologies: newItem.technologies.split(',').map(t => t.trim()).filter(t => t)
       }];
       setInternships(updated);
-      onUpdate(updated);
+      onUpdate({ internships: updated });
       setNewItem({ role: '', company: '', mentor: '', duration: '', technologies: '', description: '', link: '' });
     }
   };
@@ -43,7 +49,7 @@ export const Internships: React.FC<InternshipsProps> = ({ data, readOnly, onUpda
   const handleDelete = (id: number) => {
     const updated = internships.filter(i => i.id !== id);
     setInternships(updated);
-    onUpdate(updated);
+    onUpdate({ internships: updated });
   };
 
   return (

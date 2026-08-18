@@ -11,6 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.acronexus.service.AttendanceDashboardService;
+import com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto;
+import org.springframework.context.annotation.Lazy;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +28,10 @@ public class ProfileServiceImpl implements ProfileService {
     private final StudentCertificationRepository studentCertificationRepository;
     private final StudentAchievementRepository studentAchievementRepository;
     private final AcademicRecordRepository academicRecordRepository;
+    private final FileStorageRepository fileStorageRepository;
+    
+    @Lazy
+    private final AttendanceDashboardService attendanceDashboardService;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,7 +102,7 @@ public class ProfileServiceImpl implements ProfileService {
         });
 
         // Student Specific
-        if ("ROLE_STUDENT".equals(user.getRole().name())) {
+        if ("STUDENT".equals(user.getRole().name()) || "ROLE_STUDENT".equals(user.getRole().name())) {
             studentRepository.findById(userId).ifPresent(student -> {
                 builder.enrollmentNo(student.getEnrollmentNo());
                 builder.rollNo(student.getRollNo());
@@ -127,8 +134,22 @@ public class ProfileServiceImpl implements ProfileService {
                 builder.relocation(student.getRelocation());
                 builder.resumeFileName(student.getResumeFileName());
                 builder.resumeUploadedAt(student.getResumeUploadedAt());
+                builder.resumeUrl(student.getResumeUrl());
 
                 // Academic Stats
+                try {
+                    OverallAttendanceDto attendance = attendanceDashboardService.getStudentOverallAttendance(userId);
+                    if (attendance != null) {
+                        builder.overallAttendance(attendance.getOverallPercentage());
+                        builder.totalClassesConducted(attendance.getTotalClasses());
+                        builder.totalClassesAttended(attendance.getTotalPresent());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error fetching attendance for user " + userId + ": " + e.getMessage());
+                    e.printStackTrace();
+                    // Ignore attendance fetch errors to prevent profile failure
+                }
+                
                 builder.activeBacklogs(student.getActiveBacklogs());
                 builder.historyBacklogs(student.getHistoryBacklogs());
                 builder.studyGap(student.getStudyGap());
@@ -236,20 +257,20 @@ public class ProfileServiceImpl implements ProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        user.setFirstName(profileDto.getFirstName());
-        user.setLastName(profileDto.getLastName());
-        user.setPhone(profileDto.getPhone());
-        user.setGender(profileDto.getGender());
-        user.setDob(profileDto.getDob());
-        user.setBloodGroup(profileDto.getBloodGroup());
-        user.setCategory(profileDto.getCategory());
-        user.setNationality(profileDto.getNationality());
-        user.setReligion(profileDto.getReligion());
-        user.setAadhaarNumber(profileDto.getAadhaarNumber());
-        user.setResidenceType(profileDto.getResidenceType());
-        user.setWhatsappNumber(profileDto.getWhatsappNumber());
-        user.setPersonalEmail(profileDto.getPersonalEmail());
-        user.setCollegeEmail(profileDto.getCollegeEmail());
+        if (profileDto.getFirstName() != null) user.setFirstName(profileDto.getFirstName());
+        if (profileDto.getLastName() != null) user.setLastName(profileDto.getLastName());
+        if (profileDto.getPhone() != null) user.setPhone(profileDto.getPhone());
+        if (profileDto.getGender() != null) user.setGender(profileDto.getGender());
+        if (profileDto.getDob() != null) user.setDob(profileDto.getDob());
+        if (profileDto.getBloodGroup() != null) user.setBloodGroup(profileDto.getBloodGroup());
+        if (profileDto.getCategory() != null) user.setCategory(profileDto.getCategory());
+        if (profileDto.getNationality() != null) user.setNationality(profileDto.getNationality());
+        if (profileDto.getReligion() != null) user.setReligion(profileDto.getReligion());
+        if (profileDto.getAadhaarNumber() != null) user.setAadhaarNumber(profileDto.getAadhaarNumber());
+        if (profileDto.getResidenceType() != null) user.setResidenceType(profileDto.getResidenceType());
+        if (profileDto.getWhatsappNumber() != null) user.setWhatsappNumber(profileDto.getWhatsappNumber());
+        if (profileDto.getPersonalEmail() != null) user.setPersonalEmail(profileDto.getPersonalEmail());
+        if (profileDto.getCollegeEmail() != null) user.setCollegeEmail(profileDto.getCollegeEmail());
         
         if (profileDto.getDocuments() != null) {
             user.setUploadedDocuments(profileDto.getDocuments());
@@ -259,77 +280,116 @@ public class ProfileServiceImpl implements ProfileService {
 
         // Family Details
         if (profileDto.getFamilyDetails() != null) {
-            FamilyDetails family = familyDetailsRepository.findById(userId).orElse(new FamilyDetails());
-            family.setId(userId);
+            boolean isNewFamily = false;
+            FamilyDetails family = familyDetailsRepository.findById(userId).orElse(null);
+            if (family == null) {
+                family = new FamilyDetails();
+                isNewFamily = true;
+            }
             family.setUser(user);
+            if (isNewFamily) {
+                family.setIsNewEntity(true);
+            }
             ProfileDto.FamilyDetailsDto fd = profileDto.getFamilyDetails();
-            family.setFatherName(fd.getFatherName());
-            family.setFatherMobile(fd.getFatherMobile());
-            family.setFatherOccupation(fd.getFatherOccupation());
-            family.setFatherDesignation(fd.getFatherDesignation());
-            family.setFatherOrganization(fd.getFatherOrganization());
-            family.setMotherName(fd.getMotherName());
-            family.setMotherMobile(fd.getMotherMobile());
-            family.setMotherOccupation(fd.getMotherOccupation());
-            family.setMotherDesignation(fd.getMotherDesignation());
-            family.setMotherOrganization(fd.getMotherOrganization());
-            family.setFamilyStatus(fd.getFamilyStatus());
-            family.setNumberOfBrothers(fd.getNumberOfBrothers());
-            family.setNumberOfSisters(fd.getNumberOfSisters());
-            family.setAnnualIncome(fd.getAnnualIncome());
+            if (fd.getFatherName() != null) family.setFatherName(fd.getFatherName());
+            if (fd.getFatherMobile() != null) family.setFatherMobile(fd.getFatherMobile());
+            if (fd.getFatherOccupation() != null) family.setFatherOccupation(fd.getFatherOccupation());
+            if (fd.getFatherDesignation() != null) family.setFatherDesignation(fd.getFatherDesignation());
+            if (fd.getFatherOrganization() != null) family.setFatherOrganization(fd.getFatherOrganization());
+            if (fd.getMotherName() != null) family.setMotherName(fd.getMotherName());
+            if (fd.getMotherMobile() != null) family.setMotherMobile(fd.getMotherMobile());
+            if (fd.getMotherOccupation() != null) family.setMotherOccupation(fd.getMotherOccupation());
+            if (fd.getMotherDesignation() != null) family.setMotherDesignation(fd.getMotherDesignation());
+            if (fd.getMotherOrganization() != null) family.setMotherOrganization(fd.getMotherOrganization());
+            if (fd.getFamilyStatus() != null) family.setFamilyStatus(fd.getFamilyStatus());
+            if (fd.getNumberOfBrothers() != null) family.setNumberOfBrothers(fd.getNumberOfBrothers());
+            if (fd.getNumberOfSisters() != null) family.setNumberOfSisters(fd.getNumberOfSisters());
+            if (fd.getAnnualIncome() != null) family.setAnnualIncome(fd.getAnnualIncome());
             familyDetailsRepository.save(family);
         }
 
         // Address Details
         if (profileDto.getAddressDetails() != null) {
-            AddressDetails address = addressDetailsRepository.findById(userId).orElse(new AddressDetails());
-            address.setId(userId);
+            boolean isNewAddress = false;
+            AddressDetails address = addressDetailsRepository.findById(userId).orElse(null);
+            if (address == null) {
+                address = new AddressDetails();
+                isNewAddress = true;
+            }
             address.setUser(user);
+            if (isNewAddress) {
+                address.setIsNewEntity(true);
+            }
             ProfileDto.AddressDetailsDto ad = profileDto.getAddressDetails();
-            address.setLocalAddress(ad.getLocalAddress());
-            address.setLocalCity(ad.getLocalCity());
-            address.setLocalState(ad.getLocalState());
-            address.setLocalPincode(ad.getLocalPincode());
-            address.setPermanentAddress(ad.getPermanentAddress());
-            address.setPermanentCity(ad.getPermanentCity());
-            address.setPermanentState(ad.getPermanentState());
-            address.setPermanentPincode(ad.getPermanentPincode());
+            if (ad.getLocalAddress() != null) address.setLocalAddress(ad.getLocalAddress());
+            if (ad.getLocalCity() != null) address.setLocalCity(ad.getLocalCity());
+            if (ad.getLocalState() != null) address.setLocalState(ad.getLocalState());
+            if (ad.getLocalPincode() != null) address.setLocalPincode(ad.getLocalPincode());
+            if (ad.getPermanentAddress() != null) address.setPermanentAddress(ad.getPermanentAddress());
+            if (ad.getPermanentCity() != null) address.setPermanentCity(ad.getPermanentCity());
+            if (ad.getPermanentState() != null) address.setPermanentState(ad.getPermanentState());
+            if (ad.getPermanentPincode() != null) address.setPermanentPincode(ad.getPermanentPincode());
             addressDetailsRepository.save(address);
         }
 
         // Student Specific
-        if ("ROLE_STUDENT".equals(user.getRole().name())) {
+        if ("STUDENT".equals(user.getRole().name()) || "ROLE_STUDENT".equals(user.getRole().name())) {
+            boolean isNewStudent = false;
             Student student = studentRepository.findById(userId).orElse(null);
-            if (student != null) {
-                student.setInstituteEnrollment(profileDto.getInstituteEnrollment());
-                student.setCourse(profileDto.getCourse());
-                student.setCurrentSemester(profileDto.getCurrentSemester());
-                student.setSection(profileDto.getSection());
-                if (profileDto.getSkills() != null) {
-                    student.setTechnicalSkills(String.join(",", profileDto.getSkills()));
-                }
-                student.setHobbies(profileDto.getHobbies());
-                student.setClubs(profileDto.getClubs());
+            if (student == null) {
+                student = new Student();
+                isNewStudent = true;
+            }
+            student.setUser(user);
+            if (isNewStudent) {
+                student.setIsNewEntity(true);
+            }
+            
+            if (profileDto.getInstituteEnrollment() != null) student.setInstituteEnrollment(profileDto.getInstituteEnrollment());
+            
+            if (profileDto.getEnrollmentNo() != null) {
+                student.setEnrollmentNo(profileDto.getEnrollmentNo());
+            } else if (student.getEnrollmentNo() == null) {
+                student.setEnrollmentNo(""); // Prevent null constraint violation
+            }
+            
+            if (profileDto.getRollNo() != null) student.setRollNo(profileDto.getRollNo());
+            
+            if (profileDto.getBatchYear() != null) {
+                student.setBatchYear(profileDto.getBatchYear());
+            } else if (student.getBatchYear() == null) {
+                student.setBatchYear(""); // Prevent null constraint violation
+            }
+            if (profileDto.getAdmissionYear() != null) student.setAdmissionYear(profileDto.getAdmissionYear());
+            if (profileDto.getCourse() != null) student.setCourse(profileDto.getCourse());
+            if (profileDto.getCurrentSemester() != null) student.setCurrentSemester(profileDto.getCurrentSemester());
+            if (profileDto.getSection() != null) student.setSection(profileDto.getSection());
+            if (profileDto.getSkills() != null) {
+                student.setTechnicalSkills(String.join(",", profileDto.getSkills()));
+            }
+            if (profileDto.getHobbies() != null) student.setHobbies(profileDto.getHobbies());
+            if (profileDto.getClubs() != null) student.setClubs(profileDto.getClubs());
 
-                student.setLinkedin(profileDto.getLinkedin());
-                student.setGithub(profileDto.getGithub());
-                student.setPortfolio(profileDto.getPortfolio());
-                student.setLeetcode(profileDto.getLeetcode());
-                student.setHackerrank(profileDto.getHackerrank());
-                if (profileDto.getDomains() != null) {
-                    student.setDomains(String.join(",", profileDto.getDomains()));
-                }
-                student.setJobPreferences(profileDto.getJobPreferences());
-                student.setRelocation(profileDto.getRelocation());
-                student.setResumeFileName(profileDto.getResumeFileName());
-                student.setResumeUploadedAt(profileDto.getResumeUploadedAt());
+            if (profileDto.getLinkedin() != null) student.setLinkedin(profileDto.getLinkedin());
+            if (profileDto.getGithub() != null) student.setGithub(profileDto.getGithub());
+            if (profileDto.getPortfolio() != null) student.setPortfolio(profileDto.getPortfolio());
+            if (profileDto.getLeetcode() != null) student.setLeetcode(profileDto.getLeetcode());
+            if (profileDto.getHackerrank() != null) student.setHackerrank(profileDto.getHackerrank());
+            if (profileDto.getDomains() != null) {
+                student.setDomains(String.join(",", profileDto.getDomains()));
+            }
+            if (profileDto.getJobPreferences() != null) student.setJobPreferences(profileDto.getJobPreferences());
+            if (profileDto.getRelocation() != null) student.setRelocation(profileDto.getRelocation());
+            if (profileDto.getResumeFileName() != null) student.setResumeFileName(profileDto.getResumeFileName());
+            if (profileDto.getResumeUploadedAt() != null) student.setResumeUploadedAt(profileDto.getResumeUploadedAt());
+            if (profileDto.getResumeUrl() != null) student.setResumeUrl(profileDto.getResumeUrl());
 
-                student.setActiveBacklogs(profileDto.getActiveBacklogs());
-                student.setHistoryBacklogs(profileDto.getHistoryBacklogs());
-                student.setStudyGap(profileDto.getStudyGap());
-                student.setBatchCoordinator(profileDto.getBatchCoordinator());
-                
-                if (profileDto.getCgpa() != null) {
+            if (profileDto.getActiveBacklogs() != null) student.setActiveBacklogs(profileDto.getActiveBacklogs());
+            if (profileDto.getHistoryBacklogs() != null) student.setHistoryBacklogs(profileDto.getHistoryBacklogs());
+            if (profileDto.getStudyGap() != null) student.setStudyGap(profileDto.getStudyGap());
+            if (profileDto.getBatchCoordinator() != null) student.setBatchCoordinator(profileDto.getBatchCoordinator());
+            
+            if (profileDto.getCgpa() != null) {
                     student.setCgpa(profileDto.getCgpa());
                 }
 
@@ -445,9 +505,76 @@ public class ProfileServiceImpl implements ProfileService {
                         studentAchievementRepository.save(sa);
                     }
                 }
-            }
         }
 
         return getFullProfile(userId);
+    }
+
+    @Override
+    @Transactional
+    public String uploadProfilePhoto(UUID userId, org.springframework.web.multipart.MultipartFile file) {
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String uploadDir = "uploads/profiles/";
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            java.nio.file.Path filePath = uploadPath.resolve(fileName);
+            java.nio.file.Files.copy(file.getInputStream(), filePath);
+
+            FileStorage fs = new FileStorage();
+            fs.setFileName(file.getOriginalFilename());
+            fs.setDocumentUrl(filePath.toString());
+            fs.setFileType("PROFILE_PHOTO");
+            fs.setUploadedBy(user);
+            fs.setUploadedAt(java.time.ZonedDateTime.now());
+            fs.setIsActive(true);
+            
+            fileStorageRepository.save(fs);
+
+            String photoUrl = "/api/v1/resources/download/" + fs.getId();
+            user.setProfilePictureUrl(photoUrl);
+            userRepository.save(user);
+
+            return photoUrl;
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to store profile photo", e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public String uploadProfileDocument(UUID userId, org.springframework.web.multipart.MultipartFile file) {
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String uploadDir = "uploads/documents/";
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            java.nio.file.Path filePath = uploadPath.resolve(fileName);
+            java.nio.file.Files.copy(file.getInputStream(), filePath);
+
+            FileStorage fs = new FileStorage();
+            fs.setFileName(file.getOriginalFilename());
+            fs.setDocumentUrl(filePath.toString());
+            fs.setFileType("PROFILE_DOCUMENT");
+            fs.setUploadedBy(user);
+            fs.setUploadedAt(java.time.ZonedDateTime.now());
+            fs.setIsActive(true);
+            
+            fileStorageRepository.save(fs);
+
+            return "/api/v1/resources/download/" + fs.getId();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to store profile document", e);
+        }
     }
 }
