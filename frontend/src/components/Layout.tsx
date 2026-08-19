@@ -113,13 +113,15 @@ export const Layout = () => {
               className="w-8 h-8 rounded-full ring-1 ring-border object-cover"
             />
             <div className="overflow-hidden flex-1">
-              <p className="text-xs font-semibold truncate text-foreground">{user?.name}</p>
+              <p className="text-xs font-semibold truncate text-foreground">
+                {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User')}
+              </p>
               <p className="text-[10px] text-muted-foreground truncate">
                 {role === 'hod' ? 'Head of Department' : 
-                 role === 'both' ? 'Coordinator & Faculty' :
-                 role === 'coordinator' ? 'Class Coordinator' : 
-                 role === 'faculty' ? 'Faculty Member' : 
-                 role === 'student' ? user?.className : 'Administrator'}
+                 role === 'both' ? 'Coordinator / Faculty' :
+                 role === 'coordinator' ? 'Coordinator' : 
+                 role === 'faculty' ? 'Faculty' : 
+                 role === 'student' ? 'Student' : 'Administrator'}
               </p>
             </div>
           </div>
@@ -128,16 +130,8 @@ export const Layout = () => {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={toggleTheme} 
-              className="h-7 flex-1 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
               onClick={handleLogout} 
-              className="h-7 flex-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+              className="h-7 w-full flex rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
             >
               <LogOut size={14} />
             </Button>

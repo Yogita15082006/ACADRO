@@ -21,7 +21,6 @@ import { FamilyDetails } from '../components/profile/FamilyDetails';
 import { Internships } from '../components/profile/Internships';
 import { Projects } from '../components/profile/Projects';
 import { ConsentDeclaration } from '../components/profile/ConsentDeclaration';
-import { FacultyTeachingSummary, FacultyAbsenceHistory } from '../components/profile/FacultyActivityWidgets';
 
 export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingStudent?: any, studentId?: string, onBack?: () => void }) => {
   const { user, role, logout } = useAuth();
@@ -97,13 +96,6 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Notifications State
-  const [emailNotif, setEmailNotif] = useState(true);
-  const [smsNotif, setSmsNotif] = useState(false);
-
-  // Admin Class Management State
-  const [adminClasses, setAdminClasses] = useState<string[]>(profileUser?.classes || []);
-  const [isEditingClasses, setIsEditingClasses] = useState(false);
 
   const handleSectionUpdate = async (updatedData: any) => {
     try {
@@ -138,10 +130,19 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
     }
   };
 
+
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("Please fill in all password fields.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match!");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters long.");
       return;
     }
     try {
@@ -162,8 +163,8 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
     if (e.target.files && e.target.files[0]) {
       const formData = new FormData();
       formData.append('file', e.target.files[0]);
-      api.post('/v1/profile/upload-avatar', formData).then(res => {
-         setAvatarPreview(res.data.url);
+      api.post('/v1/profile/photo', formData).then(res => {
+         setAvatarPreview(res.data.data.url);
          window.dispatchEvent(new Event('sync-auth-profile'));
          toast.success("Avatar updated");
       }).catch(() => toast.error("Upload failed"));
@@ -232,7 +233,12 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
               <div className="pt-2 sm:pt-4 flex-1 text-center sm:text-left space-y-3 w-full">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                    {isReadOnlyView ? 'Student' : (['faculty', 'hod', 'coordinator', 'both'].includes(role) ? 'Administrator' : 'Student')}
+                    {isReadOnlyView ? 'Student' : (
+                       role === 'hod' ? 'Head of Department' :
+                       role === 'both' ? 'Coordinator • Faculty' :
+                       role === 'coordinator' ? 'Coordinator' :
+                       role === 'faculty' ? 'Faculty' : 'Student'
+                    )}
                   </Badge>
                 </div>
 
@@ -256,23 +262,23 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2">
-                        <Hash className="w-4 h-4" />
-                        <span className="font-medium text-foreground">{profileUser.empId}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Building className="w-4 h-4" />
-                        <span>{getSafeString(profileUser.department) || 'Not Specified'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        <span>
-                          {adminClasses.length > 0 
-                            ? `${adminClasses.length} Assigned Class${adminClasses.length > 1 ? 'es' : ''}`
-                            : 'No Assigned Classes'
-                          }
-                        </span>
-                      </div>
+                      {role !== 'hod' && profileUser.empId && (
+                        <div className="flex items-center gap-2">
+                          <Hash className="w-4 h-4" />
+                          <span className="font-medium text-foreground">{profileUser.empId}</span>
+                        </div>
+                      )}
+                      {role === 'hod' && (
+                        <div className="flex items-center gap-2">
+                          <Building className="w-4 h-4" />
+                          <span>
+                            {(profileUser as any).departments && Array.isArray((profileUser as any).departments) && (profileUser as any).departments.length > 0
+                              ? (profileUser as any).departments.join(' • ')
+                              : getSafeString(profileUser.department)?.split(/[,&]/).map((s: string) => s.trim()).filter(Boolean).join(' • ') || 'Not Specified'}
+                          </span>
+                        </div>
+                      )}
+
                     </>
                   )}
                 </div>
@@ -437,87 +443,8 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                 </CardContent>
               </Card>
 
-              {/* CLASS ACCESS MANAGEMENT (ADMIN ONLY) */}
-              <Card className="bg-card border-border shadow-sm">
-                <CardHeader className="pb-4 pt-6 px-6 border-b border-border/40 flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">Class Access Management</CardTitle>
-                    <CardDescription>Manage your assigned classes.</CardDescription>
-                  </div>
-                  <Button 
-                    variant={isEditingClasses ? 'default' : 'outline'} 
-                    className="gap-2"
-                    onClick={() => setIsEditingClasses(!isEditingClasses)}
-                  >
-                    {isEditingClasses ? 'Cancel' : (
-                      <>
-                        <Edit className="w-4 h-4" /> Edit Assigned Classes
-                      </>
-                    )}
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {isEditingClasses ? (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {profileUser?.classes?.map((c: any, index: number) => (
-                          <label key={index} className="flex items-start gap-3 p-4 rounded-xl border-2 border-border/50 bg-background hover:bg-muted/50 cursor-pointer transition-all hover:border-primary/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                            <input 
-                              type="checkbox" 
-                              className="mt-1 rounded border-input text-primary focus:ring-primary w-5 h-5 transition-all cursor-pointer"
-                              checked={true}
-                              readOnly
-                            />
-                            <div className="space-y-1">
-                              <p className="text-base font-semibold text-foreground">{typeof c === 'string' ? c : (c.name || 'Unknown Class')}</p>
-                              <p className="text-sm text-muted-foreground">{c.year || ''}</p>
-                            </div>
-                          </label>
-                        )) || <p className="text-sm text-muted-foreground italic py-2">No available classes to select.</p>}
-                      </div>
-                      <div className="flex justify-end pt-2 gap-3">
-                         <Button variant="outline" onClick={() => setIsEditingClasses(false)}>
-                           Cancel
-                         </Button>
-                         <Button 
-                          onClick={() => {
-                            setIsEditingClasses(false);
-                          }}
-                          className="gap-2"
-                        >
-                          <Save className="w-4 h-4" /> Save Class Assignments
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-3">
-                      {adminClasses.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic py-2">No classes assigned.</p>
-                      ) : (
-                        adminClasses.map((classItem: any, index: number) => {
-                          const className = typeof classItem === 'string' ? classItem : classItem.name;
-                          return className ? (
-                            <div key={index} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-sm">
-                              <Users className="w-4 h-4 opacity-70" />
-                              <span className="font-semibold">{className}</span>
-                            </div>
-                          ) : null;
-                        })
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* FACULTY ACTIVITY WIDGETS */}
-              {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-                <>
-                  <FacultyTeachingSummary user={profileUser} />
-                </>
-              )}
-              
               {/* SECURITY */}
-              <Card className="bg-card border-border shadow-sm">
+              <Card className="bg-card border-border shadow-sm mt-6">
                 <CardHeader className="pb-4 pt-6 px-6 border-b border-border/40">
                   <CardTitle className="text-xl">Security & Password</CardTitle>
                   <CardDescription>Update your password to keep your account secure.</CardDescription>
@@ -609,59 +536,6 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                   </div>
                 </div>
 
-                <hr className="border-border/40" />
-
-                {/* Password Update */}
-                <div className="space-y-4">
-                  <label className="text-sm font-semibold text-muted-foreground">Change Password</label>
-                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="relative group">
-                        <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Current Password"
-                          className="pl-10 pr-10 bg-background"
-                          required
-                        />
-                        <button type="button" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors" onClick={() => setShowPassword(!showPassword)}>
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="relative group">
-                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="New Password"
-                          className="pl-10 pr-10 bg-background"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="relative group">
-                        <CheckCircle2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Confirm New Password"
-                          className="pl-10 pr-10 bg-background"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full" disabled={!currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}>
-                      Update Password
-                    </Button>
-                  </form>
-                </div>
 
               </CardContent>
             </Card>
@@ -706,12 +580,7 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
         )}
       </div>
 
-      {/* FULL WIDTH BOTTOM ROW */}
-      {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-        <div className="mt-6 w-full">
-          <FacultyAbsenceHistory user={profileUser} />
-        </div>
-      )}
+
     </div>
   );
 };
