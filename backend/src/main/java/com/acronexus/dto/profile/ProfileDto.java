@@ -37,6 +37,13 @@ public class ProfileDto {
     private String whatsappNumber;
     private String personalEmail;
     private String collegeEmail;
+    
+    // New Role Specific Fields (Backward Compatible)
+    private String employeeId;
+    private String className;
+    private String semesterName;
+    private String academicYearString;
+    private List<CoordinatorAssignmentDto> coordinatorAssignments;
 
     // Base Student Details
     private String enrollmentNo;
@@ -179,5 +186,14 @@ public class ProfileDto {
         private String date;
         private String description;
         private String link;
+    }
+
+    @Data
+    public static class CoordinatorAssignmentDto {
+        private String batch;
+        private String academicYear;
+        private String semester;
+        private String className;
+        private String section;
     }
 }

@@ -30,6 +30,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final AcademicRecordRepository academicRecordRepository;
     private final FileStorageRepository fileStorageRepository;
     private final FacultyRepository facultyRepository;
+    private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
+    private final StudentEnrollmentRepository studentEnrollmentRepository;
     
     @Lazy
     private final AttendanceDashboardService attendanceDashboardService;
@@ -71,6 +73,7 @@ public class ProfileServiceImpl implements ProfileService {
         // Faculty Departments
         if ("FACULTY".equals(user.getRole().name()) || "HOD".equals(user.getRole().name()) || "COORDINATOR".equals(user.getRole().name()) || "ROLE_FACULTY".equals(user.getRole().name()) || "ROLE_HOD".equals(user.getRole().name()) || "ROLE_COORDINATOR".equals(user.getRole().name())) {
             facultyRepository.findById(userId).ifPresent(faculty -> {
+                builder.employeeId(faculty.getEmployeeId());
                 if (faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
                     List<java.util.Map<String, Object>> depts = faculty.getDepartments().stream().map(d -> {
                         java.util.Map<String, Object> map = new java.util.HashMap<>();
@@ -81,6 +84,21 @@ public class ProfileServiceImpl implements ProfileService {
                     builder.departments(depts);
                 }
             });
+        }
+        
+        if ("COORDINATOR".equals(user.getRole().name()) || "ROLE_COORDINATOR".equals(user.getRole().name())) {
+            java.util.List<com.acronexus.entity.CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(userId);
+            java.util.List<ProfileDto.CoordinatorAssignmentDto> dtos = assignments.stream()
+                .filter(a -> a.getIsActive() != null && a.getIsActive())
+                .map(a -> {
+                    ProfileDto.CoordinatorAssignmentDto dto = new ProfileDto.CoordinatorAssignmentDto();
+                    dto.setBatch(a.getBatch());
+                    dto.setAcademicYear(a.getAcademicYear());
+                    dto.setSemester(a.getSemester());
+                    dto.setClassName(a.getClassName());
+                    return dto;
+                }).collect(Collectors.toList());
+            builder.coordinatorAssignments(dtos);
         }
 
         // Family Details
@@ -128,6 +146,22 @@ public class ProfileServiceImpl implements ProfileService {
                 builder.course(student.getCourse());
                 builder.currentSemester(student.getCurrentSemester());
                 builder.section(student.getSection());
+                
+                studentEnrollmentRepository.findFirstByStudentIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+                    .ifPresent(enrollment -> {
+                        if (enrollment.getAcroClass() != null) {
+                            builder.className(enrollment.getAcroClass().getName());
+                            // Do not overwrite builder.section() as it might be needed by older code,
+                            // but we can set it if it's currently used in DTO
+                        }
+                        if (enrollment.getSemester() != null) {
+                            builder.semesterName(String.valueOf(enrollment.getSemester().getSemesterNumber()));
+                        }
+                        if (enrollment.getAcademicYear() != null) {
+                            builder.academicYearString(enrollment.getAcademicYear().getYear());
+                        }
+                    });
+
                 if (student.getTechnicalSkills() != null && !student.getTechnicalSkills().trim().isEmpty()) {
                     builder.skills(java.util.Arrays.asList(student.getTechnicalSkills().split(",")));
                 } else {

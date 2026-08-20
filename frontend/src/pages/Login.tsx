@@ -319,7 +319,11 @@ export const Login = () => {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">{profileData?.firstName} {profileData?.lastName}</h2>
               <p className="text-white/80 font-medium">{profileData?.email} • {profileData?.role?.replace('ROLE_', '')}</p>
-              <p className="text-white/80 text-sm">{profileData?.departmentName || 'Department of Information Technology'}</p>
+              <p className="text-white/80 text-sm">
+                {profileData?.departments?.length > 0 
+                  ? profileData.departments.map((d: any) => d.name).join(', ') 
+                  : (profileData?.departmentName || 'Department of Information Technology')}
+              </p>
             </div>
           </div>
           
@@ -329,22 +333,24 @@ export const Login = () => {
               <h3 className="font-semibold text-lg border-b pb-2">Personal Details</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-muted-foreground block mb-1">Employee/Enrollment ID</span>
-                  <span className="font-medium">{profileData?.enrollmentNo || profileData?.instituteEnrollment || profileData?.aadhaarNumber || 'N/A'}</span>
+                  <span className="text-muted-foreground block mb-1">{(currentRole === 'faculty' || currentRole === 'hod' || currentRole === 'coordinator') ? 'Employee ID' : 'Enrollment No'}</span>
+                  <span className="font-medium">{(currentRole === 'faculty' || currentRole === 'hod' || currentRole === 'coordinator') ? (profileData?.employeeId || 'Not available') : (profileData?.enrollmentNo || profileData?.instituteEnrollment || 'Not available')}</span>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">Phone Number</span>
-                  <span className="font-medium">{profileData?.phone || 'N/A'}</span>
-                </div>
+                {currentRole !== 'student' && (
+                  <div>
+                    <span className="text-muted-foreground block mb-1">Phone Number</span>
+                    <span className="font-medium">{profileData?.phone || 'Not available'}</span>
+                  </div>
+                )}
                 {currentRole === 'student' && (
                   <>
                     <div>
                       <span className="text-muted-foreground block mb-1">Batch Year</span>
-                      <span className="font-medium">{profileData?.batchYear || 'N/A'}</span>
+                      <span className="font-medium">{profileData?.batchYear || 'Not available'}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block mb-1">Current Semester</span>
-                      <span className="font-medium">{profileData?.currentSemester || 'N/A'}</span>
+                      <span className="font-medium">{profileData?.semesterName || profileData?.currentSemester || 'Not available'}</span>
                     </div>
                   </>
                 )}
@@ -357,6 +363,18 @@ export const Login = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {currentRole === 'hod' && dashboardData && (
                   <>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground block mb-1">Accessible Departments</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {profileData?.departments?.length > 0 ? (
+                          profileData.departments.map((dept: any, idx: number) => (
+                            <Badge key={idx} variant="outline" className="bg-muted/50 border-primary/20 text-primary">{dept.name}</Badge>
+                          ))
+                        ) : (
+                          <span className="font-medium">Information Technology</span> // Fallback if no specific depts
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <span className="text-muted-foreground block mb-1">Total Faculty</span>
                       <span className="font-medium">{dashboardData.departmentFacultyCount}</span>
@@ -365,16 +383,20 @@ export const Login = () => {
                       <span className="text-muted-foreground block mb-1">Total Students</span>
                       <span className="font-medium">{dashboardData.departmentStudentCount}</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block mb-1">Managed Classes</span>
-                      <span className="font-medium">All IT Classes</span>
+                    <div className="col-span-2 mt-2">
+                      <span className="text-muted-foreground block mb-1">All Classes</span>
+                      <span className="font-medium">
+                        {profileData?.departments?.length > 0 
+                          ? `All classes across: ${profileData.departments.map((d: any) => d.name).join(', ')}` 
+                          : 'All applicable classes'}
+                      </span>
                     </div>
                   </>
                 )}
                 
-                {(currentRole === 'faculty' || currentRole === 'coordinator') && (
+                {currentRole === 'faculty' && (
                   <div className="col-span-2">
-                    <span className="text-muted-foreground block mb-2">{currentRole === 'coordinator' ? 'Coordinator & Assigned Classes' : 'Assigned Classes & Subjects'}</span>
+                    <span className="text-muted-foreground block mb-2">Assigned Classes & Subjects</span>
                     {assignedSubjects.length > 0 ? (
                       <div className="space-y-2">
                         {assignedSubjects.map((subject: any, idx: number) => (
@@ -385,18 +407,42 @@ export const Login = () => {
                         ))}
                       </div>
                     ) : (
-                      <span className="font-medium text-muted-foreground">No assigned subjects</span>
+                      <span className="font-medium text-muted-foreground">Not available</span>
+                    )}
+                  </div>
+                )}
+
+                {currentRole === 'coordinator' && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground block mb-2">Coordinator Assignments</span>
+                    {profileData?.coordinatorAssignments?.length > 0 ? (
+                      <div className="space-y-2">
+                        {profileData.coordinatorAssignments.map((assignment: any, idx: number) => (
+                          <div key={idx} className="flex justify-between bg-muted/50 p-2 rounded border text-xs items-center">
+                            <span className="font-medium text-primary">Class: {assignment.className}</span>
+                            <span className="text-muted-foreground">
+                              Batch: {assignment.batch} | Yr: {assignment.academicYear} | Sem: {assignment.semester}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="font-medium text-muted-foreground">Not available</span>
                     )}
                   </div>
                 )}
                 
-                {currentRole === 'student' && profileData?.subjects && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground block mb-2">Enrolled Subjects</span>
-                    <div className="flex flex-wrap gap-2">
-                      {profileData.subjects.map((sub: string, idx: number) => (
-                        <Badge key={idx} variant="outline" className="bg-muted/50">{sub}</Badge>
-                      ))}
+                {currentRole === 'student' && (
+                  <div className="col-span-2 space-y-4">
+                    <div>
+                      <span className="text-muted-foreground block mb-2">Assigned Class & Section</span>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Batch:</span> <span className="font-medium">{profileData?.batchYear || 'Not available'}</span></div>
+                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Year:</span> <span className="font-medium">{profileData?.academicYearString || 'Not available'}</span></div>
+                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Semester:</span> <span className="font-medium">{profileData?.semesterName || profileData?.currentSemester || 'Not available'}</span></div>
+                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Class:</span> <span className="font-medium">{profileData?.className || profileData?.course || 'Not available'}</span></div>
+                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Section:</span> <span className="font-medium">{profileData?.sectionName || profileData?.section || 'Not available'}</span></div>
+                      </div>
                     </div>
                   </div>
                 )}
