@@ -38,6 +38,14 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success("Faculty dashboard loaded", dashboard));
     }
 
+    @GetMapping("/coordinator")
+    @PreAuthorize("hasAnyRole('COORDINATOR', 'HOD')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.response.CoordinatorDashboardResponse>> getCoordinatorDashboard(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        com.acronexus.dto.response.CoordinatorDashboardResponse dashboard = dashboardService.getCoordinatorDashboard(userDetails.getId());
+        return ResponseEntity.ok(ApiResponse.success("Coordinator dashboard loaded", dashboard));
+    }
+
     @GetMapping("/hod")
     @PreAuthorize("hasRole('HOD')")
     public ResponseEntity<ApiResponse<HodDashboardResponse>> getHodDashboard(

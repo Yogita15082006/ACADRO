@@ -90,4 +90,4 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
-*.tmp
+*.tmp*.db

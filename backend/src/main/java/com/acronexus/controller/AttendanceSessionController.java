@@ -50,6 +50,20 @@ public class AttendanceSessionController {
         return ResponseEntity.ok(sessionService.getFacultyStatistics(facultyId));
     }
 
+    @GetMapping("/faculty/{facultyId}/teaching-history")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<List<com.acronexus.dto.TeachingHistoryDTO>> getTeachingHistory(@PathVariable UUID facultyId) {
+        return ResponseEntity.ok(sessionService.getTeachingHistory(facultyId));
+    }
+
+    @PostMapping("/faculty/{facultyId}/ai-generate-session")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<AttendanceSessionDTO> generateAiSession(
+            @PathVariable UUID facultyId,
+            @RequestParam UUID classSubjectId) {
+        return ResponseEntity.ok(sessionService.generateAiSession(facultyId, classSubjectId));
+    }
+
     @PostMapping("/{sessionId}/mark")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<Void> markAttendance(

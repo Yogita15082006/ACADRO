@@ -63,6 +63,7 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
     }
 
     @Override
+    @org.springframework.cache.annotation.Cacheable(value = "coordinatorStudents", key = "#root.target.getLoggedInUser().getId()")
     public CoordinatorSectionStudentsDto getMyStudents() {
         User loggedIn = getLoggedInUser();
         CoordinatorAssignment assignment = getActiveAssignment(loggedIn.getId());
@@ -78,52 +79,41 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
                 .build();
         }
 
-        // We will check BOTH StudentEnrollment and direct Student fields
-        List<Student> allStudents = studentRepository.findAll();
-        List<StudentEnrollment> allActiveEnrollments = studentEnrollmentRepository.findAll().stream()
-                .filter(e -> Boolean.TRUE.equals(e.getIsActive()) && e.getStudent() != null)
-                .collect(Collectors.toList());
+        List<Student> matchedStudents = studentRepository.findByStrictCoordinatorScope(
+                assignment.getCoordinator().getDepartment().getId(), 
+                assignment.getBatch(), 
+                assignment.getSemester() != null ? assignment.getSemester().replace("Semester ", "") : null, 
+                assignment.getClassName()
+        );
+
+        UUID academicYearId = null;
+        UUID semesterId = null;
         
-        List<Student> matchedStudents = allStudents.stream().filter(s -> {
-            if (s.getUser() == null || !Boolean.TRUE.equals(s.getUser().getIsActive())) return false;
-            
-            // 1. Try to match using direct Student entity fields
-            boolean matchesDirectly = false;
-            String sec = s.getSection();
-            String cls = assignment.getClassName();
-            if (cls != null && sec != null && !cls.isEmpty() && !sec.isEmpty()) {
-                if (cls.equalsIgnoreCase(sec) || cls.contains(sec) || sec.contains(cls)) {
-                    matchesDirectly = true;
-                }
+        if (!matchedStudents.isEmpty()) {
+            Student firstStudent = matchedStudents.get(0);
+            java.util.Optional<com.acronexus.entity.StudentEnrollment> enrOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(firstStudent.getId());
+            if (enrOpt.isPresent()) {
+                if (enrOpt.get().getAcademicYear() != null) academicYearId = enrOpt.get().getAcademicYear().getId();
+                if (enrOpt.get().getSemester() != null) semesterId = enrOpt.get().getSemester().getId();
             }
-            if (assignment.getBatch() != null && s.getBatchYear() != null) {
-                if (!assignment.getBatch().equalsIgnoreCase(s.getBatchYear())) {
-                    matchesDirectly = false; // Veto if batch doesn't match
-                }
-            }
-
-            // 2. Try to match using active StudentEnrollment
-            boolean hasValidEnrollment = false;
-            for (StudentEnrollment e : allActiveEnrollments) {
-                if (e.getStudent().getId().equals(s.getId())) {
-                    if (classMatches(e.getAcroClass(), assignment.getClassName())) {
-                        hasValidEnrollment = true;
-                        break;
-                    }
-                }
-            }
-
-            return matchesDirectly || hasValidEnrollment;
-        }).distinct().collect(Collectors.toList());
+        }
+        
+        List<UUID> studentIds = matchedStudents.stream().map(Student::getId).collect(Collectors.toList());
+        java.util.Map<UUID, com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto> bulkAttendance = attendanceDashboardService.getStudentOverallAttendanceInBulk(studentIds, academicYearId, semesterId);
 
         List<CoordinatorStudentDto> studentDtos = matchedStudents.stream().map(student -> {
             User user = student.getUser();
+            Double overall = 0.0;
+            com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto dto = bulkAttendance.get(student.getId());
+            if (dto != null && dto.getOverallPercentage() != null) {
+                overall = dto.getOverallPercentage();
+            }
             return CoordinatorStudentDto.builder()
                     .id(student.getId())
                     .name(user.getFirstName() + " " + user.getLastName())
                     .enrollmentNumber(student.getEnrollmentNo() != null ? student.getEnrollmentNo() : "N/A")
                     .photo(user.getProfilePictureUrl())
-                    .overallAttendance(calculateOverallAttendance(student.getId()))
+                    .overallAttendance(overall)
                     .build();
         }).collect(Collectors.toList());
 
@@ -201,6 +191,7 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
     }
 
     @Override
+    @org.springframework.cache.annotation.CacheEvict(value = "coordinatorStudents", allEntries = true)
     @Transactional
     public void addBulkAttendance(BulkAttendanceRequestDto request) {
         User loggedIn = getLoggedInUser();
@@ -290,7 +281,7 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
 
     private Double calculateOverallAttendance(UUID studentId) {
         try {
-            com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = attendanceDashboardService.getStudentOverallAttendance(studentId);
+            com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = attendanceDashboardService.getStudentOverallAttendance(studentId, null, null);
             if (overall != null && overall.getOverallPercentage() != null) {
                 return overall.getOverallPercentage();
             }

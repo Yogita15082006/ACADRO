@@ -30,7 +30,7 @@ public class FacultyActivityController {
 
     @PostMapping("/bulk")
     public ResponseEntity<ApiResponse<List<FacultyActivityResponseDto>>> bulkCreate(@Valid @RequestBody com.acronexus.dto.FacultyActivityBulkRequestDto requestDto, org.springframework.security.core.Authentication authentication) {
-        System.out.println("BULK CREATE RECEIVED: " + requestDto);
+
         java.util.UUID facultyId = null;
         if (authentication != null && authentication.getPrincipal() instanceof com.acronexus.security.UserDetailsImpl) {
             com.acronexus.security.UserDetailsImpl userDetails = (com.acronexus.security.UserDetailsImpl) authentication.getPrincipal();

@@ -71,7 +71,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/auth/reset-password").permitAll()
                             .requestMatchers("/api/auth/verify-account").permitAll()
                             .requestMatchers("/api/auth/activate-account").permitAll()
-                            .requestMatchers("/api/public/**").permitAll()
+                            .requestMatchers("/api/auth/**", "/api/public/**", "/api/debug-students").permitAll()
                             .requestMatchers("/api/attendance-dashboard/test/**").permitAll()
                             .requestMatchers("/api/v1/profile/test/**").permitAll()
                             .requestMatchers("/api/events/file/**").permitAll()
@@ -83,6 +83,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/assignments/*/view", "/api/v1/assignments/*/download", "/api/v1/assignments/submissions/*/view", "/api/v1/assignments/submissions/*/download").permitAll()
                             .requestMatchers("/api/v1/resources/download/**").permitAll()
                             .requestMatchers("/api/events/banner/**").permitAll()
+                            .requestMatchers("/api/debug-dashboard/**").permitAll()
                             .requestMatchers("/favicon.ico", "/error", "/uploads/**").permitAll()
                             .anyRequest().authenticated()
                 );

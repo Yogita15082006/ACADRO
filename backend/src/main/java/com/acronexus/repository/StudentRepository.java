@@ -17,6 +17,8 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     Optional<Student> findByEnrollmentNo(String enrollmentNo);
     Optional<Student> findByUser_Id(UUID userId);
     List<Student> findByBatchYear(String batchYear);
+    List<Student> findByBatchYearAndUser_Department_Id(String batchYear, UUID departmentId);
+
 
     @Query("SELECT s FROM Student s LEFT JOIN s.user u WHERE " +
            "(:search IS NULL OR LOWER(s.enrollmentNo) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) OR LOWER(u.firstName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))) AND " +
@@ -32,4 +34,28 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
 
     @Query("SELECT DISTINCT s.batchYear FROM Student s WHERE s.batchYear IS NOT NULL ORDER BY s.batchYear DESC")
     List<String> findDistinctBatchYears();
+
+    @Query("SELECT s FROM Student s LEFT JOIN s.user u WHERE " +
+           "u.isActive = true AND " +
+           "u.department.id = :departmentId AND " +
+           "s.batchYear = :batch AND " +
+           "(CONCAT('Semester ', s.currentSemester) = :semester OR CAST(s.currentSemester AS string) = :semester) AND " +
+           "(s.section = :className OR s.course = :className OR CONCAT(s.course, '-', s.section) = :className OR CONCAT(s.course, ' ', s.section) = :className)")
+    List<Student> findByStrictCoordinatorScope(
+        @Param("departmentId") UUID departmentId,
+        @Param("batch") String batch,
+        @Param("semester") String semester,
+        @Param("className") String className
+    );
+    
+    @Query("SELECT s FROM Student s LEFT JOIN s.user u WHERE " +
+           "u.isActive = true AND u.isDeleted = false AND " +
+           "s.batchYear = :batch AND " +
+           "(CONCAT('Semester ', s.currentSemester) = :semester OR CAST(s.currentSemester AS string) = :semester) AND " +
+           "(s.section = :className OR s.course = :className OR CONCAT(s.course, '-', s.section) = :className OR CONCAT(s.course, ' ', s.section) = :className)")
+    List<Student> findByExaminationClassScope(
+        @Param("batch") String batch,
+        @Param("semester") String semester,
+        @Param("className") String className
+    );
 }

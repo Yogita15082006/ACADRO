@@ -25,4 +25,17 @@ public class AcademicSyllabus extends BaseEntity {
 
     @OneToMany(mappedBy = "academicSyllabus", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SyllabusSubject> subjects = new ArrayList<>();
+
+    public void setSubjects(List<SyllabusSubject> subjects) {
+        if (this.subjects == null) {
+            this.subjects = new ArrayList<>();
+        }
+        this.subjects.clear();
+        if (subjects != null) {
+            this.subjects.addAll(subjects);
+            for (SyllabusSubject subject : subjects) {
+                subject.setAcademicSyllabus(this);
+            }
+        }
+    }
 }

@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "ai.service")
 public class AiServiceProperties {
     private String baseUrl = "http://localhost:8000";
-    private int timeoutMs = 60000;
+    private int timeoutMs = 300000; // Increased to 5 minutes for bulk AI generation
 
 
     public String getBaseUrl() {

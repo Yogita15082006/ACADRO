@@ -33,6 +33,7 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
     private final TimetableRepository timetableRepository;
     private final TimetableSlotRepository timetableSlotRepository;
     private final com.acronexus.repository.EventAttendanceRecordRepository eventAttendanceRecordRepository;
+    private final com.acronexus.repository.SemesterRepository semesterRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Override
@@ -126,7 +127,7 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
             }
         }
         
-        List<Object[]> results = studentAttendanceRepository.getSubjectWiseAttendance(studentId);
+        List<Object[]> results = studentAttendanceRepository.getSubjectWiseAttendance(studentId, enrollmentOpt.get().getAcademicYear().getId(), enrollmentOpt.get().getSemester().getId());
         for (Object[] row : results) {
             String subjectName = (String) row[0];
             String facultyFirstName = (String) row[1];
@@ -225,7 +226,7 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
     }
 
     @Override
-    public OverallAttendanceDto getStudentOverallAttendance(UUID studentId) {
+    public OverallAttendanceDto getStudentOverallAttendance(UUID studentId, UUID academicYearId, UUID semesterId) {
         String studentName = "Student";
         String email = "N/A";
         String semesterStr = "N/A";
@@ -235,6 +236,13 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
         java.util.Optional<com.acronexus.entity.StudentEnrollment> enrollmentOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentId);
         if (enrollmentOpt.isPresent()) {
             com.acronexus.entity.StudentEnrollment enr = enrollmentOpt.get();
+            if (academicYearId == null && enr.getAcademicYear() != null) {
+                academicYearId = enr.getAcademicYear().getId();
+            }
+            if (semesterId == null && enr.getSemester() != null) {
+                semesterId = enr.getSemester().getId();
+            }
+            
             if (enr.getStudent() != null && enr.getStudent().getUser() != null) {
                 com.acronexus.entity.User u = enr.getStudent().getUser();
                 studentName = (u.getFirstName() != null ? u.getFirstName() : "") + " " + (u.getLastName() != null ? u.getLastName() : "");
@@ -255,7 +263,7 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
             }
         }
 
-        Object result = studentAttendanceRepository.getOverallAttendance(studentId);
+        Object result = studentAttendanceRepository.getOverallAttendance(studentId, academicYearId, semesterId);
         Integer totalWorkingDays = 0;
         Integer daysPresent = 0;
         Integer totalClasses = 0;
@@ -270,8 +278,18 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
         }
 
         // Integrate Event Attendance Contribution
+        java.time.Instant startInstant = java.time.Instant.MIN;
+        java.time.Instant endInstant = java.time.Instant.MAX;
+        if (semesterId != null) {
+            com.acronexus.entity.Semester sem = semesterRepository.findById(semesterId).orElse(null);
+            if (sem != null) {
+                if (sem.getStartDate() != null) startInstant = sem.getStartDate().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+                if (sem.getEndDate() != null) endInstant = sem.getEndDate().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+            }
+        }
+        
         List<com.acronexus.entity.EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
-                .findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(studentId, "CLOSED");
+                .findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(studentId, "CLOSED", startInstant, endInstant);
         for (com.acronexus.entity.EventAttendanceRecord rec : eventRecords) {
             String selectedLecturesStr = rec.getSession().getSelectedLectures();
             if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
@@ -317,6 +335,88 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
                 .classesMissed(classesMissed)
                 .overallPercentage(percentage)
                 .build();
+    }
+
+    @Override
+    public java.util.Map<UUID, OverallAttendanceDto> getStudentOverallAttendanceInBulk(List<UUID> studentIds, UUID academicYearId, UUID semesterId) {
+        if (studentIds == null || studentIds.isEmpty()) return new java.util.HashMap<>();
+        
+        java.util.Map<UUID, OverallAttendanceDto> map = new java.util.HashMap<>();
+        
+        // If academicYearId or semesterId is null, we can't reliably query in bulk without a term.
+        // We will just fall back to passing null (which will match nothing unless we fix the query or we don't query).
+        // Since getOverallAttendanceInBulk is strictly used by Coordinator Dashboard which provides these IDs, it should be fine.
+        
+        // 1. Get standard attendance in bulk
+        List<Object[]> bulkAttendance = studentAttendanceRepository.getOverallAttendanceInBulk(studentIds, academicYearId, semesterId);
+        java.util.Map<UUID, Integer> totalClassesMap = new java.util.HashMap<>();
+        java.util.Map<UUID, Integer> totalPresentMap = new java.util.HashMap<>();
+        java.util.Map<UUID, Integer> totalWorkingDaysMap = new java.util.HashMap<>();
+        java.util.Map<UUID, Integer> daysPresentMap = new java.util.HashMap<>();
+        
+        for (Object[] row : bulkAttendance) {
+            UUID sid = (UUID) row[0];
+            totalWorkingDaysMap.put(sid, row[1] != null ? ((Number) row[1]).intValue() : 0);
+            daysPresentMap.put(sid, row[2] != null ? ((Number) row[2]).intValue() : 0);
+            totalClassesMap.put(sid, row[3] != null ? ((Number) row[3]).intValue() : 0);
+            totalPresentMap.put(sid, row[4] != null ? ((Number) row[4]).intValue() : 0);
+        }
+        
+        // 2. Get event attendance in bulk
+        java.time.Instant startInstant = java.time.Instant.MIN;
+        java.time.Instant endInstant = java.time.Instant.MAX;
+        if (semesterId != null) {
+            com.acronexus.entity.Semester sem = semesterRepository.findById(semesterId).orElse(null);
+            if (sem != null) {
+                if (sem.getStartDate() != null) startInstant = sem.getStartDate().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+                if (sem.getEndDate() != null) endInstant = sem.getEndDate().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+            }
+        }
+        
+        List<com.acronexus.entity.EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
+                .findByStudentIdInAndSessionIsIncludedInOverallTrueAndSessionStatus(studentIds, "CLOSED", startInstant, endInstant);
+                
+        for (com.acronexus.entity.EventAttendanceRecord rec : eventRecords) {
+            UUID sid = rec.getStudent().getId();
+            String selectedLecturesStr = rec.getSession().getSelectedLectures();
+            if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
+                try {
+                    List<String> selectedLectures = objectMapper.readValue(selectedLecturesStr, 
+                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
+                    int lectureCount = selectedLectures.size();
+                    totalClassesMap.put(sid, totalClassesMap.getOrDefault(sid, 0) + lectureCount);
+                    if ("SUBMITTED".equals(rec.getStatus())) {
+                        totalPresentMap.put(sid, totalPresentMap.getOrDefault(sid, 0) + lectureCount);
+                    }
+                } catch (Exception e) {
+                    // Skip
+                }
+            }
+        }
+        
+        // 3. Build DTOs
+        for (UUID sid : studentIds) {
+            int tc = totalClassesMap.getOrDefault(sid, 0);
+            int tp = totalPresentMap.getOrDefault(sid, 0);
+            int twd = totalWorkingDaysMap.getOrDefault(sid, 0);
+            int dp = daysPresentMap.getOrDefault(sid, 0);
+            int missed = tc - tp;
+            int daysAbsent = twd - dp;
+            double pct = tc > 0 ? (double) tp / tc * 100.0 : 0.0;
+            
+            map.put(sid, OverallAttendanceDto.builder()
+                    .totalClasses(tc)
+                    .totalPresent(tp)
+                    .classesMissed(missed)
+                    .totalAbsent(missed)
+                    .totalWorkingDays(twd)
+                    .daysPresent(dp)
+                    .daysAbsent(daysAbsent)
+                    .overallPercentage(pct)
+                    .build());
+        }
+        
+        return map;
     }
 
     @Override

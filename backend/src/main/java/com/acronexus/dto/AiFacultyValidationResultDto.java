@@ -16,6 +16,9 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AiFacultyValidationResultDto {
     private int totalAnalyzed;
+    private int validCount;
+    private int warningCount;
+    private int errorCount;
     private int issuesFound;
     private List<AiValidationIssue> issues;
     private String aiSummary;

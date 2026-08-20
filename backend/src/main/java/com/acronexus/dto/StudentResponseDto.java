@@ -7,6 +7,7 @@ import java.util.UUID;
 @Data
 public class StudentResponseDto {
     private UUID id;
+    private UUID userId;
     private String enrollmentNumber;
     private String name;
     private String gender;

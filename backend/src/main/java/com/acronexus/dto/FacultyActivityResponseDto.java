@@ -22,4 +22,5 @@ public class FacultyActivityResponseDto {
     private Integer presentCount;
     private Integer absentCount;
     private UUID sessionId;
+    private UUID facultyId;
 }

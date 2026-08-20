@@ -145,7 +145,7 @@ public class AttendanceReportServiceImpl implements AttendanceReportService {
             if (semesterId == null) semesterId = enrollment.getSemester().getId();
         }
 
-        com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = dashboardService.getStudentOverallAttendance(studentId);
+        com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto overall = dashboardService.getStudentOverallAttendance(studentId, null, null);
         List<com.acronexus.dto.AttendanceDashboardDto.SubjectAttendanceDto> subjectWise = dashboardService.getStudentSubjectWiseAttendance(studentId);
         List<com.acronexus.dto.AttendanceDashboardDto.MonthlyAttendanceDto> monthly = dashboardService.getStudentMonthlyAttendance(studentId, academicYearId, semesterId);
         

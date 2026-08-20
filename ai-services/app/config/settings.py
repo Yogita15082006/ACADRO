@@ -13,8 +13,8 @@ print(f"Loaded GROQ_API_KEY from os.environ: {os.environ.get('GROQ_API_KEY')}")
 class Settings(BaseSettings):
     groq_api_key: str
     groq_base_url: str = "https://api.groq.com/openai/v1/chat/completions"
-    groq_model: str = "llama-3.1-8b-instant"
-    timeout_ms: int = 30000
+    groq_model: str = "gemma2-9b-it"
+    timeout_ms: int = 300000
     max_retries: int = 3
 
     model_config = SettingsConfigDict(env_file=ENV_PATH, env_file_encoding="utf-8", extra="ignore")

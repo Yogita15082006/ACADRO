@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -15,10 +16,13 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AiStudentValidationResultDto {
     private int totalAnalyzed;
+    private int validCount;
+    private int warningCount;
+    private int errorCount;
     private int issuesFound;
     private List<AiValidationIssue> issues;
     private String aiSummary;
-    private List<java.util.Map<String, String>> rawRecords;
+    private List<Map<String, String>> rawRecords;
 
     @Data
     @Builder

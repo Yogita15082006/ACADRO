@@ -33,6 +33,7 @@ public class ExamResultServiceImpl implements ExamResultService {
     private final ExamResultsHistoryRepository historyRepository;
     private final UserRepository userRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
+    private final com.acronexus.repository.ExamAiFeedbackRepository aiFeedbackRepository;
 
     @Override
     @Transactional
@@ -135,6 +136,24 @@ public class ExamResultServiceImpl implements ExamResultService {
 
     @Override
     @Transactional
+    public void deleteResultsForClass(UUID examinationId, String className) {
+        List<ExamResult> results;
+        List<com.acronexus.entity.ExamAiFeedback> feedbacks;
+        
+        if (className != null && !className.isBlank()) {
+            results = repository.findByExaminationIdAndClassName(examinationId, className);
+            feedbacks = aiFeedbackRepository.findByExaminationIdAndClassName(examinationId, className);
+        } else {
+            results = repository.findByExaminationId(examinationId);
+            feedbacks = aiFeedbackRepository.findByExaminationId(examinationId);
+        }
+        
+        aiFeedbackRepository.deleteAll(feedbacks);
+        repository.deleteAll(results);
+    }
+
+    @Override
+    @Transactional
     public int publishResults(UUID examinationId, String className, UUID studentId) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
@@ -148,7 +167,6 @@ public class ExamResultServiceImpl implements ExamResultService {
             results = repository.findByExaminationId(examinationId);
         }
         
-        System.out.println("PUBLISH_DEBUG: className=" + className + ", studentId=" + studentId + ", results.size()=" + results.size());
 
         int count = 0;
         for (ExamResult result : results) {

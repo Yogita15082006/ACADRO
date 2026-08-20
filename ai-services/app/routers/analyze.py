@@ -1,5 +1,6 @@
 import logging
 import json
+import json_repair
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter
@@ -170,18 +171,40 @@ async def analyze_data(request: AnalyticsRequest):
         temperature=0.8 if request.insightType in ["QUIZ_QUESTION_GENERATION", "QUIZ_ANSWER_KEY_GENERATION"] else (0.1 if request.insightType in ["QUIZ_URL_QUESTION_EXTRACTION", "BULK_EXAM_FEEDBACK"] else 0.3)
     )
     
+    content = ""
     try:
         ai_res = await ai_service.generate_content(ai_req)
         content = ai_res.content.strip()
         
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
+        # Robust JSON extraction
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
             
-        parsed = json.loads(content.strip())
+        # Try native fast JSON parsing first
+        try:
+            parsed = json.loads(content)
+        except Exception as json_err:
+            logger.warning(f"Native json.loads failed, falling back to json_repair: {str(json_err)}")
+            # Use json_repair in a separate thread to prevent blocking the event loop on huge malformed strings
+            import asyncio
+            try:
+                parsed = await asyncio.to_thread(json_repair.loads, content)
+            except Exception as repair_err:
+                logger.error(f"json_repair failed: {str(repair_err)}")
+                # Try to extract array or object if it still failed
+                first_idx = min([idx for idx in [content.find('['), content.find('{')] if idx >= 0] + [len(content)])
+                last_idx = max([idx for idx in [content.rfind(']'), content.rfind('}')] if idx >= 0] + [-1])
+                if first_idx < len(content) and last_idx >= 0 and last_idx >= first_idx:
+                    content = content[first_idx:last_idx+1]
+                    try:
+                        parsed = await asyncio.to_thread(json_repair.loads, content)
+                    except:
+                        raise
+                else:
+                    raise
+                
         if isinstance(parsed, list):
             raw_insights = json.dumps(parsed)
             confidence = 0.9
@@ -209,13 +232,11 @@ async def analyze_data(request: AnalyticsRequest):
             rawInsights=raw_insights
         )
     except Exception as e:
-        logger.error("Failed to process ANALYTICS request: %s", e, exc_info=True)
-        reasoning_str = f"AI response parsing failed: {str(e)}" if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else "Failed to process AI analytics."
-        if "rate_limit" in str(e).lower() or "413" in str(e) or "too large" in str(e).lower():
-            reasoning_str = "AI response parsing failed: Content size exceeded token limits or service busy."
+        logger.error(f"AI Service Error: {str(e)}")
+        logger.error(f"Raw content was: {content}")
         return AnalyticsResponse(
             confidence=0.0,
-            reasoning=reasoning_str,
+            reasoning=f"AI response parsing failed: {str(e)}",
             recommendations=[],
             rawInsights="[]" if request.insightType == "QUIZ_URL_QUESTION_EXTRACTION" else "{}"
         )

@@ -114,10 +114,16 @@ public class AttendanceServiceImpl implements AttendanceService {
         UUID classId = activity.getClassSubject().getAcroClass().getId();
         UUID classSubjectId = activity.getClassSubject().getId();
 
-        // Check if student is actively enrolled in the class
-        boolean isEnrolled = studentEnrollmentRepository.existsByStudentIdAndAcroClassIdAndIsActiveTrue(studentId, classId);
+        // Check if student is actively enrolled in the class for the correct academic year and semester
+        boolean isEnrolled = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId).stream()
+                .anyMatch(e -> e.getStudent().getId().equals(studentId) 
+                        && e.getAcademicYear() != null 
+                        && e.getAcademicYear().getId().equals(activity.getClassSubject().getAcademicYear().getId())
+                        && e.getSemester() != null
+                        && e.getSemester().getId().equals(activity.getClassSubject().getSemester().getId()));
+        
         if (!isEnrolled) {
-            return ApiResponse.error("You are not enrolled in this class.");
+            return ApiResponse.error("You are not enrolled in this class subject for the current academic year and semester.");
         }
 
         LocalDate today = LocalDate.now();

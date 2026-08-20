@@ -44,15 +44,7 @@ export interface CoordinatorSchedule {
 
 let cachedMyStudents: CoordinatorSectionData | null = null;
 
-try {
-    const stored = sessionStorage.getItem('acro_coordinator_students');
-    if (stored) {
-        cachedMyStudents = JSON.parse(stored);
-    }
-} catch (e) {
-    console.error("Failed to parse cached students", e);
-}
-
+// Removed sessionStorage caching to ensure real-time data sync
 export const coordinatorAttendanceService = {
     getCachedStudents: () => cachedMyStudents,
     
@@ -61,21 +53,13 @@ export const coordinatorAttendanceService = {
         try {
             const response = await api.get('/v1/coordinator-attendance/my-students');
             cachedMyStudents = response.data?.data || null;
-            if (cachedMyStudents) {
-                sessionStorage.setItem('acro_coordinator_students', JSON.stringify(cachedMyStudents));
-            }
             return cachedMyStudents;
         } catch (error) {
-            if (cachedMyStudents) {
-                toast.warning('Using cached attendance data (Background refresh failed)');
-                return cachedMyStudents; // fallback to cache on error
-            }
             throw error;
         }
     },
     clearCache: () => {
         cachedMyStudents = null;
-        sessionStorage.removeItem('acro_coordinator_students');
     },
 
     getScheduleForDate: async (date: string): Promise<CoordinatorSchedule> => {

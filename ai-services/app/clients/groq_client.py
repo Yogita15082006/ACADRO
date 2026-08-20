@@ -85,7 +85,7 @@ class GroqClient:
         rate_limit_429s = 0
 
         # For 429 rate limit errors, allow up to 6 intelligent retry attempts for per-minute limits to reset
-        max_attempts = max(settings.max_retries, 6)
+        max_attempts = 6
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -117,7 +117,10 @@ class GroqClient:
                                 wait_time = float(match.group(1))
 
                         if wait_time > 0:
-                            sleep_duration = min(wait_time + 1.5, 60.0)
+                            if wait_time > 60.0:
+                                logger.error(f"Groq rate limit requires waiting {wait_time}s. Failing fast to prevent hanging the UI.")
+                                raise GroqRateLimitError(f"Groq rate limit exceeded. Please wait {int(wait_time/60)} minutes.")
+                            sleep_duration = wait_time + 1.5
                         else:
                             # Exponential backoff with random jitter to prevent thundering herd
                             sleep_duration = min(60.0, (2 ** (attempt - 1)) * 3.0 + random.uniform(0.5, 2.5))

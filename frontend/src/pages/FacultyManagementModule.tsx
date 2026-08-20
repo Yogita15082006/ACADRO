@@ -14,6 +14,7 @@ import { Label } from '../components/ui/label';
 
 import { ChevronLeft } from 'lucide-react';
 import { AcademicResourceDialog } from '../components/modals/AcademicResourceDialog';
+import { useMetadata } from '../hooks/useMetadata';
 
 type Tab = 'faculty-coordinators' | 'syllabus' | 'scheme' | 'timetable';
 
@@ -162,9 +163,119 @@ const MakeCoordinatorDialog = ({ open, faculty, onClose, onSave }: any) => {
   );
 };
 
-export const FacultyManagementModule = () => {
+const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => {
+  const [name, setName] = useState(faculty.name || '');
+  const [email, setEmail] = useState(faculty.email || '');
+  const [role, setRole] = useState(faculty.role?.toLowerCase() || 'faculty');
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (faculty) {
+      setName(faculty.name || '');
+      setEmail(faculty.email || '');
+      setRole(faculty.role?.toLowerCase() || 'faculty');
+      if (faculty.departments && Array.isArray(faculty.departments)) {
+        setSelectedDepts(faculty.departments.map((d: any) => typeof d === 'string' ? d : d.name));
+      } else if (faculty.department?.name) {
+        setSelectedDepts([faculty.department.name]);
+      } else {
+        setSelectedDepts([]);
+      }
+    }
+  }, [faculty]);
+
+  const toggleDept = (deptName: string) => {
+    if (selectedDepts.includes(deptName)) {
+      setSelectedDepts(selectedDepts.filter(d => d !== deptName));
+    } else {
+      setSelectedDepts([...selectedDepts, deptName]);
+    }
+  };
+
+  const handleSubmit = (e: any) => {
+    e.preventDefault();
+    onSave({
+      name,
+      email,
+      role,
+      departments: selectedDepts,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 py-2">
+      <div className="flex items-center gap-4 border-b border-border/50 pb-4">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl shrink-0">
+          {name ? name.split(' ').map((n: string) => n[0]).join('') : 'F'}
+        </div>
+        <div className="flex-1 space-y-2">
+          <Input value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" required />
+          <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required disabled />
+        </div>
+      </div>
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <Label>Role</Label>
+          <select value={role} onChange={e => setRole(e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+            <option value="faculty">Faculty</option>
+            <option value="coordinator">Coordinator</option>
+            <option value="both">Both</option>
+            <option value="hod">HOD</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label>Departments <span className="text-muted-foreground font-normal text-xs">(Select multiple)</span></Label>
+          <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-border p-2 rounded-md">
+            {departmentsList.map((d: string) => (
+              <label key={d} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted p-1 rounded">
+                <input 
+                  type="checkbox" 
+                  checked={selectedDepts.includes(d)} 
+                  onChange={() => toggleDept(d)} 
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                {d}
+              </label>
+            ))}
+            {departmentsList.length === 0 && <p className="text-muted-foreground text-xs col-span-2">No departments found.</p>}
+          </div>
+        </div>
+      </div>
+      {((faculty.classes && faculty.classes.length > 0) || (faculty.subjects && faculty.subjects.length > 0)) && (
+        <div className="space-y-3 pt-2">
+          {faculty.classes && faculty.classes.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Assigned Classes</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {(faculty.classes || []).map((c: string) => (
+                  <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {faculty.subjects && faculty.subjects.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Assigned Subjects</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {(faculty.subjects || []).map((s: string) => (
+                  <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <DialogFooter className="pt-4">
+        <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button type="submit">Save Changes</Button>
+      </DialogFooter>
+    </form>
+  );
+};
+
+export const FacultyManagementModule = () => {
   const navigate = useNavigate();
+  const { departmentsList } = useMetadata();
   const [activeTab, setActiveTab] = useState<Tab>('faculty-coordinators');
   const [previewFaculty, setPreviewFaculty] = useState<any>(null);
   const [search, setSearch] = useState('');
@@ -883,6 +994,23 @@ export const FacultyManagementModule = () => {
     }
   };
 
+  const handleEditFacultySave = async (updatedData: any) => {
+    if (!viewFacultyDialog) return;
+    try {
+      await api.put(`/v1/users/${viewFacultyDialog.id}`, {
+        firstName: updatedData.name.split(' ')[0] || updatedData.name,
+        lastName: updatedData.name.split(' ').slice(1).join(' '),
+        role: updatedData.role.toUpperCase(),
+        departments: updatedData.departments,
+      });
+      toast.success('Faculty details updated successfully.');
+      setViewFacultyDialog(null);
+      fetchFaculty();
+    } catch (e) {
+      toast.error('Failed to update faculty details.');
+    }
+  };
+
   const handleDeleteAll = async () => {
     setIsDeletingAll(true);
     try {
@@ -1123,7 +1251,11 @@ export const FacultyManagementModule = () => {
                         <td className="px-4 py-3">
                           <Badge variant={f.role === 'HOD' ? 'default' : f.role === 'COORDINATOR' ? 'secondary' : 'outline'} className="text-xs capitalize">{f.role}</Badge>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{f.department?.name || 'N/A'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {f.departments && f.departments.length > 0 
+                            ? f.departments.map((d: any) => typeof d === 'string' ? d : d.name).join(', ') 
+                            : f.department?.name || 'N/A'}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
                             {(f.role === 'FACULTY') && (
@@ -1532,76 +1664,12 @@ export const FacultyManagementModule = () => {
             </DialogTitle>
           </DialogHeader>
           {viewFacultyDialog && (
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              setLocalFaculty(prev => prev.map(f => f.id === viewFacultyDialog.id ? {
-                ...f,
-                name: formData.get('name') as string,
-                email: formData.get('email') as string,
-                role: formData.get('role') as string,
-                dept: formData.get('dept') as string,
-              } : f));
-              toast.success('Faculty details updated successfully.');
-              setViewFacultyDialog(null);
-            }} className="space-y-4 py-2">
-              <div className="flex items-center gap-4 border-b border-border/50 pb-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl shrink-0">
-                  {viewFacultyDialog.name.split(' ').map((n: string) => n[0]).join('')}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <Input name="name" defaultValue={viewFacultyDialog.name} placeholder="Full Name" required />
-                  <Input name="email" type="email" defaultValue={viewFacultyDialog.email} placeholder="Email" required />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label>Role</Label>
-                  <select name="role" defaultValue={viewFacultyDialog.role} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
-                    <option value="faculty">Faculty</option>
-                    <option value="coordinator">Coordinator</option>
-                    <option value="both">Both</option>
-                    <option value="hod">HOD</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Department</Label>
-                  <select name="dept" defaultValue={viewFacultyDialog.department?.name || ''} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
-                    <option value="IT">IT</option>
-                    <option value="CS">CS</option>
-                    <option value="DS">DS</option>
-                  </select>
-                </div>
-              </div>
-              {((viewFacultyDialog.classes && viewFacultyDialog.classes.length > 0) || (viewFacultyDialog.subjects && viewFacultyDialog.subjects.length > 0)) && (
-                <div className="space-y-3 pt-2">
-                  {viewFacultyDialog.classes && viewFacultyDialog.classes.length > 0 && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Assigned Classes</Label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {(viewFacultyDialog.classes || []).map((c: string) => (
-                          <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {viewFacultyDialog.subjects && viewFacultyDialog.subjects.length > 0 && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Assigned Subjects</Label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {(viewFacultyDialog.subjects || []).map((s: string) => (
-                          <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              <DialogFooter className="pt-4">
-                <Button type="button" variant="ghost" onClick={() => setViewFacultyDialog(null)}>Cancel</Button>
-                <Button type="submit">Save Changes</Button>
-              </DialogFooter>
-            </form>
+            <EditFacultyForm 
+              faculty={viewFacultyDialog} 
+              departmentsList={departmentsList} 
+              onClose={() => setViewFacultyDialog(null)} 
+              onSave={handleEditFacultySave} 
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -1686,9 +1754,10 @@ export const FacultyManagementModule = () => {
               <div className="space-y-1">
                 <Label htmlFor="dept">Department</Label>
                 <select id="dept" name="dept" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
-                  <option value="IT">IT</option>
-                  <option value="DS">DS</option>
-                  <option value="CS">CS</option>
+                  {departmentsList.map((d: string) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                  {departmentsList.length === 0 && <option value="">No departments available</option>}
                 </select>
               </div>
             </div>
@@ -2141,22 +2210,26 @@ export const FacultyManagementModule = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="bg-muted p-3 rounded-md text-center">
                 <p className="text-xs text-muted-foreground">Total</p>
                 <p className="text-lg font-bold">{importSummary?.totalRecords || 0}</p>
               </div>
               <div className="bg-green-500/10 text-green-700 p-3 rounded-md text-center">
-                <p className="text-xs">Imported</p>
+                <p className="text-xs">New Inserted</p>
                 <p className="text-lg font-bold">{importSummary?.successfullyInserted || 0}</p>
+              </div>
+              <div className="bg-blue-500/10 text-blue-700 p-3 rounded-md text-center">
+                <p className="text-xs">Updated</p>
+                <p className="text-lg font-bold">{importSummary?.updatedRecords || 0}</p>
               </div>
               <div className="bg-red-500/10 text-red-700 p-3 rounded-md text-center">
                 <p className="text-xs">Failed</p>
                 <p className="text-lg font-bold">{importSummary?.failedRecords || 0}</p>
               </div>
               <div className="bg-orange-500/10 text-orange-700 p-3 rounded-md text-center">
-                <p className="text-xs">Skipped/Duplicate</p>
-                <p className="text-lg font-bold">{(importSummary?.skippedRecords || 0) + (importSummary?.duplicateRecords || 0)}</p>
+                <p className="text-xs">Skipped</p>
+                <p className="text-lg font-bold">{importSummary?.skippedRecords || 0}</p>
               </div>
             </div>
 
@@ -2223,6 +2296,7 @@ export const FacultyManagementModule = () => {
                 </DialogTitle>
                 <DialogDescription className="mt-2 flex flex-wrap items-center gap-3">
                   <Badge variant="secondary">Dept: {reviewData?.department}</Badge>
+                  <Badge variant="secondary">Batch: {reviewData?.batch || 'N/A'}</Badge>
                   <Badge variant="secondary">Year: {reviewData?.academicYear}</Badge>
                   <Badge variant="secondary">Sem: {reviewData?.semester}</Badge>
                   <Badge variant="outline">Class: {reviewData?.className}</Badge>

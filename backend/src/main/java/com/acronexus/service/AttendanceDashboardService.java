@@ -9,7 +9,8 @@ public interface AttendanceDashboardService {
     // Student Dashboard
     List<StudentAttendanceHistoryDto> getStudentAttendanceHistory(UUID studentId);
     List<SubjectAttendanceDto> getStudentSubjectWiseAttendance(UUID studentId);
-    OverallAttendanceDto getStudentOverallAttendance(UUID studentId);
+    OverallAttendanceDto getStudentOverallAttendance(UUID studentId, UUID academicYearId, UUID semesterId);
+    java.util.Map<UUID, OverallAttendanceDto> getStudentOverallAttendanceInBulk(List<UUID> studentIds, UUID academicYearId, UUID semesterId);
     List<MonthlyAttendanceDto> getStudentMonthlyAttendance(UUID studentId, UUID academicYearId, UUID semesterId);
     
     // Faculty Dashboard

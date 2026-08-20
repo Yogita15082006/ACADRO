@@ -5,7 +5,6 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "class_subjects")
-@EntityListeners(ClassSubjectEntityListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class ClassSubject extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)

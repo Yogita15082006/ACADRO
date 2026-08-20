@@ -29,6 +29,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final StudentAchievementRepository studentAchievementRepository;
     private final AcademicRecordRepository academicRecordRepository;
     private final FileStorageRepository fileStorageRepository;
+    private final FacultyRepository facultyRepository;
     
     @Lazy
     private final AttendanceDashboardService attendanceDashboardService;
@@ -65,6 +66,21 @@ public class ProfileServiceImpl implements ProfileService {
             builder.departmentName(deptName);
             builder.department(deptName);
             builder.branch(deptName);
+        }
+
+        // Faculty Departments
+        if ("FACULTY".equals(user.getRole().name()) || "HOD".equals(user.getRole().name()) || "COORDINATOR".equals(user.getRole().name()) || "ROLE_FACULTY".equals(user.getRole().name()) || "ROLE_HOD".equals(user.getRole().name()) || "ROLE_COORDINATOR".equals(user.getRole().name())) {
+            facultyRepository.findById(userId).ifPresent(faculty -> {
+                if (faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
+                    List<java.util.Map<String, Object>> depts = faculty.getDepartments().stream().map(d -> {
+                        java.util.Map<String, Object> map = new java.util.HashMap<>();
+                        map.put("id", d.getId().toString());
+                        map.put("name", d.getName());
+                        return map;
+                    }).collect(Collectors.toList());
+                    builder.departments(depts);
+                }
+            });
         }
 
         // Family Details
@@ -237,7 +253,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             // Academic Stats (Always fetch, even if Student entity doesn't exist yet)
             try {
-                OverallAttendanceDto attendance = attendanceDashboardService.getStudentOverallAttendance(userId);
+                com.acronexus.dto.AttendanceDashboardDto.OverallAttendanceDto attendance = attendanceDashboardService.getStudentOverallAttendance(userId, null, null);
                 if (attendance != null) {
                     builder.overallAttendance(attendance.getOverallPercentage());
                     builder.totalClassesConducted(attendance.getTotalClasses());

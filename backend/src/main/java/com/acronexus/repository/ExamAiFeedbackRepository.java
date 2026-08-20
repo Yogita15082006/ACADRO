@@ -9,7 +9,7 @@ import java.util.UUID;
 public interface ExamAiFeedbackRepository extends JpaRepository<ExamAiFeedback, UUID> {
     java.util.Optional<ExamAiFeedback> findByExaminationIdAndStudentId(UUID examinationId, UUID studentId);
     
-    @org.springframework.data.jpa.repository.Query("SELECT f FROM ExamAiFeedback f JOIN StudentEnrollment se ON f.student.id = se.student.id WHERE f.examination.id = :examinationId AND se.acroClass.name = :className AND se.isActive = true")
+    @org.springframework.data.jpa.repository.Query("SELECT f FROM ExamAiFeedback f JOIN StudentEnrollment se ON f.student.id = se.student.id JOIN se.acroClass c WHERE f.examination.id = :examinationId AND (c.section = :className OR c.name = :className OR CONCAT(c.name, '-', c.section) = :className) AND se.isActive = true")
     java.util.List<ExamAiFeedback> findByExaminationIdAndClassName(@org.springframework.data.repository.query.Param("examinationId") UUID examinationId, @org.springframework.data.repository.query.Param("className") String className);
     
     java.util.List<ExamAiFeedback> findByExaminationId(UUID examinationId);

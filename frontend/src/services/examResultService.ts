@@ -56,6 +56,16 @@ export const examResultService = {
     return response.data;
   },
   
+  deleteResultsForClass: async (examinationId: string, className?: string) => {
+    const params = new URLSearchParams();
+    params.append('examinationId', examinationId);
+    if (className) {
+      params.append('className', className);
+    }
+    const response = await api.delete(`/exam-results/class?${params.toString()}`);
+    return response.data;
+  },
+
   getAIFeedback: async (examinationId: string, className?: string) => {
      const params = new URLSearchParams();
      params.append('examinationId', examinationId);

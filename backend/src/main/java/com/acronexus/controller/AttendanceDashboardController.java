@@ -22,13 +22,25 @@ public class AttendanceDashboardController {
 
     private final AttendanceDashboardService dashboardService;
     private final com.acronexus.repository.ClassSubjectRepository classSubjectRepository;
+    private final com.acronexus.service.CoordinatorAttendanceService coordinatorAttendanceService;
 
     // --- AUTHORIZATION HELPERS ---
     private void verifyStudentAccess(UUID studentId) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        // If user is a Coordinator, strictly enforce that the student is within their assigned scope
+        boolean isCoordinator = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_COORDINATOR"));
+        if (isCoordinator) {
+            boolean isStudentInScope = coordinatorAttendanceService.getMyStudents().getStudents().stream()
+                    .anyMatch(s -> s.getId().equals(studentId));
+            if (!isStudentInScope) {
+                throw new AccessDeniedException("Access denied: This student is outside your assigned academic scope");
+            }
+            return;
+        }
+
         boolean isPrivileged = userDetails.getAuthorities().stream().anyMatch(a -> 
             a.getAuthority().equals("ROLE_ADMIN") || 
-            a.getAuthority().equals("ROLE_COORDINATOR") || 
             a.getAuthority().equals("ROLE_HOD") || 
             a.getAuthority().equals("ROLE_FACULTY")
         );
@@ -81,7 +93,7 @@ public class AttendanceDashboardController {
 
     @GetMapping("/test/{studentId}")
     public ResponseEntity<ApiResponse<OverallAttendanceDto>> testOverall(@PathVariable UUID studentId) {
-        return ResponseEntity.ok(ApiResponse.success("Test fetch", dashboardService.getStudentOverallAttendance(studentId)));
+        return ResponseEntity.ok(ApiResponse.success("Test fetch", dashboardService.getStudentOverallAttendance(studentId, null, null)));
     }
 
     @GetMapping("/student/{studentId}/overall")
@@ -90,7 +102,7 @@ public class AttendanceDashboardController {
         verifyStudentAccess(studentId);
         return ResponseEntity.ok(ApiResponse.success(
                 "Student overall attendance fetched successfully", 
-                dashboardService.getStudentOverallAttendance(studentId)
+                dashboardService.getStudentOverallAttendance(studentId, null, null)
         ));
     }
 

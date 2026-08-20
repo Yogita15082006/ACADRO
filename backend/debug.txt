@@ -1,0 +1,10 @@
+Entity Status: ABSENT
+ClassSubject: e19ee1d2-d9d0-4cbd-bdef-0b5494a0a83a
+Entity Status: ABSENT
+ClassSubject: e19ee1d2-d9d0-4cbd-bdef-0b5494a0a83a
+Entity Status: ABSENT
+ClassSubject: 0bffa5c0-2954-49cc-af2f-d2a491657260
+Entity Status: ABSENT
+ClassSubject: 0bffa5c0-2954-49cc-af2f-d2a491657260
+Entity Status: ABSENT
+ClassSubject: e19ee1d2-d9d0-4cbd-bdef-0b5494a0a83a

@@ -102,7 +102,7 @@ export const StudentsModule = () => {
     if (filterBatch) res = res.filter(s => s.batch === filterBatch);
     if (filterClass) res = res.filter(s => s.className === filterClass);
     if (filterStatus) res = res.filter(s => s.status === filterStatus);
-    return res.slice(0, 100); // Limit for performance
+    return res;
   }, [students, searchQuery, filterBatch, filterClass, filterStatus]);
 
   const stats = useMemo(() => ({
@@ -711,22 +711,26 @@ export const StudentsModule = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="bg-muted p-3 rounded-md text-center">
                 <p className="text-xs text-muted-foreground">Total</p>
                 <p className="text-lg font-bold">{importSummary?.totalRecords || 0}</p>
               </div>
               <div className="bg-green-500/10 text-green-700 p-3 rounded-md text-center">
-                <p className="text-xs">Imported</p>
+                <p className="text-xs">New Inserted</p>
                 <p className="text-lg font-bold">{importSummary?.successfullyInserted || 0}</p>
+              </div>
+              <div className="bg-blue-500/10 text-blue-700 p-3 rounded-md text-center">
+                <p className="text-xs">Updated</p>
+                <p className="text-lg font-bold">{importSummary?.updatedRecords || 0}</p>
               </div>
               <div className="bg-red-500/10 text-red-700 p-3 rounded-md text-center">
                 <p className="text-xs">Failed</p>
                 <p className="text-lg font-bold">{importSummary?.failedRecords || 0}</p>
               </div>
               <div className="bg-orange-500/10 text-orange-700 p-3 rounded-md text-center">
-                <p className="text-xs">Skipped/Duplicate</p>
-                <p className="text-lg font-bold">{(importSummary?.skippedRecords || 0) + (importSummary?.duplicateRecords || 0)}</p>
+                <p className="text-xs">Skipped</p>
+                <p className="text-lg font-bold">{importSummary?.skippedRecords || 0}</p>
               </div>
             </div>
 

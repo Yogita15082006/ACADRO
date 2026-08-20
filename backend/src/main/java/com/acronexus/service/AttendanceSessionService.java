@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.acronexus.dto.TeachingHistoryDTO;
 
 @Service
 @RequiredArgsConstructor
@@ -23,11 +24,12 @@ public class AttendanceSessionService {
     private final StudentAttendanceRepository attendanceRepository;
     private final StudentRepository studentRepository;
     private final FacultyActivityRepository facultyActivityRepository;
+    private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
 
     public java.util.Map<String, Object> getFacultyStatistics(UUID facultyId) {
         long daysPresent = sessionRepository.countDaysPresentByFacultyId(facultyId);
         long daysAbsent = facultyActivityRepository.countDaysAbsentByFacultyId(facultyId);
-        long totalWorkingDays = facultyActivityRepository.countTotalWorkingDaysByFacultyId(facultyId);
+        long totalWorkingDays = daysPresent + daysAbsent;
         
         java.util.Map<String, Object> stats = new java.util.HashMap<>();
         stats.put("daysPresent", daysPresent);
@@ -35,6 +37,90 @@ public class AttendanceSessionService {
         stats.put("totalWorkingDays", totalWorkingDays);
         return stats;
     }
+
+    @Transactional(readOnly = true)
+    public List<TeachingHistoryDTO> getTeachingHistory(UUID facultyId) {
+        List<ClassSubject> classSubjects = classSubjectRepository.findByFacultyId(facultyId);
+        List<AttendanceSession> sessions = sessionRepository.findByFacultyId(facultyId);
+        
+        return classSubjects.stream().map(cs -> {
+            List<AttendanceSession> csSessions = sessions.stream()
+                    .filter(s -> s.getClassSubject() != null && s.getClassSubject().getId().equals(cs.getId()) &&
+                            (s.getStatus() == AttendanceSessionStatus.COMPLETED || s.getStatus() == AttendanceSessionStatus.SAVED || s.getStatus() == AttendanceSessionStatus.CLOSED))
+                    .collect(Collectors.toList());
+                    
+            long totalScheduled = csSessions.size();
+            long conducted = csSessions.stream().filter(s -> s.getIsSystemGenerated() == null || !s.getIsSystemGenerated()).count();
+            long missed = csSessions.stream().filter(s -> Boolean.TRUE.equals(s.getIsSystemGenerated())).count();
+            int overallAttendance = totalScheduled > 0 ? Math.round(((float) conducted / totalScheduled) * 100) : 0;
+            
+            String batch = "-";
+            if (cs.getAcroClass() != null) {
+                List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName());
+                if (!assignments.isEmpty() && assignments.get(0).getBatch() != null) {
+                    batch = assignments.get(0).getBatch();
+                }
+            }
+            
+            String year = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear().replace("YEAR_", "") : "-";
+            String semester = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : "-";
+            String className = cs.getAcroClass() != null ? cs.getAcroClass().getName() : "-";
+            String subjectName = cs.getSubject() != null ? cs.getSubject().getName() : "-";
+            
+            return TeachingHistoryDTO.builder()
+                    .classSubjectId(cs.getId())
+                    .batch(batch)
+                    .year(year)
+                    .semester(semester)
+                    .className(className)
+                    .subjectName(subjectName)
+                    .totalScheduled(totalScheduled)
+                    .conducted(conducted)
+                    .missed(missed)
+                    .overallAttendance(overallAttendance)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public AttendanceSessionDTO generateAiSession(UUID facultyId, UUID classSubjectId) {
+        ClassSubject classSubject = classSubjectRepository.findById(classSubjectId)
+                .orElseThrow(() -> new RuntimeException("ClassSubject not found"));
+
+        if (!classSubject.getFaculty().getId().equals(facultyId)) {
+            throw new RuntimeException("Unauthorized: You do not teach this subject.");
+        }
+
+        AttendanceSession session = new AttendanceSession();
+        session.setFaculty(classSubject.getFaculty());
+        session.setClassSubject(classSubject);
+        session.setType("Faculty CLASS_MISSED");
+        session.setLectureNumber("AI Generated");
+        session.setTopic("Auto-generated Session (AI)");
+        session.setDate(java.time.LocalDate.now());
+        session.setStartTime(java.time.LocalTime.of(10, 0));
+        session.setEndTime(java.time.LocalTime.of(11, 0));
+        session.setDuration("60");
+        session.setCode(String.format("%06d", new java.util.Random().nextInt(999999)));
+        session.setRequireVerification(false);
+        session.setUniqueCodeCount(0);
+        session.setStatus(AttendanceSessionStatus.ACTIVE);
+        session.setIsSystemGenerated(true);
+        session.setFacultyReason("AI Generated Missed Session");
+
+        int totalStudents = (int) studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && classSubject.getAcademicYear() != null && classSubject.getSemester() != null
+                        && e.getAcademicYear().getId().equals(classSubject.getAcademicYear().getId())
+                        && e.getSemester().getId().equals(classSubject.getSemester().getId()))
+                .count();
+        session.setTotalStudents(totalStudents);
+
+        session = sessionRepository.save(session);
+        return mapToDTO(session);
+    }
+
     private final StudentAttendanceHistoryRepository historyRepository;
     private final org.springframework.web.client.RestTemplate aiServiceRestTemplate;
     private final com.acronexus.config.AiServiceProperties aiServiceProperties;
@@ -65,7 +151,13 @@ public class AttendanceSessionService {
         session.setStatus(AttendanceSessionStatus.ACTIVE);
         
         // Calculate total students
-        int totalStudents = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId()).size();
+        int totalStudents = (int) studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && classSubject.getAcademicYear() != null && classSubject.getSemester() != null
+                        && e.getAcademicYear().getId().equals(classSubject.getAcademicYear().getId())
+                        && e.getSemester().getId().equals(classSubject.getSemester().getId()))
+                .count();
         session.setTotalStudents(totalStudents);
 
         session = sessionRepository.save(session);
@@ -94,11 +186,17 @@ public class AttendanceSessionService {
         session.setCode(String.format("%06d", new java.util.Random().nextInt(999999)));
         session.setRequireVerification(false);
         session.setUniqueCodeCount(0);
-        session.setStatus(AttendanceSessionStatus.ACTIVE);
+        session.setStatus(AttendanceSessionStatus.COMPLETED);
         session.setIsSystemGenerated(true);
         session.setFacultyReason(activity.getReason());
 
-        int totalStudents = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId()).size();
+        int totalStudents = (int) studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && classSubject.getAcademicYear() != null && classSubject.getSemester() != null
+                        && e.getAcademicYear().getId().equals(classSubject.getAcademicYear().getId())
+                        && e.getSemester().getId().equals(classSubject.getSemester().getId()))
+                .count();
         session.setTotalStudents(totalStudents);
 
         session = sessionRepository.save(session);
@@ -130,6 +228,18 @@ public class AttendanceSessionService {
 
         Student student = studentRepository.findByUser_Id(userId)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
+                
+        // Check if student is actively enrolled in the class for the correct academic year and semester
+        boolean isEnrolled = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId()).stream()
+                .anyMatch(e -> e.getStudent().getId().equals(student.getId()) 
+                        && e.getAcademicYear() != null 
+                        && e.getAcademicYear().getId().equals(session.getClassSubject().getAcademicYear().getId())
+                        && e.getSemester() != null
+                        && e.getSemester().getId().equals(session.getClassSubject().getSemester().getId()));
+        
+        if (!isEnrolled) {
+            throw new RuntimeException("You are not enrolled in this class subject for the current academic year and semester.");
+        }
 
         // Check if already marked (only block if present, pending, or conflict)
         boolean alreadyMarked = attendanceRepository.findByStudentIdOrderByDateDesc(student.getId()).stream()
@@ -221,7 +331,16 @@ public class AttendanceSessionService {
             session.setAbsentCount(Math.max(0, total - present));
             
             // Mark remaining students as absent if not already marked
-            List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId());
+            UUID targetAcademicYearId = session.getClassSubject().getAcademicYear() != null ? session.getClassSubject().getAcademicYear().getId() : null;
+            UUID targetSemesterId = session.getClassSubject().getSemester() != null ? session.getClassSubject().getSemester().getId() : null;
+
+            List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId())
+                    .stream()
+                    .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                            && targetAcademicYearId != null && targetSemesterId != null
+                            && e.getAcademicYear().getId().equals(targetAcademicYearId)
+                            && e.getSemester().getId().equals(targetSemesterId))
+                    .collect(Collectors.toList());
             List<StudentAttendance> currentAttendances = attendanceRepository.findBySessionId(sessionId);
             
             for (StudentEnrollment enrollment : enrollments) {
@@ -322,7 +441,18 @@ public class AttendanceSessionService {
 
     @Transactional(readOnly = true)
     public List<com.acronexus.dto.StudentAttendanceRecordDTO> getLiveResponses(UUID sessionId) {
-        return attendanceRepository.findBySessionId(sessionId).stream().map(a -> {
+        AttendanceSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) return new java.util.ArrayList<>();
+        
+        List<StudentEnrollment> activeEnrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId());
+        
+        return attendanceRepository.findBySessionId(sessionId).stream()
+            .filter(a -> activeEnrollments.stream().anyMatch(e -> 
+                e.getStudent().getId().equals(a.getStudent().getId())
+                && e.getAcademicYear() != null && e.getAcademicYear().getId().equals(session.getClassSubject().getAcademicYear().getId())
+                && e.getSemester() != null && e.getSemester().getId().equals(session.getClassSubject().getSemester().getId())
+            ))
+            .map(a -> {
             com.acronexus.dto.StudentAttendanceRecordDTO dto = new com.acronexus.dto.StudentAttendanceRecordDTO();
             dto.setStudentId(a.getStudent().getId());
             dto.setEnrollmentNumber(a.getStudent().getEnrollmentNo());

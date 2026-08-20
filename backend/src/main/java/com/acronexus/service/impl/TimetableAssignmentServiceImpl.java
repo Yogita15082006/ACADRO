@@ -62,8 +62,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             throw new com.acronexus.exception.ResourceNotFoundException("No file attached to timetable");
         }
 
-        // 1. Check Cache — Disabled temporarily to force fresh AI matching
-        /*
+        // 1. Check Cache 
         if (fileStorage.getAiMetadata() != null && !fileStorage.getAiMetadata().isBlank()
                 && fileStorage.getAiMetadata().contains("-")) {
             try {
@@ -80,7 +79,6 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                 log.warn("Failed to parse cached aiMetadata for timetable {}, falling back to Groq", timetableId);
             }
         }
-        */
 
 
         // Load DB master data for matching (NOT sent to AI)
@@ -117,11 +115,11 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         // ============================================
         try {
             jsonContent = repairTruncatedJson(jsonContent);
-            System.out.println("\n\n====================================================");
-            System.out.println("JSON RECEIVED BY SPRING");
-            System.out.println("====================================================");
-            System.out.println(jsonContent);
-            System.out.println("\n====================================================\n\n");
+
+
+
+
+
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(jsonContent);
             
             TimetableReviewReportDto dto = new TimetableReviewReportDto();
@@ -187,10 +185,19 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                         unknowns.add("Faculty not found in DB: " + extractedFaculty);
                     }
                     
-                    // Subject matching disabled per requirements. Keep only original subject name/code.
-                    sa.setSubjectId(null);
-                    sa.setMatchedSubjectName(null);
-                    sa.setSubjectCode(extractedSubjectCode);
+                    Subject matchedSub = fuzzyMatchSubjectInfo(extractedSubjectCode, extractedSubject, subjects);
+                    
+                    if (matchedSub != null) {
+                        sa.setSubjectId(matchedSub.getId().toString());
+                        sa.setMatchedSubjectName(null); // Force UI to show AI extraction instead of DB typo
+                        sa.setSubjectCode(extractedSubjectCode);
+                        sa.setOriginalSubjectName(extractedSubject);
+                        sa.setOriginalSubjectCode(extractedSubjectCode);
+                    } else {
+                        sa.setSubjectId(null);
+                        sa.setMatchedSubjectName(null);
+                        sa.setSubjectCode(extractedSubjectCode);
+                    }
                     
                     subjectAssignments.add(sa);
                 }
@@ -235,8 +242,17 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                         slotDto.setFacultyId(fuzzyMatchFaculty(slotFaculty, faculties));
                     }
                     
-                    slotDto.setOriginalSubjectName(s.has("subjectName") && !s.get("subjectName").isNull() ? s.get("subjectName").asText() : "");
-                    slotDto.setOriginalSubjectCode(s.has("subjectCode") && !s.get("subjectCode").isNull() ? s.get("subjectCode").asText() : "");
+                    String extractedSlotSubjName = s.has("subjectName") && !s.get("subjectName").isNull() ? s.get("subjectName").asText() : "";
+                    String extractedSlotSubjCode = s.has("subjectCode") && !s.get("subjectCode").isNull() ? s.get("subjectCode").asText() : "";
+                    
+                    Subject slotSubMatch = fuzzyMatchSubjectInfo(extractedSlotSubjCode, extractedSlotSubjName, subjects);
+                    if (slotSubMatch != null) {
+                        slotDto.setOriginalSubjectName(extractedSlotSubjName);
+                        slotDto.setOriginalSubjectCode(extractedSlotSubjCode);
+                    } else {
+                        slotDto.setOriginalSubjectName(extractedSlotSubjName);
+                        slotDto.setOriginalSubjectCode(extractedSlotSubjCode);
+                    }
                     
                     timetableSlots.add(slotDto);
                 }
@@ -283,9 +299,19 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         }
 
         // 3. PROCESS SUBJECT CARDS (NEW SEMESTER INITIALIZATION)
+        java.util.Map<String, Subject> resolvedSubjectsMap = new java.util.HashMap<>();
+        java.util.Map<String, Faculty> resolvedFacultyMap = new java.util.HashMap<>();
+
         if (reviewDto.getSubjectAssignments() != null) {
             for (ParsedSubjectAssignmentDto sm : reviewDto.getSubjectAssignments()) {
-                Subject resolvedSubject = resolveOrCreateSubject(sm.getOriginalSubjectCode(), sm.getOriginalSubjectName(), targetDepartment);
+                String originalCode = sm.getOriginalSubjectCode() != null ? sm.getOriginalSubjectCode() : "";
+                String originalName = sm.getOriginalSubjectName() != null ? sm.getOriginalSubjectName() : "";
+                String mapKey = originalCode + "|" + originalName;
+
+                String finalCode = (sm.getSubjectCode() != null && !sm.getSubjectCode().trim().isEmpty()) ? sm.getSubjectCode() : sm.getOriginalSubjectCode();
+                String finalName = (sm.getMatchedSubjectName() != null && !sm.getMatchedSubjectName().trim().isEmpty()) ? sm.getMatchedSubjectName() : sm.getOriginalSubjectName();
+
+                Subject resolvedSubject = resolveOrCreateSubject(finalCode, finalName, targetDepartment);
                 
                 List<ClassSubject> existingClassSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(targetClass.getId())
                     .stream()
@@ -314,6 +340,9 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                 if (sm.getFacultyId() != null && isValidUUID(sm.getFacultyId())) {
                     faculty = facultyRepository.findById(UUID.fromString(sm.getFacultyId())).orElse(null);
                 }
+                
+                resolvedSubjectsMap.put(mapKey, resolvedSubject);
+                resolvedFacultyMap.put(mapKey, faculty);
                 
                 cs.setFaculty(faculty);
                 cs = classSubjectRepository.save(cs);
@@ -373,10 +402,52 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             for (ParsedSlotDto slotDto : reviewDto.getTimetableSlots()) {
                 TimetableSlot ts = new TimetableSlot();
                 ts.setTimetable(timetable);
-                if (slotDto.getFacultyId() != null && isValidUUID(slotDto.getFacultyId())) {
+                
+                String originalCode = slotDto.getOriginalSubjectCode() != null ? slotDto.getOriginalSubjectCode() : "";
+                String originalName = slotDto.getOriginalSubjectName() != null ? slotDto.getOriginalSubjectName() : "";
+                String mapKey = originalCode + "|" + originalName;
+
+                Subject slotSubject = resolvedSubjectsMap.get(mapKey);
+                Faculty slotFaculty = resolvedFacultyMap.get(mapKey);
+                
+                if (slotSubject == null && reviewDto.getSubjectAssignments() != null) {
+                    // Fallback: The AI might have extracted slightly different strings for the same subject in the 'slots' array vs 'subjects' array.
+                    // We must fuzzy match the slot's original code/name against the original code/name of the user-reviewed SubjectAssignments.
+                    for (ParsedSubjectAssignmentDto sm : reviewDto.getSubjectAssignments()) {
+                        boolean codeMatch = false;
+                        if (slotDto.getOriginalSubjectCode() != null && !slotDto.getOriginalSubjectCode().isBlank() && sm.getOriginalSubjectCode() != null) {
+                            codeMatch = NameNormalizer.fuzzyMatch(slotDto.getOriginalSubjectCode(), sm.getOriginalSubjectCode());
+                        }
+                        
+                        boolean nameMatch = false;
+                        if (slotDto.getOriginalSubjectName() != null && !slotDto.getOriginalSubjectName().isBlank() && sm.getOriginalSubjectName() != null) {
+                            nameMatch = NameNormalizer.fuzzyMatch(slotDto.getOriginalSubjectName(), sm.getOriginalSubjectName());
+                        }
+                        
+                        if (codeMatch || nameMatch) {
+                            String smMapKey = (sm.getOriginalSubjectCode() != null ? sm.getOriginalSubjectCode() : "") + "|" + 
+                                              (sm.getOriginalSubjectName() != null ? sm.getOriginalSubjectName() : "");
+                            slotSubject = resolvedSubjectsMap.get(smMapKey);
+                            if (slotFaculty == null) {
+                                slotFaculty = resolvedFacultyMap.get(smMapKey);
+                            }
+                            log.info("Fuzzy matched slot '{}' to edited SubjectAssignment '{}'", mapKey, smMapKey);
+                            break;
+                        }
+                    }
+                }
+
+                if (slotSubject == null) {
+                    slotSubject = resolveOrCreateSubject(slotDto.getOriginalSubjectCode(), slotDto.getOriginalSubjectName(), targetDepartment);
+                }
+                ts.setSubject(slotSubject);
+
+                if (slotFaculty != null) {
+                    ts.setFaculty(slotFaculty);
+                } else if (slotDto.getFacultyId() != null && isValidUUID(slotDto.getFacultyId())) {
                     ts.setFaculty(facultyRepository.findById(UUID.fromString(slotDto.getFacultyId())).orElse(null));
                 }
-                ts.setSubject(resolveOrCreateSubject(slotDto.getOriginalSubjectCode(), slotDto.getOriginalSubjectName(), targetDepartment)); 
+                
                 ts.setDayOfWeek(slotDto.getDayOfWeek());
                 ts.setTimeSlot(slotDto.getTimeSlot());
                 ts.setRoomNumber(slotDto.getRoomNumber());
@@ -400,9 +471,110 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         timetable.setIsActive(true);
         timetableRepository.save(timetable);
 
-        // 7. AUTOMATIC STUDENT ASSIGNMENT & SEMESTER PROMOTION
-        performDynamicStudentAssignmentAndPromotion(targetDepartment, targetBatch, targetClass, targetYear, targetSemester, creator);
+        // 7. PERFORM STUDENT ENROLLMENT AND PROMOTION (Strict Batch Matching)
+        performDynamicStudentAssignmentAndPromotion(targetClass, targetYear, targetSemester, targetBatch, creator, targetDepartment, newSemNumber);
+
         log.info("--- [AI MATCH CONFIRM & ASSIGN] Successfully completed workflow for Class: {} ---", targetClass.getName());
+    }
+
+    private void performDynamicStudentAssignmentAndPromotion(
+        AcroClass targetClass, AcademicYear targetYear, Semester targetSemester, String targetBatch, User creator, Department targetDept, Integer newSemNumber) {
+        
+        if (targetBatch == null || targetBatch.isBlank()) {
+            log.warn("Cannot perform promotion: Timetable Batch is null or empty");
+            return;
+        }
+
+        // 1. Fetch ONLY students belonging EXACTLY to this batch and department
+        List<Student> batchStudents = studentRepository.findByBatchYearAndUser_Department_Id(targetBatch, targetDept.getId());
+
+        int matchedCount = 0;
+        int promotedCount = 0;
+
+        String targetCourse = targetClass.getName() != null ? targetClass.getName().trim().toLowerCase() : "";
+        String targetSec = targetClass.getSection() != null ? targetClass.getSection().trim().toLowerCase() : "";
+
+        for (Student student : batchStudents) {
+            if (student.getUser() == null || !Boolean.TRUE.equals(student.getUser().getIsActive())) continue;
+
+            String stCourse = student.getCourse() != null ? student.getCourse().trim().toLowerCase() : "";
+            String stSec = student.getSection() != null ? student.getSection().trim().toLowerCase() : "";
+            
+            // Match student's section to the timetable's section
+            boolean classMatches = false;
+            if (!stCourse.isEmpty() && !targetCourse.isEmpty() && (stCourse.equals(targetCourse) || stCourse.contains(targetCourse) || targetCourse.contains(stCourse))) {
+                classMatches = true;
+            } else if (!stSec.isEmpty() && !targetSec.isEmpty() && (stSec.equals(targetSec) || stSec.contains(targetSec) || targetSec.contains(stSec))) {
+                classMatches = true;
+            } else if (!stSec.isEmpty() && !targetCourse.isEmpty() && (stSec.equals(targetCourse) || stSec.contains(targetCourse) || targetCourse.contains(stSec))) {
+                classMatches = true;
+            }
+            
+            if (!classMatches) continue;
+
+            matchedCount++;
+
+            // Check current semester
+            int currentSemNum = 0;
+            try {
+                if (student.getCurrentSemester() != null && !student.getCurrentSemester().isBlank()) {
+                    currentSemNum = Integer.parseInt(student.getCurrentSemester().replaceAll("[^0-9]", ""));
+                }
+            } catch (Exception e) {
+                currentSemNum = 0;
+            }
+
+            // Promote academic fields ONLY if it's progression. 
+            // IMPORTANT: batchYear remains strictly unchanged.
+            boolean isPromotion = (newSemNumber > currentSemNum);
+            if (isPromotion) {
+                promotedCount++;
+                student.setCurrentSemester(String.valueOf(newSemNumber));
+                studentRepository.save(student);
+            }
+
+            // Handle Academic Enrollment records
+            List<StudentEnrollment> existingEnrollments = studentEnrollmentRepository.findByStudentId(student.getId());
+            
+            boolean needNewEnrollment = true;
+            for (StudentEnrollment se : existingEnrollments) {
+                if (Boolean.TRUE.equals(se.getIsActive())) {
+                    if (se.getAcroClass().getId().equals(targetClass.getId()) &&
+                        se.getAcademicYear().getId().equals(targetYear.getId()) &&
+                        se.getSemester().getId().equals(targetSemester.getId())) {
+                        needNewEnrollment = false;
+                    } else {
+                        se.setIsActive(false);
+                        se.setEffectiveTo(LocalDate.now());
+                        studentEnrollmentRepository.save(se);
+                    }
+                }
+            }
+
+            if (needNewEnrollment) {
+                Optional<StudentEnrollment> termEnrollment = studentEnrollmentRepository
+                  .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(student.getId(), targetYear.getId(), targetSemester.getId());
+                if (termEnrollment.isPresent()) {
+                    StudentEnrollment e = termEnrollment.get();
+                    e.setAcroClass(targetClass);
+                    e.setIsActive(true);
+                    e.setEffectiveTo(null);
+                    studentEnrollmentRepository.save(e);
+                } else {
+                    StudentEnrollment newEnrollment = new StudentEnrollment();
+                    newEnrollment.setStudent(student);
+                    newEnrollment.setAcroClass(targetClass);
+                    newEnrollment.setAcademicYear(targetYear);
+                    newEnrollment.setSemester(targetSemester);
+                    newEnrollment.setEffectiveFrom(LocalDate.now());
+                    newEnrollment.setIsActive(true);
+                    newEnrollment.setCreatedBy(creator);
+                    studentEnrollmentRepository.save(newEnrollment);
+                }
+            }
+        }
+        
+        log.info("Batch Promotion Complete! TargetBatch={}, Checked={}, Matched={}, Promoted={}", targetBatch, batchStudents.size(), matchedCount, promotedCount);
     }
 
     private void cleanupPreviousSemesterWorkspace(AcroClass targetClass, Integer newSemNumber) {
@@ -471,122 +643,6 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
         }
     }
 
-    private void performDynamicStudentAssignmentAndPromotion(Department targetDept, String targetBatch, AcroClass targetClass, 
-                                                             AcademicYear targetYear, Semester targetSemester, User creator) {
-        log.info("Executing dynamic student assignment and promotion for Dept: {}, Batch: {}, Class/Section: {}, New Sem: {}", 
-                 targetDept != null ? targetDept.getName() : "Any", targetBatch, targetClass.getName(), targetSemester.getSemesterNumber());
-
-        List<Student> allStudents = studentRepository.findAll();
-        Integer newSemNumber = targetSemester.getSemesterNumber();
-        int matchedCount = 0;
-        int promotedCount = 0;
-
-        String targetName = targetClass.getName() != null ? targetClass.getName().trim().toLowerCase() : "";
-        String targetSec = targetClass.getSection() != null ? targetClass.getSection().trim().toLowerCase() : "";
-
-        List<StudentEnrollment> existingEnrollments = studentEnrollmentRepository.findAll();
-        Set<UUID> alreadyEnrolledStudentIds = existingEnrollments.stream()
-            .filter(se -> se.getAcroClass() != null)
-            .filter(se -> se.getAcroClass().getId().equals(targetClass.getId()) ||
-                         (se.getAcroClass().getName() != null && !targetName.isEmpty() && se.getAcroClass().getName().trim().toLowerCase().equals(targetName)) ||
-                         (se.getAcroClass().getSection() != null && !targetSec.isEmpty() && se.getAcroClass().getSection().trim().toLowerCase().equals(targetSec)))
-            .map(se -> se.getStudent().getId())
-            .collect(Collectors.toSet());
-
-        for (Student student : allStudents) {
-            boolean classMatches = false;
-
-            if (alreadyEnrolledStudentIds.contains(student.getId())) {
-                classMatches = true;
-            } else {
-                String stCourse = student.getCourse() != null ? student.getCourse().trim().toLowerCase() : "";
-                String stSec = student.getSection() != null ? student.getSection().trim().toLowerCase() : "";
-
-                if (!stCourse.isEmpty() && !targetName.isEmpty() && (stCourse.equals(targetName) || stCourse.contains(targetName) || targetName.contains(stCourse))) {
-                    classMatches = true;
-                } else if (!stSec.isEmpty() && !targetSec.isEmpty() && (stSec.equals(targetSec) || stSec.contains(targetSec) || targetSec.contains(stSec))) {
-                    classMatches = true;
-                } else if (!stSec.isEmpty() && !targetName.isEmpty() && (stSec.equals(targetName) || stSec.contains(targetName) || targetName.contains(stSec))) {
-                    classMatches = true;
-                }
-            }
-
-            if (!classMatches) continue;
-
-            matchedCount++;
-
-            int currentSemNum = 0;
-            try {
-                if (student.getCurrentSemester() != null && !student.getCurrentSemester().isBlank()) {
-                    currentSemNum = Integer.parseInt(student.getCurrentSemester().replaceAll("[^0-9]", ""));
-                }
-            } catch (Exception e) {
-                currentSemNum = 0;
-            }
-
-            if (student.getUser() != null && targetDept != null) {
-                if (student.getUser().getDepartment() == null || !student.getUser().getDepartment().getId().equals(targetDept.getId())) {
-                    student.getUser().setDepartment(targetDept);
-                    userRepository.save(student.getUser());
-                }
-            }
-
-            boolean isPromotion = (newSemNumber > currentSemNum);
-            if (isPromotion) promotedCount++;
-
-            student.setCurrentSemester(String.valueOf(newSemNumber));
-            student.setCourse(targetClass.getName());
-            student.setSection(targetClass.getSection() != null && !targetClass.getSection().isBlank() ? targetClass.getSection() : targetClass.getName());
-            if (targetBatch != null && !targetBatch.isBlank()) {
-                student.setBatchYear(targetBatch);
-            }
-            studentRepository.save(student);
-
-            List<StudentEnrollment> studentEnrolls = existingEnrollments.stream()
-                .filter(se -> se.getStudent() != null && se.getStudent().getId().equals(student.getId()))
-                .collect(Collectors.toList());
-
-            boolean needNewEnrollment = true;
-            for (StudentEnrollment se : studentEnrolls) {
-                if (Boolean.TRUE.equals(se.getIsActive())) {
-                    if (se.getAcroClass().getId().equals(targetClass.getId()) &&
-                        se.getAcademicYear().getId().equals(targetYear.getId()) &&
-                        se.getSemester().getId().equals(targetSemester.getId())) {
-                        needNewEnrollment = false;
-                    } else {
-                        se.setIsActive(false);
-                        se.setEffectiveTo(LocalDate.now());
-                        studentEnrollmentRepository.save(se);
-                    }
-                }
-            }
-
-            if (needNewEnrollment) {
-                Optional<StudentEnrollment> termEnrollment = studentEnrollmentRepository
-                  .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(student.getId(), targetYear.getId(), targetSemester.getId());
-                if (termEnrollment.isPresent()) {
-                    StudentEnrollment e = termEnrollment.get();
-                    e.setAcroClass(targetClass);
-                    e.setIsActive(true);
-                    e.setEffectiveTo(null);
-                    studentEnrollmentRepository.save(e);
-                } else {
-                    StudentEnrollment newEnrollment = new StudentEnrollment();
-                    newEnrollment.setStudent(student);
-                    newEnrollment.setAcroClass(targetClass);
-                    newEnrollment.setAcademicYear(targetYear);
-                    newEnrollment.setSemester(targetSemester);
-                    newEnrollment.setEffectiveFrom(LocalDate.now());
-                    newEnrollment.setIsActive(true);
-                    newEnrollment.setCreatedBy(creator);
-                    studentEnrollmentRepository.save(newEnrollment);
-                }
-            }
-        }
-        log.info("Dynamic Student Automation complete! Checked={}, Matched & Synchronized={}, Promoted={}", 
-                 allStudents.size(), matchedCount, promotedCount);
-    }
-
 
     private String fuzzyMatchFaculty(String extractedName, List<Faculty> faculties) {
         if (extractedName == null || extractedName.isBlank()) return null;
@@ -599,6 +655,61 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             }
         }
         return null;
+    }
+
+    private Subject fuzzyMatchSubjectInfo(String extractedCode, String extractedName, List<Subject> subjects) {
+        if (extractedCode == null && extractedName == null) return null;
+        
+        Subject bestMatch = null;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (Subject s : subjects) {
+            // Check code first (very strong signal)
+            if (extractedCode != null && !extractedCode.isBlank() && s.getCode() != null) {
+                String cleanExtCode = extractedCode.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                String cleanDbCode = s.getCode().replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                if (cleanExtCode.equals(cleanDbCode)) {
+                    return s; // Exact match
+                }
+                int dist = NameNormalizer.calculateLevenshteinDistance(cleanExtCode, cleanDbCode);
+                if (dist <= 2 && dist < bestScore) {
+                    bestScore = dist;
+                    bestMatch = s;
+                }
+            }
+            
+            // Check name if code didn't perfectly match
+            if (extractedName != null && !extractedName.isBlank() && s.getName() != null) {
+                String cleanExtName = extractedName.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                String cleanDbName = s.getName().replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                
+                if (cleanExtName.equals(cleanDbName)) {
+                    return s;
+                }
+                
+                // Allow partial match only if they are very close in length (prevent "C" matching "Computer Science")
+                if (cleanExtName.length() >= 4 && cleanDbName.length() >= 4) {
+                    if ((cleanExtName.contains(cleanDbName) && cleanExtName.length() - cleanDbName.length() <= 5) || 
+                        (cleanDbName.contains(cleanExtName) && cleanDbName.length() - cleanExtName.length() <= 5)) {
+                        return s;
+                    }
+                }
+                
+                if (NameNormalizer.fuzzyMatch(extractedName, s.getName())) {
+                    return s; // Strong name match
+                }
+                int dist = NameNormalizer.calculateLevenshteinDistance(cleanExtName, cleanDbName);
+                if (dist <= 5 && dist < bestScore) {
+                    // Only accept Levenshtein if lengths are somewhat similar
+                    if (Math.abs(cleanExtName.length() - cleanDbName.length()) <= 5) {
+                        bestScore = dist;
+                        bestMatch = s;
+                    }
+                }
+            }
+        }
+        
+        return bestMatch;
     }
 
 

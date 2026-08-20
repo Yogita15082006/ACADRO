@@ -66,6 +66,15 @@ public class ExamResultController {
         return ResponseEntity.ok(ApiResponse.success("ExamResult deleted successfully", null));
     }
     
+    @DeleteMapping("/class")
+    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteResultsForClass(
+            @RequestParam UUID examinationId,
+            @RequestParam(required = false) String className) {
+        service.deleteResultsForClass(examinationId, className);
+        return ResponseEntity.ok(ApiResponse.success("Class ExamResults deleted successfully", null));
+    }
+    
     @PostMapping("/publish")
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")
     public ResponseEntity<ApiResponse<Integer>> publishResults(

@@ -19,6 +19,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
+    private final com.acronexus.repository.FacultyRepository facultyRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -77,6 +78,20 @@ public class AuthServiceImpl implements AuthService {
                 .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
                 .department(user.getDepartment() != null ? user.getDepartment().getName() : null)
                 .branch(user.getDepartment() != null ? user.getDepartment().getName() : null);
+                
+        if (user.getRole() == UserRole.FACULTY || user.getRole() == UserRole.HOD || user.getRole() == UserRole.COORDINATOR) {
+            facultyRepository.findById(userId).ifPresent(faculty -> {
+                if (faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
+                    java.util.List<java.util.Map<String, Object>> depts = faculty.getDepartments().stream().map(d -> {
+                        java.util.Map<String, Object> map = new java.util.HashMap<>();
+                        map.put("id", d.getId().toString());
+                        map.put("name", d.getName());
+                        return map;
+                    }).collect(java.util.stream.Collectors.toList());
+                    builder.departments(depts);
+                }
+            });
+        }
                 
         if (user.getRole() == UserRole.STUDENT) {
             studentRepository.findById(userId).ifPresent(student -> {

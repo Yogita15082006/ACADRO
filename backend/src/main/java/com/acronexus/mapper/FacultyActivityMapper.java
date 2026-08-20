@@ -43,6 +43,9 @@ public class FacultyActivityMapper {
         }
         dto.setReason(entity.getReason());
         dto.setLectureNumber(entity.getLectureNumber());
+        if (entity.getFaculty() != null) {
+            dto.setFacultyId(entity.getFaculty().getId());
+        }
         if (entity.getClassSubject() != null) {
             dto.setClassSubjectId(entity.getClassSubject().getId());
             if (entity.getClassSubject().getSubject() != null) {

@@ -64,6 +64,17 @@ public class UserMapper {
             dto.setEmployeeId(faculty.getEmployeeId());
             dto.setQualification(faculty.getQualification());
             dto.setExperienceYears(faculty.getExperienceYears());
+            
+            if (faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
+                java.util.List<UserResponseDto.DepartmentInfo> depts = new java.util.ArrayList<>();
+                for (com.acronexus.entity.Department d : faculty.getDepartments()) {
+                    UserResponseDto.DepartmentInfo dInfo = new UserResponseDto.DepartmentInfo();
+                    dInfo.setId(d.getId());
+                    dInfo.setName(d.getName());
+                    depts.add(dInfo);
+                }
+                dto.setDepartments(depts);
+            }
         }
         
         return dto;

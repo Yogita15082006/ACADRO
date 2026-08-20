@@ -140,73 +140,97 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
         }
         
         try {
-            Map<String, Object> bulkPayload = new HashMap<>();
-            bulkPayload.put("students", allStudentsData);
+            int batchSize = 10; // Process 10 students at a time sequentially for faster overall generation without hitting rate limits
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             
-            AiAnalyticsRequest request = new AiAnalyticsRequest();
-            request.setInsightType("BULK_EXAM_FEEDBACK");
-            request.setData(bulkPayload);
-            
-            log.info("Sending BULK_EXAM_FEEDBACK request for {} students", allStudentsData.size());
-            AiInsightDto insightDto = aiService.getInsights(request);
-            
-            if (insightDto.getRawInsights() == null || insightDto.getRawInsights().isEmpty() || insightDto.getRawInsights().equals("[]") || insightDto.getRawInsights().equals("{}")) {
-                throw new RuntimeException("AI Service returned empty rawInsights. Reasoning: " + insightDto.getReasoning());
-            }
-            
-            com.fasterxml.jackson.databind.JsonNode jsonArray = objectMapper.readTree(insightDto.getRawInsights());
-            if (!jsonArray.isArray()) {
-                throw new RuntimeException("AI Service returned invalid rawInsights format. Expected JSON array.");
-            }
-            
-            for (com.fasterxml.jackson.databind.JsonNode node : jsonArray) {
-                if (!node.has("studentId")) continue;
-                
-                String studentIdStr = node.get("studentId").asText();
-                UUID studentId = UUID.fromString(studentIdStr);
-                
-                ExamAiFeedback feedback = repository.findByExaminationIdAndStudentId(examinationId, studentId)
-                        .orElse(new ExamAiFeedback());
-                        
-                Student detachedStudent = new Student();
-                detachedStudent.setId(studentId);
-                
-                Examination detachedExam = new Examination();
-                detachedExam.setId(examinationId);
-                        
-                feedback.setExamination(detachedExam);
-                feedback.setStudent(detachedStudent);
-                
-                String reasoning = node.has("reasoning") ? node.get("reasoning").asText() : "Analysis completed.";
-                feedback.setOverallPerformance(reasoning);
-                
-                List<String> strengths = new ArrayList<>();
-                List<String> weaknesses = new ArrayList<>();
-                
-                if (node.has("recommendations") && node.get("recommendations").isArray()) {
-                    for (com.fasterxml.jackson.databind.JsonNode recNode : node.get("recommendations")) {
-                        String insight = recNode.asText();
-                        if (insight.toLowerCase().contains("strength") || insight.toLowerCase().contains("good") || insight.toLowerCase().contains("excellent") || insight.toLowerCase().contains("keep it up")) {
-                            strengths.add(insight);
-                        } else {
-                            weaknesses.add(insight);
-                        }
+            for (int i = 0; i < allStudentsData.size(); i += batchSize) {
+                int start = i;
+                int end = Math.min(start + batchSize, allStudentsData.size());
+                java.util.List<Map<String, Object>> batch = allStudentsData.subList(start, end);
+                    Map<String, Object> bulkPayload = new HashMap<>();
+                    bulkPayload.put("students", batch);
+                    
+                    AiAnalyticsRequest request = new AiAnalyticsRequest();
+                    request.setInsightType("BULK_EXAM_FEEDBACK");
+                    request.setData(bulkPayload);
+                    
+                    log.info("Sending BULK_EXAM_FEEDBACK request for students {} to {}", start, end - 1);
+                    AiInsightDto insightDto = aiService.getInsights(request);
+                    
+                    if (insightDto.getRawInsights() == null || insightDto.getRawInsights().isEmpty() || insightDto.getRawInsights().equals("[]") || insightDto.getRawInsights().equals("{}")) {
+                        log.warn("AI Service returned empty rawInsights for batch {} to {}. Reasoning: {}", start, end - 1, insightDto.getReasoning());
+                        continue;
                     }
-                }
+                    
+                    try {
+                        com.fasterxml.jackson.databind.JsonNode jsonArray = mapper.readTree(insightDto.getRawInsights());
+                        if (!jsonArray.isArray()) {
+                            log.warn("AI Service returned invalid rawInsights format for batch {} to {}. Expected JSON array.", start, end - 1);
+                            continue;
+                        }
+                        
+                        java.util.List<ExamAiFeedback> feedbacksToSave = new ArrayList<>();
+                        for (com.fasterxml.jackson.databind.JsonNode node : jsonArray) {
+                            if (!node.has("studentId")) continue;
+                            
+                            String studentIdStr = node.get("studentId").asText();
+                            UUID studentId = UUID.fromString(studentIdStr);
+                            
+                            ExamAiFeedback feedback = repository.findByExaminationIdAndStudentId(examinationId, studentId)
+                                    .orElse(new ExamAiFeedback());
+                                    
+                            Student detachedStudent = new Student();
+                            detachedStudent.setId(studentId);
+                            
+                            Examination detachedExam = new Examination();
+                            detachedExam.setId(examinationId);
+                                    
+                            feedback.setExamination(detachedExam);
+                            feedback.setStudent(detachedStudent);
+                            
+                            String reasoning = node.has("reasoning") ? node.get("reasoning").asText() : "Analysis completed.";
+                            feedback.setOverallPerformance(reasoning);
+                            
+                            List<String> strengths = new ArrayList<>();
+                            List<String> weaknesses = new ArrayList<>();
+                            
+                            if (node.has("recommendations") && node.get("recommendations").isArray()) {
+                                for (com.fasterxml.jackson.databind.JsonNode recNode : node.get("recommendations")) {
+                                    String insight = recNode.asText();
+                                    if (insight.toLowerCase().contains("strength") || insight.toLowerCase().contains("good") || insight.toLowerCase().contains("excellent") || insight.toLowerCase().contains("keep it up")) {
+                                        strengths.add(insight);
+                                    } else {
+                                        weaknesses.add(insight);
+                                    }
+                                }
+                            }
+                            
+                            feedback.setStrengths(strengths.toArray(new String[0]));
+                            feedback.setAreasOfImprovement(weaknesses.toArray(new String[0]));
+                            
+                            if (!weaknesses.isEmpty()) {
+                                feedback.setActionPlan(String.join("\n", weaknesses));
+                            } else if (!strengths.isEmpty() && weaknesses.isEmpty()) {
+                                feedback.setActionPlan(String.join("\n", strengths)); // fallback
+                            } else {
+                                feedback.setActionPlan("Review your performance and continue consistent study habits.");
+                            }
+                            
+                            feedbacksToSave.add(feedback);
+                        }
+                        repository.saveAll(feedbacksToSave);                        
+                    } catch (Exception e) {
+                        log.error("Error parsing AI response for batch {} to {}", start, end - 1, e);
+                    }
+                    
+                    // Add a small delay between batches to respect rate limits
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+            } // end for loop
                 
-                feedback.setStrengths(strengths.toArray(new String[0]));
-                feedback.setAreasOfImprovement(weaknesses.toArray(new String[0]));
-                
-                if (!weaknesses.isEmpty()) {
-                    feedback.setActionPlan(String.join("\n", weaknesses));
-                } else if (!strengths.isEmpty() && weaknesses.isEmpty()) {
-                    feedback.setActionPlan(String.join("\n", strengths)); // fallback
-                } else {
-                    feedback.setActionPlan("Review your performance and continue consistent study habits.");
-                }
-                
-                repository.save(feedback);
-            }
         } catch (Exception e) {
             log.error("Failed to process bulk AI feedback for class " + className, e);
             throw new RuntimeException("AI bulk generation failed: " + e.getMessage(), e);

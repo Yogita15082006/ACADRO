@@ -80,6 +80,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('acronexus_token');
     localStorage.removeItem('acronexus_user');
     localStorage.removeItem('acronexus_role');
+    sessionStorage.clear();
   };
 
   const user = realUser;

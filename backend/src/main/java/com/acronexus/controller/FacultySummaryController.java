@@ -9,6 +9,8 @@ import com.acronexus.repository.FacultyRepository;
 import com.acronexus.repository.UserRepository;
 import com.acronexus.repository.ClassSubjectRepository;
 import com.acronexus.repository.CoordinatorAssignmentRepository;
+import com.acronexus.repository.FacultyActivityRepository;
+import com.acronexus.service.AttendanceSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +30,8 @@ public class FacultySummaryController {
     private final FacultyRepository facultyRepository;
     private final ClassSubjectRepository classSubjectRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
+    private final AttendanceSessionService attendanceSessionService;
+    private final FacultyActivityRepository facultyActivityRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR')")
@@ -76,6 +80,37 @@ public class FacultySummaryController {
             map.put("assignedSems", new ArrayList<>(assignedSems));
             map.put("assignedClasses", new ArrayList<>(assignedClasses));
             map.put("assignedSubjects", new ArrayList<>(assignedSubjects));
+
+            List<com.acronexus.dto.TeachingHistoryDTO> history = attendanceSessionService.getTeachingHistory(user.getId());
+            long totalScheduled = 0;
+            long conducted = 0;
+            long missed = 0;
+            if (history != null) {
+                for (com.acronexus.dto.TeachingHistoryDTO h : history) {
+                    totalScheduled += h.getTotalScheduled();
+                    conducted += h.getConducted();
+                    missed += h.getMissed();
+                }
+            }
+            
+            long absent = facultyActivityRepository.countDaysAbsentByFacultyId(user.getId());
+            
+            long holidays = 0;
+            List<com.acronexus.entity.FacultyActivity> activities = facultyActivityRepository.findByFacultyIdOrderByDateDesc(user.getId());
+            if (activities != null) {
+                holidays = activities.stream().filter(a -> com.acronexus.entity.FacultyActivityStatus.HOLIDAY.equals(a.getStatus())).count();
+            }
+
+            int teachingAttendance = totalScheduled > 0 ? Math.round(((float) conducted / totalScheduled) * 100) : 0;
+            String status = teachingAttendance > 75 ? "Active" : "Inactive";
+            
+            map.put("totalScheduled", totalScheduled);
+            map.put("classesTaken", conducted);
+            map.put("classesMissed", missed);
+            map.put("absent", absent);
+            map.put("holidays", holidays);
+            map.put("teachingAttendance", teachingAttendance);
+            map.put("status", status);
 
             response.add(map);
         }

@@ -53,7 +53,7 @@ public interface FacultyActivityRepository extends JpaRepository<FacultyActivity
         @Param("date") LocalDate date
     );
 
-    @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.status = 'HOLIDAY'")
+    @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.status IN ('ABSENT', 'MEDICAL_LEAVE', 'CLASS_MISSED')")
     long countDaysAbsentByFacultyId(@Param("facultyId") UUID facultyId);
 
     @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.date <= CURRENT_DATE")

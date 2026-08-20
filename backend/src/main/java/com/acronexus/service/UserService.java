@@ -38,6 +38,8 @@ public class UserService {
     private final TimetableSlotRepository timetableSlotRepository;
     private final UserMapper userMapper;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.acronexus.repository.DepartmentRepository departmentRepository;
 
     @Transactional
     public UserResponseDto createUser(UserRequestDto requestDto) {
@@ -62,7 +64,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserResponseDto> getAllUsers() {
-        List<User> users = userRepository.findAll();
+        List<User> users = userRepository.findAllByIsDeletedFalse();
         
         // Batch-load all faculty records to avoid N+1 queries
         Map<UUID, Faculty> facultyMap = facultyRepository.findAll().stream()
@@ -111,7 +113,7 @@ public class UserService {
     }
 
     public List<UserResponseDto> getInvigilators() {
-        List<User> users = userRepository.findByRoleIn(List.of(UserRole.FACULTY, UserRole.COORDINATOR, UserRole.HOD));
+        List<User> users = userRepository.findByRoleInAndIsDeletedFalse(List.of(UserRole.FACULTY, UserRole.COORDINATOR, UserRole.HOD));
         List<UserResponseDto> dtos = new java.util.ArrayList<>();
         for (User user : users) {
             dtos.add(userMapper.toDto(user, facultyRepository.findById(user.getId()).orElse(null)));
@@ -163,6 +165,28 @@ public class UserService {
             user.setIsActive(Boolean.parseBoolean(updates.get("isActive").toString()));
         }
 
+        if (updates.containsKey("departments") && updates.get("departments") != null) {
+            Object deptsObj = updates.get("departments");
+            if (deptsObj instanceof List) {
+                List<String> deptNames = (List<String>) deptsObj;
+                Faculty faculty = facultyRepository.findById(id).orElse(null);
+                if (faculty != null) {
+                    List<com.acronexus.entity.Department> depts = new java.util.ArrayList<>();
+                    for (String dName : deptNames) {
+                        com.acronexus.entity.Department d = departmentRepository.findByNameIgnoreCase(dName).orElse(null);
+                        if (d != null) depts.add(d);
+                    }
+                    if (!depts.isEmpty()) {
+                        user.setDepartment(depts.get(0));
+                    } else {
+                        user.setDepartment(null);
+                    }
+                    faculty.setDepartments(depts);
+                    facultyRepository.save(faculty);
+                }
+            }
+        }
+
         User savedUser = userRepository.save(user);
         Faculty faculty = facultyRepository.findById(id).orElse(null);
         return userMapper.toDto(savedUser, faculty);
@@ -201,23 +225,36 @@ public class UserService {
             }
             timetableSlotRepository.saveAll(slots);
         }
+        // Nullify foreign keys to allow hard deletion
+        jdbcTemplate.update("UPDATE file_storage SET uploaded_by = NULL WHERE uploaded_by = ?", id);
+        jdbcTemplate.update("UPDATE notices SET published_by = NULL WHERE published_by = ?", id);
+        jdbcTemplate.update("UPDATE events SET created_by = NULL WHERE created_by = ?", id);
+        jdbcTemplate.update("UPDATE lecture_materials SET uploaded_by = NULL WHERE uploaded_by = ?", id);
+        jdbcTemplate.update("UPDATE bulk_uploads SET uploaded_by = NULL WHERE uploaded_by = ?", id);
+        jdbcTemplate.update("UPDATE assignments SET created_by = NULL WHERE created_by = ?", id);
+        jdbcTemplate.update("UPDATE quizzes SET created_by = NULL WHERE created_by = ?", id);
+        jdbcTemplate.update("UPDATE student_attendance SET marked_by = NULL WHERE marked_by = ?", id);
+        jdbcTemplate.update("UPDATE student_attendance_history SET modified_by = NULL WHERE modified_by = ?", id);
+        jdbcTemplate.update("UPDATE timetables SET uploaded_by = NULL WHERE uploaded_by = ?", id);
+        jdbcTemplate.update("UPDATE student_enrollments SET created_by = NULL WHERE created_by = ?", id);
+        jdbcTemplate.update("UPDATE class_subjects SET created_by = NULL WHERE created_by = ?", id);
+
+        // Delete Faculty-specific related entities first
+        jdbcTemplate.update("DELETE FROM user_notifications WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM address_details WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM family_details WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_class_assignments WHERE faculty_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculties WHERE id = ?", id);
         
-        // Delete Faculty record first if it exists (child of User via @MapsId)
-        facultyRepository.findById(id).ifPresent(faculty -> {
-            log.info("Deleting Faculty record: empId={}", faculty.getEmployeeId());
-            facultyRepository.delete(faculty);
-            facultyRepository.flush();
-        });
-        
-        // Delete the User record
+        // Hard delete the user
         userRepository.delete(user);
-        log.info("User deleted successfully: id={}", id);
+        log.info("User permanently deleted successfully: id={}", id);
     }
 
     @Transactional
     public void deleteAllFaculty() {
         // Find all faculty and coordinators (exclude Admin/HOD to prevent lockout)
-        List<User> faculties = userRepository.findByRoleIn(List.of(UserRole.FACULTY, UserRole.COORDINATOR));
+        List<User> faculties = userRepository.findByRoleInAndIsDeletedFalse(List.of(UserRole.FACULTY, UserRole.COORDINATOR));
         
         log.info("Initiating bulk delete for {} faculty/coordinator records", faculties.size());
         

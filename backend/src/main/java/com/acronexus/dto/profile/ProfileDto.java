@@ -26,6 +26,7 @@ public class ProfileDto {
     private String departmentName;
     private String department;
     private String branch;
+    private List<java.util.Map<String, Object>> departments;
 
     // New User Details
     private String category;

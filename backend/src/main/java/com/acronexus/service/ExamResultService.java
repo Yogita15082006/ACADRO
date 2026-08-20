@@ -12,5 +12,6 @@ public interface ExamResultService {
     ExamResultResponseDto update(UUID id, ExamResultRequestDto requestDto);
     List<ExamResultResponseDto> findByExaminationAndClass(UUID examinationId, String className);
     void delete(UUID id);
+    void deleteResultsForClass(UUID examinationId, String className);
     int publishResults(UUID examinationId, String className, UUID studentId);
 }

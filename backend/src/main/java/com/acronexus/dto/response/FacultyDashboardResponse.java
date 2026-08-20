@@ -22,6 +22,31 @@ public class FacultyDashboardResponse {
     private List<NoticeSummary> recentNotices;
     private List<NotificationSummary> recentNotifications;
     private AcademicResourceSummary academicResources;
+    private List<SubjectMetrics> subjectMetrics;
+    private List<QuizPerformance> quizPerformance;
+    private AssignmentSubmissionStats assignmentStats;
+
+    @Data @Builder
+    public static class SubjectMetrics {
+        private String className;
+        private String subjectName;
+        private Double attendancePercentage;
+        private long pendingAssignments;
+        private Double quizAverage;
+    }
+
+    @Data @Builder
+    public static class QuizPerformance {
+        private String quizName;
+        private Double averageMarks;
+    }
+
+    @Data @Builder
+    public static class AssignmentSubmissionStats {
+        private long submitted;
+        private long late;
+        private long missing;
+    }
 
     @Data @Builder
     public static class NoticeSummary {

@@ -2,6 +2,9 @@ import logging
 import json
 import os
 import urllib.parse
+import re
+import asyncio
+from typing import List, Dict, Any, Optional
 from urllib.request import url2pathname
 import pdfplumber
 from fastapi import APIRouter, HTTPException
@@ -25,7 +28,8 @@ def get_ocr():
         try:
             from paddleocr import PaddleOCR
             logger.info("Initializing PaddleOCR...")
-            ocr_instance = PaddleOCR(use_angle_cls=True, lang='en')
+            # Disable angle_cls for much faster inference, we rely on cv2 deskew instead
+            ocr_instance = PaddleOCR(use_angle_cls=False, lang='en', show_log=False)
         except Exception as e:
             logger.error(f"PaddleOCR is not installed or failed to initialize: {e}")
             raise Exception("PaddleOCR is not available.")
@@ -53,9 +57,8 @@ def preprocess_image_for_ocr(img_array):
             M = cv2.getRotationMatrix2D(center, angle, 1.0)
             gray = cv2.warpAffine(gray, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
             
-    # 3. High Resolution Rendering (2x upscale without destructive sharpening/CLAHE)
-    gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-    
+    # Upscale 1.5x to improve OCR on small timetable text
+    gray = cv2.resize(gray, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
     # Convert back to BGR as PaddleOCR expects 3 channels
     img_processed = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
     return img_processed
@@ -151,7 +154,9 @@ def clean_ocr_text(text: str) -> str:
 def extract_text_from_image_array(img_array):
     ocr = get_ocr()
     processed_img = preprocess_image_for_ocr(img_array)
-    result = ocr.ocr(processed_img, cls=True)
+    # Using cls=False because we disabled angle_cls in initialization
+    result = ocr.ocr(processed_img, cls=False)
+    
     if not result or not result[0]:
         return ""
     
@@ -239,7 +244,8 @@ async def extract_timetable(request: TimetableExtractRequest):
                     logger.info("Insufficient digital text found. Falling back to OCR for scanned PDF.")
                     raw_text = ""
                     for page in doc:
-                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Zoom for better OCR
+                        # Process at 144 DPI (2x) to ensure text is legible for OCR
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) 
                         img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
                         if pix.n == 4:
                             img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2BGR)
@@ -248,7 +254,9 @@ async def extract_timetable(request: TimetableExtractRequest):
                         elif pix.n == 3:
                             img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
                         
-                        raw_text += extract_text_from_image_array(img_array) + "\n"
+                        loop = asyncio.get_running_loop()
+                        text = await loop.run_in_executor(None, extract_text_from_image_array, img_array)
+                        raw_text += text + "\n"
                         
     except ImportError as e:
         logger.error(f"Missing dependency: {e}")
@@ -273,7 +281,7 @@ async def extract_timetable(request: TimetableExtractRequest):
     if len(normalized_text) > 16000:
         normalized_text = normalized_text[:16000]
 
-    system_prompt = "You are an expert data extractor. Output ONLY valid JSON matching the requested schema exactly. Do not output markdown code blocks (e.g., ```json) or any other text."
+    system_prompt = "You are an expert data extractor. You must output a single valid JSON object matching the requested schema exactly. Do not include any explanations, greetings, markdown formatting, or HTML tags. Your entire response must be parseable as raw JSON."
     user_prompt = (
         "Extract structured information from the following timetable text.\n"
         "Your top priority is accurate subject extraction and preserving exact mappings from the uploaded file.\n"
@@ -285,14 +293,16 @@ async def extract_timetable(request: TimetableExtractRequest):
         "4. Assigned Coordinator\n"
         "\n"
         "CRITICAL EXTRACTION RULES (STRICT COMPLIANCE REQUIRED):\n"
-        "1. ONLY EXTRACT ACTUAL SUBJECTS: A valid subject row is one that contains a valid Subject Code (examples: IT601, IT602, IT603, DS401, CS501, ME301). ONLY rows containing a valid Subject Code should become subject entries. You MUST ignore headings, notes, timetable timings, grid schedule slots, and non-subject rows entirely.\n"
+        "1. ONLY EXTRACT ACTUAL SUBJECTS: A valid subject row usually contains a Subject Code and a Subject Name, but sometimes may only have a Subject Name. You MUST ignore headings, notes, timetable timings, grid schedule slots, and non-subject rows entirely.\n"
         "2. DO NOT MISS ANY VALID SUBJECT: Every single valid subject row present in the timetable text MUST be extracted. Do not skip any subject. Do not create duplicate subjects. Do not generate random subjects.\n"
         "3. DO NOT MIX SUBJECT CODE AND SUBJECT NAME:\n"
-        "   - Subject Code is short and alphanumeric (e.g., IT607, CS101, B-204, DS401). It MUST go into 'subjectCode'. NEVER place a Subject Code into 'subjectName'.\n"
+        "   - Subject Code is the full alphanumeric identifier exactly as written (e.g., IT607, CS 101, CD 603 A, B-204). It MUST go into 'subjectCode'. Extract the EXACT full subject code. NEVER truncate prefixes (like CD) or suffixes (like A) from codes like CD 603 A. NEVER place a Subject Code into 'subjectName'.\n"
         "   - Subject Name is the descriptive title (e.g., Machine Learning, Operating Systems, Cloud Computing, Data Structures). It MUST go into 'subjectName'. NEVER place a descriptive title into 'subjectCode'.\n"
-        "   - Correct example: IT607 -> Subject Code, Machine Learning -> Subject Name.\n"
+        "   - Pay very close attention to common OCR errors with Roman numerals (e.g. I1 or 1I or 11 MUST be corrected to II or III). Example: Minor Project-I1 MB should become Minor Project-II.\n"
+        "   - Remove random trailing garbage or faculty initials (e.g. MB, PKG) from the Subject Name.\n"
+        "   - If a subject has NO code and only a name (e.g. Internship), put the name in subjectName and leave subjectCode empty, OR if you can clearly deduce the code from the pattern of surrounding subjects (e.g. CD606, CD608 are present, so it must be CD607), use that deduced code.\n"
         "   - Wrong example: IT607 -> Subject Name, Machine Learning -> Subject Code.\n"
-        "   - If code and name appear combined (e.g., 'IT607 - Machine Learning'), accurately split them into subjectCode='IT607' and subjectName='Machine Learning'.\n"
+        "   - If code and name appear combined (e.g., IT607 - Machine Learning), accurately split them into subjectCode=IT607 and subjectName=Machine Learning.\n"
         "4. PRESERVE EXACT MAPPINGS: For every subject, preserve the exact mapping from the timetable: Subject Code -> Subject Name -> Assigned Faculty -> Coordinator. These mappings MUST remain identical to the uploaded timetable. Never guess values. Never assign the wrong faculty or coordinator. Do not hallucinate or autocorrect names.\n"
         "5. MISSING VALUES: If an Assigned Faculty, Coordinator, or Subject Type genuinely cannot be identified from the text, return 'Needs Manual Review' ONLY for that specific field instead of null or guessing.\n"
         "6. VALIDATION & COUNTING STEP: Before returning the JSON, count all unique Subject Codes present in the timetable text. Your final extracted 'subjects' array count MUST exactly match the number of subjects in the timetable without missing any valid row.\n"
@@ -323,8 +333,7 @@ async def extract_timetable(request: TimetableExtractRequest):
         systemPrompt=system_prompt,
         userPrompt=user_prompt,
         maxTokens=4096,
-        temperature=0.0, # Zero temperature to strictly prevent hallucinations
-        responseFormat="json_object"
+        temperature=0.0 # Zero temperature to strictly prevent hallucinations
     )
 
     try:
@@ -332,17 +341,17 @@ async def extract_timetable(request: TimetableExtractRequest):
         content = ai_res.content.strip()
     except Exception as e:
         logger.error(f"AI Service failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to analyze timetable. Please check API Key configuration.")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze timetable. API Error: {str(e)}")
 
     try:
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-
-        parsed = json.loads(content.strip())
+        # Robust Markdown JSON stripping
+        match = re.search(r'```(?:json)?(.*?)```', content, re.DOTALL | re.IGNORECASE)
+        if match:
+            content = match.group(1).strip()
+        else:
+            content = content.strip()
+            
+        parsed = json.loads(content)
         
         # Validation against original text
         normalized_text_lower = normalized_text.lower()

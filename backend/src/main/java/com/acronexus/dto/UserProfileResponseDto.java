@@ -24,6 +24,7 @@ public class UserProfileResponseDto {
     private String departmentName;
     private String department;
     private String branch;
+    private java.util.List<java.util.Map<String, Object>> departments;
     
     // Student specific fields
     private String enrollmentNo;

@@ -142,28 +142,20 @@ export const FacultyActivityModule = () => {
       .filter(faculty => visibleFacultyIds.has(faculty.id))
       .map(faculty => {
         const records = apiActivityRecords.filter(r => r.facultyId === faculty.id);
-        const totalScheduled = records.filter(r => r.status !== 'HOLIDAY').length;
-        const classesTaken = records.filter(r => r.status === 'PRESENT').length;
-        const classesMissed = records.filter(r => r.status === 'CLASS_MISSED').length;
-        const absent = records.filter(r => r.status === 'ABSENT').length;
-        const holidays = records.filter(r => r.status === 'HOLIDAY').length;
-        const teachingAttendance = totalScheduled > 0 ? Math.round((classesTaken / totalScheduled) * 100) : 0;
-        
-        const status = teachingAttendance > 75 ? 'Active' : 'Inactive';
         
         return {
           ...faculty,
-          totalScheduled,
-          classesTaken,
-          classesMissed,
-          absent,
-          holidays,
-          teachingAttendance,
-          status,
+          totalScheduled: faculty.totalScheduled || 0,
+          classesTaken: faculty.classesTaken || 0,
+          classesMissed: faculty.classesMissed || 0,
+          absent: faculty.absent || 0,
+          holidays: faculty.holidays || 0,
+          teachingAttendance: faculty.teachingAttendance || 0,
+          status: faculty.status || 'Inactive',
           records
         };
       });
-  }, [visibleFacultyIds, apiFacultyData]);
+  }, [visibleFacultyIds, apiFacultyData, apiActivityRecords]);
 
   // Filter & Sort
   const filteredFaculty = useMemo(() => {
@@ -514,6 +506,17 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOp
           }))
         };
         await api.post('/faculty-activities/bulk', payload);
+
+        // Automatically generate AI attendance sessions for missed/absent classes
+        const missedSubjects = selectedSubjects.filter(s => s.status === 'Absent' || s.status === 'Missed');
+        for (const s of missedSubjects) {
+          try {
+            await api.post(`/attendance-sessions/faculty/${user?.id}/ai-generate-session?classSubjectId=${s.id}`);
+          } catch (err) {
+            console.error("Failed to auto-generate AI session for subject " + s.id, err);
+          }
+        }
+
         setSuccessMsg("Attendance saved successfully!");
         if (typeof onSuccess === 'function') onSuccess();
         setTimeout(() => {
@@ -545,6 +548,16 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOp
           }]
         };
         await api.post('/faculty-activities/bulk', payload);
+
+        // Automatically generate AI attendance sessions for all assigned subjects on holiday
+        for (const s of subjectsToMark) {
+          try {
+            await api.post(`/attendance-sessions/faculty/${user?.id}/ai-generate-session?classSubjectId=${s.id}`);
+          } catch (err) {
+            console.error("Failed to auto-generate AI session for subject " + s.id, err);
+          }
+        }
+
         setSuccessMsg("Holiday marked successfully!");
         if (typeof onSuccess === 'function') onSuccess();
         setTimeout(() => {

@@ -28,7 +28,8 @@ public class StudentController {
             @RequestParam(required = false) String batch,
             @RequestParam(required = false) String className,
             @RequestParam(required = false) String status,
-            Pageable pageable) {
+            @org.springframework.data.web.PageableDefault(size = 2000) Pageable pageable) {
+
         return ResponseEntity.ok(ApiResponse.success("Students retrieved successfully", studentService.getAllStudents(search, batch, className, status, pageable)));
     }
 

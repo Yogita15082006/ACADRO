@@ -16,4 +16,5 @@ public interface TimetableRepository extends JpaRepository<Timetable, UUID> {
     List<Timetable> findByAcroClassIdAndAcademicYearIdAndSemesterIdOrderByVersionNumberDesc(UUID classId, UUID academicYearId, UUID semesterId);
     List<Timetable> findByIsActiveTrueOrderByUploadedAtDesc();
     java.util.Optional<Timetable> findByFileId(UUID fileId);
+    long countByAcroClassDepartmentId(UUID departmentId);
 }

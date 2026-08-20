@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -561,6 +562,7 @@ const AdminSessionDetails = ({ session, onBack }: { session: any, onBack: () => 
 export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?: string } = {}) => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [generatingAiFor, setGeneratingAiFor] = useState<string | null>(null);
 
   // Resolve the current faculty from auth context or readOnlyFacultyId
   const facultyId = readOnlyFacultyId || user?.id || '';
@@ -569,103 +571,70 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
   const facultyDept = readOnlyFacultyId ? '' : (user?.department || 'Information Technology');
 
   const [facultyActivities, setFacultyActivities] = useState<any[]>([]);
-  const [myAssignments, setMyAssignments] = useState<any[]>([]);
-  const [facultySessions, setFacultySessions] = useState<any[]>([]);
+  const [teachingRecords, setTeachingRecords] = useState<any[]>([]);
   const [backendStats, setBackendStats] = useState({ daysPresent: 0, daysAbsent: 0, totalWorkingDays: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchActivities = async () => {
+    if (facultyId) {
+      try {
+        setIsLoading(true);
+        const [actRes, statsRes, histRes] = await Promise.all([
+          api.get(`/faculty-activities/faculty/${facultyId}`),
+          api.get(`/attendance-sessions/faculty/${facultyId}/statistics`),
+          api.get(`/attendance-sessions/faculty/${facultyId}/teaching-history`)
+        ]);
+
+        if (actRes.data && actRes.data.data) {
+          setFacultyActivities(actRes.data.data);
+        }
+        if (statsRes.data) {
+          setBackendStats({
+            daysPresent: statsRes.data.daysPresent || 0,
+            daysAbsent: statsRes.data.daysAbsent || 0,
+            totalWorkingDays: statsRes.data.totalWorkingDays || 0
+          });
+        }
+        if (histRes.data) {
+          setTeachingRecords(histRes.data);
+        }
+      } catch (err) {
+        console.error("Failed to load teaching history", err);
+        toast.error("Failed to load teaching history");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchActivities = async () => {
-      if (facultyId) {
-        try {
-          const actRes = await api.get(`/faculty-activities/faculty/${facultyId}`);
-          if (actRes.data && actRes.data.data) {
-            setFacultyActivities(actRes.data.data);
-          }
-          const assignRes = await api.get(`/v1/class-subjects/faculty/${facultyId}`);
-          if (assignRes.data) {
-            setMyAssignments(assignRes.data);
-          }
-          const sessRes = await api.get(`/attendance-sessions/faculty/${facultyId}`);
-          if (sessRes.data) {
-            setFacultySessions(sessRes.data);
-          }
-          const statsRes = await api.get(`/attendance-sessions/faculty/${facultyId}/statistics`);
-          if (statsRes.data) {
-            setBackendStats({
-              daysPresent: statsRes.data.daysPresent || 0,
-              daysAbsent: statsRes.data.daysAbsent || 0,
-              totalWorkingDays: statsRes.data.totalWorkingDays || 0
-            });
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      }
-    };
-    
     fetchActivities();
-    
     window.addEventListener('sync-attendance-data', fetchActivities);
     return () => window.removeEventListener('sync-attendance-data', fetchActivities);
   }, [facultyId]);
 
-  const assignedClasses = useMemo(() => Array.from(new Set(myAssignments.map(a => a.className))), [myAssignments]);
+
 
   // Compute summary stats
   const stats = useMemo(() => {
-    const facultyOwnRecords = facultyActivities;
+    const totalScheduled = teachingRecords.reduce((sum, r) => sum + (r.totalScheduled || 0), 0);
+    const conducted = teachingRecords.reduce((sum, r) => sum + (r.conducted || 0), 0);
+    const missed = teachingRecords.reduce((sum, r) => sum + (r.missed || 0), 0);
+    const overallAttendance = totalScheduled > 0 ? Math.round((conducted / totalScheduled) * 100) : 0;
+    
+    const absent = facultyActivities.filter(r => r.status === 'ABSENT').length;
     const holidays = facultyActivities.filter(r => r.status === 'HOLIDAY');
     const uniqueHolidayDates = new Set(holidays.map(r => r.date));
-
-    // Stats based on actual SAVED AttendanceSessions
-    const completedSessions = facultySessions.filter(s => s.status === 'COMPLETED' || s.status === 'SAVED' || s.status === 'CLOSED');
-    const totalScheduled = completedSessions.length;
-    const conducted = completedSessions.filter(s => !s.isSystemGenerated).length;
-    const missed = completedSessions.filter(s => s.isSystemGenerated).length;
-    
-    const absent = facultyOwnRecords.filter(r => r.status === 'ABSENT').length;
-
-    // Summary Cards stats (day-level aggregation)
-    const totalWorkingDays = backendStats.totalWorkingDays;
-    const daysPresent = backendStats.daysPresent;
-    const daysAbsent = backendStats.daysAbsent;
-    const overallAttendance = totalScheduled > 0 ? Math.round((conducted / totalScheduled) * 100) : 0;
 
     return {
       totalScheduled, conducted, missed, absent,
       holidays: uniqueHolidayDates.size,
-      totalWorkingDays, daysPresent, daysAbsent, overallAttendance,
+      totalWorkingDays: backendStats.totalWorkingDays,
+      daysPresent: backendStats.daysPresent,
+      daysAbsent: backendStats.daysAbsent,
+      overallAttendance,
     };
-  }, [facultyActivities, facultySessions, assignedClasses, backendStats]);
-
-  // Faculty Teaching Record (Subject-wise summary)
-  const teachingRecords = useMemo(() => {
-    return myAssignments.map((assignment, index) => {
-      const relatedSessions = facultySessions.filter(s => 
-        (s.status === 'COMPLETED' || s.status === 'SAVED' || s.status === 'CLOSED') &&
-        s.classSubjectId === assignment.id
-      );
-      
-      const totalScheduled = relatedSessions.length;
-      const conducted = relatedSessions.filter(s => !s.isSystemGenerated).length;
-      const missed = relatedSessions.filter(s => s.isSystemGenerated).length;
-
-      const batch = assignment.batch || '-'; 
-      const year = assignment.year ? assignment.year.replace('YEAR_', '') : '-';
-      
-      return {
-        id: assignment.id || `teaching-${index}`,
-        batch,
-        year,
-        semester: assignment.semester?.replace('SEMESTER_', '') || '-',
-        className: (assignment.className || '-').replace(' - null', ''),
-        subjectName: assignment.subjectName || '-',
-        totalScheduled,
-        conducted,
-        missed
-      };
-    });
-  }, [facultyActivities, myAssignments]);
+  }, [facultyActivities, teachingRecords, backendStats]);
 
   // Faculty Absence Record (Absences only)
   const absenceHistory = useMemo(() => {
@@ -701,43 +670,26 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
           reason: first.reason || '-'
         });
       } else {
-        const isAllSubjects = myAssignments.length > 0 && group.length >= myAssignments.length;
-        if (isAllSubjects) {
+        group.forEach(r => {
           entries.push({
-            id: `grouped-${first.date}-${first.status}`,
-            date: first.date,
+            id: r.id, 
+            date: r.date, 
             day,
-            subject: 'All',
-            className: 'All',
-            semester: 'All',
-            batch: 'All',
-            year: 'All',
-            status: first.status,
-            absenceType: 'Absent',
-            reason: first.reason || '-'
+            subject: r.subjectName || '-', 
+            className: (r.className || '-').replace(' - null', ''),
+            semester: r.semester?.replace('SEMESTER_', '') || '-', 
+            batch: r.batch || '-',
+            year: r.academicYear?.replace('YEAR_', '') || '-',
+            status: r.status,
+            absenceType: 'Lecture-wise',
+            reason: r.reason || '-',
           });
-        } else {
-          group.forEach(r => {
-            entries.push({
-              id: r.id, 
-              date: r.date, 
-              day,
-              subject: r.subjectName || '-', 
-              className: (r.className || '-').replace(' - null', ''),
-              semester: r.semester?.replace('SEMESTER_', '') || '-', 
-              batch: r.batch || '-',
-              year: r.academicYear?.replace('YEAR_', '') || '-',
-              status: r.status,
-              absenceType: 'Lecture-wise',
-              reason: r.reason || '-',
-            });
-          });
-        }
+        });
       }
     });
 
     return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [facultyActivities, myAssignments]);
+  }, [facultyActivities]);
 
   // Filter by search
   const filteredHistory = useMemo(() => {
@@ -762,6 +714,15 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
     const style = map[type] || map['Lecture Missed'];
     return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${style.color}`}>{type}</span>;
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <p className="mt-4 text-sm text-muted-foreground animate-pulse">Loading teaching records...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -843,7 +804,7 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
                   </TableRow>
                 ) : (
                   teachingRecords.map((entry: any) => (
-                    <TableRow key={entry.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <TableRow key={entry.classSubjectId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <TableCell className="text-sm font-semibold whitespace-nowrap">{entry.batch}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.year}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{entry.semester}</TableCell>
@@ -935,7 +896,7 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
       </Card>
     </motion.div>
   );
-}
+};
 
 
 const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit, errors, watch, setValue, handleGenerateCode, codeValue }: any) => {
@@ -1498,7 +1459,7 @@ export const AttendanceModule = () => {
   };
 
   useEffect(() => {
-    fetchCoordinatorStudents();
+    fetchCoordinatorStudents(true);
     const handleSync = () => fetchCoordinatorStudents(true);
     window.addEventListener('sync-attendance-data', handleSync);
     return () => window.removeEventListener('sync-attendance-data', handleSync);
@@ -1508,7 +1469,7 @@ export const AttendanceModule = () => {
   const [adminSessions, setAdminSessions] = useState<any[]>([]);
   useEffect(() => {
     const fetchSessions = async () => {
-      if (user?.id) {
+      if (user?.id && ['faculty', 'hod', 'coordinator', 'admin'].includes(role)) {
         try {
           const res = await api.get(`/attendance-sessions/faculty/${user.id}`);
           setAdminSessions(res.data || []);
@@ -1518,7 +1479,7 @@ export const AttendanceModule = () => {
       }
     };
     fetchSessions();
-  }, [user?.id]);
+  }, [user?.id, role]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMarkModal, setShowMarkModal] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);

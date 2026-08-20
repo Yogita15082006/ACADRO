@@ -1098,7 +1098,7 @@ export const ExaminationModule = () => {
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border md:col-span-2">
           <Button variant="outline" onClick={() => setIsCreatingExam(false)}>Cancel</Button>
-          <Button className="bg-primary text-white" onClick={handleSaveNotice}>{editingExamId ? 'Save Changes' : 'Publish Examination'}</Button>
+          <Button className="bg-primary text-white" onClick={handleSaveExam}>{editingExamId ? 'Save Changes' : 'Publish Examination'}</Button>
         </div>
       </div>
     </motion.div>
@@ -1735,11 +1735,16 @@ export const ExaminationModule = () => {
                    }}>
                      <Eye size={16}/> View
                    </Button>
-                   <Button variant="outline" className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 gap-2 px-3" onClick={() => {
-                     setSavedResults(savedResults.filter(r => r.id !== res.id));
-                     toast.success("Saved result deleted");
-                   }}>
-                     <Trash2 size={16}/>
+                   <Button variant="outline" className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 gap-2 px-3" onClick={async () => {
+                       try {
+                         await examResultService.deleteResultsForClass(selectedExam.id, res.className);
+                         setSavedResults(savedResults.filter(r => r.id !== res.id));
+                         toast.success("Saved result and published data deleted successfully");
+                       } catch (e: any) {
+                         toast.error(e.response?.data?.message || "Failed to delete saved result");
+                       }
+                     }}>
+                       <Trash2 size={16}/>
                    </Button>
                  </div>
               </div>

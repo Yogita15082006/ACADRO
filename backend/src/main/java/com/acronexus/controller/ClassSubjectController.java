@@ -141,6 +141,16 @@ public class ClassSubjectController {
                     List<ClassSubject> classSubjects = classSubjectRepository.findAll().stream()
                         .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()) && cs.getAcroClass() != null && cs.getAcroClass().getName() != null &&
                                       cs.getAcroClass().getName().trim().equalsIgnoreCase(ca.getClassName() != null ? ca.getClassName().trim() : ""))
+                        .filter(cs -> {
+                            if (ca.getAcademicYear() != null && cs.getAcademicYear() != null) {
+                                if (!ca.getAcademicYear().equalsIgnoreCase(cs.getAcademicYear().getYear())) return false;
+                            }
+                            if (ca.getSemester() != null && cs.getSemester() != null) {
+                                String semName = "Semester " + cs.getSemester().getSemesterNumber();
+                                if (!ca.getSemester().equalsIgnoreCase(semName)) return false;
+                            }
+                            return true;
+                        })
                         .collect(Collectors.toList());
                     subjects.addAll(classSubjects);
                 }

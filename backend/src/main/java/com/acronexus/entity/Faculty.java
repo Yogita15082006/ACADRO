@@ -34,6 +34,14 @@ public class Faculty implements Persistable<java.util.UUID> {
     @Column(name = "expertise_areas")
     private List<String> expertiseAreas;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "faculty_departments",
+        joinColumns = @JoinColumn(name = "faculty_id"),
+        inverseJoinColumns = @JoinColumn(name = "department_id")
+    )
+    private List<Department> departments;
+
     // Transient flag for Persistable support (matches Student entity pattern)
     @Transient
     private boolean isNewEntity = false;

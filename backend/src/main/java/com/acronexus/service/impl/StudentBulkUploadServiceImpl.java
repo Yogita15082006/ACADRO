@@ -428,13 +428,23 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 if (entry.getKey() != null) {
                     String normEntry = normalizeHeader(entry.getKey());
-                    if ((normEntry.contains(normKey) || normKey.contains(normEntry)) && entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
-                        return entry.getValue().trim();
+                    // Only apply flexible matching if the normEntry strictly contains normKey
+                    // and we avoid known collisions (e.g. "batch" vs "batchsection")
+                    if (normEntry.contains(normKey) && !isKnownCollision(normKey, normEntry)) {
+                        if (entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
+                            return entry.getValue().trim();
+                        }
                     }
                 }
             }
         }
         return "";
+    }
+
+    private boolean isKnownCollision(String searchKey, String targetHeader) {
+        if (searchKey.equals("batch") && targetHeader.contains("section")) return true;
+        if (searchKey.equals("year") && (targetHeader.contains("batch") || targetHeader.contains("admission"))) return true;
+        return false;
     }
 
     private AcroClass resolveAcroClass(String className, String sectionName) {
@@ -662,23 +672,38 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             throw new IllegalArgumentException("Student Name is strictly required.");
         }
         
+        // Safely determine email first to check for existing records
         String email = data.collegeEmail != null ? data.collegeEmail.trim() : "";
         if (email.isEmpty()) {
             email = data.enrollmentNo.trim().toLowerCase() + "@acropolis.in";
+        }
+
+        // PREVENT DESTRUCTIVE DEFAULTS: Fetch existing student early
+        Student existingStudent = studentRepository.findByEnrollmentNo(data.enrollmentNo).orElse(null);
+        if (existingStudent == null) {
+            User existingUser = userRepository.findByEmail(email).orElse(null);
+            if (existingUser != null) {
+                existingStudent = studentRepository.findById(existingUser.getId()).orElse(null);
+            }
         }
 
         String[] nameParts = data.studentName.trim().split(" ", 2);
         String firstName = nameParts[0];
         String lastName = nameParts.length > 1 ? nameParts[1] : "";
 
-        AcroClass acroClass = resolveAcroClass(data.acroClass, data.section);
+        // Resolve existing academic fields if omitted in upload
+        String classInput = data.acroClass != null && !data.acroClass.trim().isEmpty() ? data.acroClass.trim() : (existingStudent != null ? existingStudent.getCourse() : "");
+        String sectionInput = data.section != null && !data.section.trim().isEmpty() ? data.section.trim() : (existingStudent != null ? existingStudent.getSection() : "");
+        String batchYearInput = data.batchYear != null && !data.batchYear.trim().isEmpty() ? data.batchYear.trim() : (existingStudent != null ? existingStudent.getBatchYear() : "");
+        String academicYearInput = data.academicYear != null && !data.academicYear.trim().isEmpty() ? data.academicYear.trim() : "";
+        String semesterInput = data.semester != null && !data.semester.trim().isEmpty() ? data.semester.trim() : (existingStudent != null ? existingStudent.getCurrentSemester() : "");
+
+        AcroClass acroClass = resolveAcroClass(classInput, sectionInput);
         Department department = resolveDepartment(acroClass, data.department);
         DegreeProgram degreeProgram = resolveDegreeProgram(acroClass, data.degree, department);
         
-        String academicYearInput = data.academicYear != null ? data.academicYear.trim() : "";
-        String semesterInput = data.semester != null ? data.semester.trim() : "";
         if (academicYearInput.isEmpty() || semesterInput.isEmpty()) {
-            String[] calc = calculateYearAndSemFromBatch(data.batchYear);
+            String[] calc = calculateYearAndSemFromBatch(batchYearInput);
             if (academicYearInput.isEmpty()) academicYearInput = calc[0];
             if (semesterInput.isEmpty()) semesterInput = calc[1];
         }
@@ -724,6 +749,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         user.setLastName(lastName);
         user.setDepartment(department);
         user.setUpdatedBy(uploadedBy.getId());
+        user.setIsDeleted(false); // Restore if previously soft-deleted
         
         if (data.mobileNumber != null && !data.mobileNumber.trim().isEmpty()) {
             user.setPhone(data.mobileNumber.trim());
@@ -783,7 +809,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         user = userRepository.save(user);
 
         // Student Entity
-        Student student = studentRepository.findByEnrollmentNo(data.enrollmentNo).orElse(null);
+        Student student = existingStudent;
         if (student != null && !student.getId().equals(user.getId())) {
             throw new IllegalArgumentException("Enrollment Number is already associated with a different email.");
         }
@@ -796,7 +822,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         }
         student.setEnrollmentNo(data.enrollmentNo);
         student.setDegreeProgram(degreeProgram);
-        student.setBatchYear(data.batchYear != null && !data.batchYear.trim().isEmpty() ? data.batchYear.trim() : String.valueOf(java.time.LocalDate.now().getYear()));
+        student.setBatchYear(batchYearInput != null && !batchYearInput.isEmpty() ? batchYearInput : String.valueOf(java.time.LocalDate.now().getYear()));
         student.setCourse(acroClass.getName());
         student.setSection(acroClass.getSection());
         student.setCurrentSemester(String.valueOf(semester.getSemesterNumber()));
@@ -826,8 +852,12 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (enrollment.getId() == null) {
             enrollment.setCreatedBy(uploadedBy);
             enrollment.setEffectiveFrom(java.time.LocalDate.now());
+            enrollment.setIsActive(true); // CRITICAL: Must be active to show up on UI!
         } else {
             isUpdate = true;
+            if (enrollment.getIsActive() == null) {
+                enrollment.setIsActive(true);
+            }
         }
         enrollment.setStudent(student);
         enrollment.setAcademicYear(academicYear);
@@ -1037,6 +1067,11 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             }
             result.setRawRecords(new ArrayList<>(rows));
             result.setTotalAnalyzed(rows.size());
+            
+            int errorCount = result.getIssuesFound();
+            result.setErrorCount(errorCount);
+            result.setWarningCount(0);
+            result.setValidCount(Math.max(0, rows.size() - errorCount));
             log.info("AI validation successful. Issues found: {}. Total raw records returned: {}", result.getIssuesFound(), rows.size());
             return result;
         } catch (Exception e) {
@@ -1064,10 +1099,10 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         String normalized = normalizeHeader(header);
         if (normalized.isEmpty()) return null;
         if (List.of("studentname", "name", "student", "fullname").contains(normalized) || normalized.contains("studentname") || normalized.equals("student") || normalized.startsWith("name")) return "studentName";
-        if (List.of("enrollmentno", "enrollmentnumber", "enrollment", "rgpvenrollment").contains(normalized) || normalized.contains("enrollment")) return "enrollmentNumber";
+        if (List.of("enrollmentno", "enrollmentnumber", "enrollment", "rgpvenrollment").contains(normalized) || (normalized.contains("enrollment") && !normalized.contains("institute"))) return "enrollmentNumber";
         if (List.of("rollno", "rollnumber", "roll", "classrollno").contains(normalized) || normalized.equals("roll") || normalized.equals("rollno")) return "rollNumber";
-        if (List.of("admissionyear", "yearofadmission", "instituteenrollment", "instituteenrollmentno").contains(normalized) || normalized.contains("admission") || normalized.contains("institute")) return "admissionYear";
-        if (List.of("collegeemail", "email", "emailid", "emailaddress").contains(normalized) || normalized.contains("email") && !normalized.contains("personal")) return "collegeEmail";
+        if (List.of("admissionyear", "yearofadmission", "instituteenrollment", "instituteenrollmentno").contains(normalized) || normalized.contains("admission") || normalized.contains("instituteenrollment")) return "admissionYear";
+        if (List.of("collegeemail", "email", "emailid", "emailaddress").contains(normalized) || (normalized.contains("email") && !normalized.contains("personal"))) return "collegeEmail";
         if (List.of("personalemail", "alternateemail", "personalemailid").contains(normalized) || normalized.contains("personalemail")) return "personalEmail";
         if (List.of("whatsappnumber", "whatsapp", "whatsappno").contains(normalized) || normalized.contains("whatsapp")) return "whatsappNumber";
         if (List.of("dob", "dateofbirth", "birthdate").contains(normalized) || normalized.equals("dob") || normalized.contains("dateofbirth") || normalized.contains("birth")) return "dob";
@@ -1079,11 +1114,13 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (List.of("hobbies", "interests").contains(normalized) || normalized.contains("hobbies") || normalized.contains("interests")) return "hobbies";
         if (List.of("clubs", "communities", "groups").contains(normalized) || normalized.contains("clubs") || normalized.contains("communities")) return "clubs";
         if (List.of("gender", "sex").contains(normalized) || normalized.equals("gender") || normalized.equals("sex")) return "gender";
-        if (List.of("batch", "batchyear").contains(normalized) || normalized.contains("batch")) return "batchYear";
-        if (List.of("academicyear", "year").contains(normalized) || normalized.equals("year") || normalized.contains("academicyear")) return "academicYear";
+        
+        // CAREFUL WITH THESE: ORDER MATTERS
+        if (List.of("section", "sec", "batchsection").contains(normalized) || normalized.equals("section") || normalized.equals("sec")) return "section";
+        if (List.of("batch", "batchyear").contains(normalized) || (normalized.contains("batch") && !normalized.contains("section"))) return "batchYear";
+        if (List.of("academicyear", "year").contains(normalized) || normalized.equals("year") || (normalized.contains("year") && !normalized.contains("batch") && !normalized.contains("admission"))) return "academicYear";
         if (List.of("semester", "sem", "currentsemester").contains(normalized) || normalized.equals("sem") || normalized.contains("semester")) return "semester";
         if (List.of("class", "course", "acroclass", "program").contains(normalized) || normalized.equals("class") || normalized.equals("course")) return "acroClass";
-        if (List.of("section", "sec", "batchsection").contains(normalized) || normalized.equals("section") || normalized.equals("sec")) return "section";
         if (List.of("mobilenumber", "phone", "mobile", "contact", "phonenumber", "contactnumber").contains(normalized) || normalized.contains("mobile") || normalized.contains("phone") || normalized.contains("contact")) return "mobileNumber";
         if (List.of("status", "isactive", "active", "currentstatus", "studentstatus", "userstatus").contains(normalized) || normalized.contains("status")) return "status";
         if (List.of("department", "dept", "branch", "stream", "discipline").contains(normalized) || normalized.contains("department") || normalized.equals("dept") || normalized.contains("branch")) return "department";

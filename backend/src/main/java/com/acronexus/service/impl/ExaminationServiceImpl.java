@@ -384,74 +384,85 @@ public class ExaminationServiceImpl implements ExaminationService {
         Examination examination = repository.findByIdAndIsDeletedFalse(examinationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Examination not found"));
                 
-        java.util.List<com.acronexus.entity.StudentEnrollment> enrollments = studentEnrollmentRepository.findByExaminationId(examinationId);
-        
         java.util.List<ExaminationEligibilityMetricsDto> metrics = new java.util.ArrayList<>();
+        java.util.List<com.acronexus.entity.Student> allStudents = new java.util.ArrayList<>();
         
-        for (com.acronexus.entity.StudentEnrollment enrollment : enrollments) {
-            ExaminationEligibilityMetricsDto dto = new ExaminationEligibilityMetricsDto();
-            dto.setId(enrollment.getStudent().getId());
-            if (enrollment.getStudent().getUser() != null) {
-                dto.setName(enrollment.getStudent().getUser().getFirstName() + " " + 
-                    (enrollment.getStudent().getUser().getLastName() != null ? enrollment.getStudent().getUser().getLastName() : ""));
-            }
-            dto.setEnrollmentNo(enrollment.getStudent().getEnrollmentNo());
-            if (enrollment.getAcroClass() != null) {
-                dto.setClassName(enrollment.getAcroClass().getSection() != null ? enrollment.getAcroClass().getSection() : enrollment.getAcroClass().getName());
-            }
-            
-            // 1. Calculate Real Attendance
-            double attendancePercentage = 0.0;
-            try {
-                Object result = studentAttendanceRepository.getOverallAttendance(enrollment.getStudent().getId());
-                if (result != null && result instanceof Object[]) {
-                    Object[] row = (Object[]) result;
-                    Long totalClasses = (Long) row[2];
-                    Long totalPresent = (Long) row[3];
-                    if (totalClasses != null && totalClasses > 0) {
-                        attendancePercentage = (totalPresent != null ? totalPresent : 0) * 100.0 / totalClasses;
+        for (com.acronexus.entity.AcroClass acroClass : examination.getClasses()) {
+            String className = acroClass.getSection() != null ? acroClass.getSection() : acroClass.getName();
+            java.util.List<com.acronexus.entity.Student> matchedStudents = studentRepository.findByExaminationClassScope(
+                    examination.getBatch(),
+                    examination.getSemester() != null ? String.valueOf(examination.getSemester().getSemesterNumber()) : null,
+                    className
+            );
+            for (com.acronexus.entity.Student student : matchedStudents) {
+                if (!allStudents.contains(student)) {
+                    allStudents.add(student);
+                    
+                    ExaminationEligibilityMetricsDto dto = new ExaminationEligibilityMetricsDto();
+                    dto.setId(student.getId());
+                    if (student.getUser() != null) {
+                        dto.setName(student.getUser().getFirstName() + " " + 
+                            (student.getUser().getLastName() != null ? student.getUser().getLastName() : ""));
                     }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            dto.setOverallAttendance(Math.round(attendancePercentage * 100.0) / 100.0);
-            
-            // 2. Calculate Real Assignment
-            double assignmentPercentage = 0.0;
-            try {
-                java.util.List<com.acronexus.entity.Assignment> totalAssignments = assignmentRepository.findAssignmentsForStudent(enrollment.getStudent().getId());
-                if (totalAssignments != null && !totalAssignments.isEmpty()) {
-                    java.util.List<com.acronexus.entity.AssignmentSubmission> submissions = assignmentSubmissionRepository.findByStudentId(enrollment.getStudent().getId());
-                    long submittedCount = submissions.stream().filter(s -> !"PENDING".equals(s.getStatus()) && !"EXPIRED".equals(s.getStatus())).count();
-                    assignmentPercentage = (submittedCount * 100.0) / totalAssignments.size();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            dto.setAssignment(Math.round(assignmentPercentage * 100.0) / 100.0);
-            
-            // 3. Calculate Real Quiz
-            double quizPercentage = 0.0;
-            try {
-                if (enrollment.getStudent().getUser() != null) {
-                    UUID userId = enrollment.getStudent().getUser().getId();
-                    java.util.List<com.acronexus.entity.Quiz> totalQuizzes = quizRepository.findAvailableQuizzesForStudent(userId);
-                    if (totalQuizzes != null && !totalQuizzes.isEmpty()) {
-                        java.util.List<com.acronexus.entity.QuizAttempt> attempts = quizAttemptRepository.findByStudent_User_Id(userId);
-                        long attemptCount = attempts.size();
-                        quizPercentage = (attemptCount * 100.0) / totalQuizzes.size();
+                    dto.setEnrollmentNo(student.getEnrollmentNo());
+                    dto.setClassName(className);
+                    
+                    // 1. Calculate Real Attendance
+                    double attendancePercentage = 0.0;
+                    try {
+                        java.util.UUID acYearId = examination.getAcademicYear() != null ? examination.getAcademicYear().getId() : null;
+                        java.util.UUID semId = examination.getSemester() != null ? examination.getSemester().getId() : null;
+                        Object result = studentAttendanceRepository.getOverallAttendance(student.getId(), acYearId, semId);
+                        if (result != null && result instanceof Object[]) {
+                            Object[] row = (Object[]) result;
+                            Long totalClasses = (Long) row[2];
+                            Long totalPresent = (Long) row[3];
+                            if (totalClasses != null && totalClasses > 0) {
+                                attendancePercentage = (totalPresent != null ? totalPresent : 0) * 100.0 / totalClasses;
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
+                    dto.setOverallAttendance(Math.round(attendancePercentage * 100.0) / 100.0);
+                    
+                    // 2. Calculate Real Assignment
+                    double assignmentPercentage = 0.0;
+                    try {
+                        java.util.List<com.acronexus.entity.Assignment> totalAssignments = assignmentRepository.findAssignmentsForStudent(student.getId());
+                        if (totalAssignments != null && !totalAssignments.isEmpty()) {
+                            java.util.List<com.acronexus.entity.AssignmentSubmission> submissions = assignmentSubmissionRepository.findByStudentId(student.getId());
+                            long submittedCount = submissions.stream().filter(s -> !"PENDING".equals(s.getStatus()) && !"EXPIRED".equals(s.getStatus())).count();
+                            assignmentPercentage = (submittedCount * 100.0) / totalAssignments.size();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    dto.setAssignment(Math.round(assignmentPercentage * 100.0) / 100.0);
+                    
+                    // 3. Calculate Real Quiz
+                    double quizPercentage = 0.0;
+                    try {
+                        if (student.getUser() != null) {
+                            UUID userId = student.getUser().getId();
+                            java.util.List<com.acronexus.entity.Quiz> totalQuizzes = quizRepository.findAvailableQuizzesForStudent(userId);
+                            if (totalQuizzes != null && !totalQuizzes.isEmpty()) {
+                                java.util.List<com.acronexus.entity.QuizAttempt> attempts = quizAttemptRepository.findByStudent_User_Id(userId);
+                                long attemptCount = attempts.size();
+                                quizPercentage = (attemptCount * 100.0) / totalQuizzes.size();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    dto.setQuiz(Math.round(quizPercentage * 100.0) / 100.0);
+                    
+                    // 4. Internal (Mock for now since Internal marks repo might not exist)
+                    dto.setInternal(0.0);
+                    
+                    metrics.add(dto);
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
-            dto.setQuiz(Math.round(quizPercentage * 100.0) / 100.0);
-            
-            // 4. Internal (Mock for now since Internal marks repo might not exist)
-            dto.setInternal(0.0);
-            
-            metrics.add(dto);
         }
         
         metrics.sort(java.util.Comparator.comparing(ExaminationEligibilityMetricsDto::getClassName, java.util.Comparator.nullsLast(String::compareTo))

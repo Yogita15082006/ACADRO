@@ -10,4 +10,5 @@ import java.util.Optional;
 @Repository
 public interface AcademicSyllabusRepository extends JpaRepository<AcademicSyllabus, UUID> {
     Optional<AcademicSyllabus> findByFileStorageId(UUID fileStorageId);
+    long countByDepartmentIgnoreCase(String department);
 }

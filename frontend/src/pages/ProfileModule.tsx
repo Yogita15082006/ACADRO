@@ -46,19 +46,23 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   useEffect(() => {
+    const targetId = viewingStudent?.userId || viewingStudent?.id || studentIdParam || user?.id;
+    
+    // If viewingStudent has basic data, show it immediately while loading the full profile
     if (viewingStudent) {
       setFetchedStudent(viewingStudent);
-      setIsLoadingProfile(false);
-      return;
     }
     
-    const targetId = studentIdParam || user?.id;
     if (targetId) {
-      setIsLoadingProfile(true);
+      // Only show loader if we don't have basic data from viewingStudent
+      if (!viewingStudent) setIsLoadingProfile(true);
+      
       const endpoint = (targetId === user?.id) ? `/v1/profile` : `/v1/profile/${targetId}`;
       api.get(endpoint).then(res => {
         setFetchedStudent(res.data?.data);
-      }).catch(err => console.error("Failed to fetch student profile", err))
+      }).catch(err => {
+        console.error("Failed to fetch student profile", err);
+      })
       .finally(() => setIsLoadingProfile(false));
     } else {
       setIsLoadingProfile(false);
@@ -262,22 +266,20 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                     </>
                   ) : (
                     <>
-                      {role !== 'hod' && profileUser.empId && (
+                      {profileUser.empId && (
                         <div className="flex items-center gap-2">
                           <Hash className="w-4 h-4" />
                           <span className="font-medium text-foreground">{profileUser.empId}</span>
                         </div>
                       )}
-                      {role === 'hod' && (
-                        <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4" />
-                          <span>
-                            {(profileUser as any).departments && Array.isArray((profileUser as any).departments) && (profileUser as any).departments.length > 0
-                              ? (profileUser as any).departments.join(' • ')
-                              : getSafeString(profileUser.department)?.split(/[,&]/).map((s: string) => s.trim()).filter(Boolean).join(' • ') || 'Not Specified'}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Building className="w-4 h-4" />
+                        <span>
+                          {(profileUser as any).departments && Array.isArray((profileUser as any).departments) && (profileUser as any).departments.length > 0
+                            ? (profileUser as any).departments.map((d: any) => typeof d === 'string' ? d : d.name).join(' • ')
+                            : getSafeString(profileUser.department)?.replace(/#/g, ' • ').replace(/\s*•\s*$/, '').trim() || 'Not Specified'}
+                        </span>
+                      </div>
 
                     </>
                   )}

@@ -15,6 +15,9 @@ public interface EventAttendanceRecordRepository extends JpaRepository<EventAtte
     boolean existsBySessionIdAndStudentId(UUID sessionId, UUID studentId);
     boolean existsBySessionIdAndUniqueCodeUsed(UUID sessionId, Integer uniqueCodeUsed);
     
-    @org.springframework.data.jpa.repository.Query("SELECT r FROM EventAttendanceRecord r WHERE r.student.id = :studentId AND r.session.isIncludedInOverall = true AND r.session.status = :sessionStatus")
-    List<EventAttendanceRecord> findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(@org.springframework.data.repository.query.Param("studentId") UUID studentId, @org.springframework.data.repository.query.Param("sessionStatus") String sessionStatus);
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM EventAttendanceRecord r WHERE r.student.id = :studentId AND r.session.isIncludedInOverall = true AND r.session.status = :sessionStatus AND r.session.sessionStartTime >= :startDate AND r.session.sessionStartTime <= :endDate")
+    List<EventAttendanceRecord> findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(@org.springframework.data.repository.query.Param("studentId") UUID studentId, @org.springframework.data.repository.query.Param("sessionStatus") String sessionStatus, @org.springframework.data.repository.query.Param("startDate") java.time.Instant startDate, @org.springframework.data.repository.query.Param("endDate") java.time.Instant endDate);
+
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM EventAttendanceRecord r WHERE r.student.id IN :studentIds AND r.session.isIncludedInOverall = true AND r.session.status = :sessionStatus AND r.session.sessionStartTime >= :startDate AND r.session.sessionStartTime <= :endDate")
+    List<EventAttendanceRecord> findByStudentIdInAndSessionIsIncludedInOverallTrueAndSessionStatus(@org.springframework.data.repository.query.Param("studentIds") List<UUID> studentIds, @org.springframework.data.repository.query.Param("sessionStatus") String sessionStatus, @org.springframework.data.repository.query.Param("startDate") java.time.Instant startDate, @org.springframework.data.repository.query.Param("endDate") java.time.Instant endDate);
 }

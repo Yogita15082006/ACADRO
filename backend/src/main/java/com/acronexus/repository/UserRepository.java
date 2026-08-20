@@ -22,4 +22,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     void deleteAllByRole(UserRole role);
 
     java.util.List<User> findByRoleIn(java.util.List<UserRole> roles);
+    java.util.List<User> findByRoleInAndIsDeletedFalse(java.util.List<UserRole> roles);
+    java.util.List<User> findAllByIsDeletedFalse();
 }

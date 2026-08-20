@@ -508,7 +508,7 @@ public class QuizServiceImpl implements QuizService {
     @Override
     @Transactional(readOnly = true)
     public List<QuizQuestionDto.CreateRequest> extractQuestionsFromSource(String sourceType, String sourceUrl) {
-        System.out.println("========================================================================");
+
         System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ URL received: " + sourceUrl);
         if (sourceUrl == null || sourceUrl.trim().isEmpty()) {
             throw new IllegalArgumentException("URL is invalid. Please provide a valid public URL containing quiz questions.");
@@ -558,7 +558,7 @@ public class QuizServiceImpl implements QuizService {
             }
 
             if (response == null || response.body() == null || response.body().trim().isEmpty()) {
-                System.err.println(">>> [URL EXTRACTION PIPELINE] Failure: Received empty body or null response.");
+
                 throw new IllegalArgumentException("Unable to fetch webpage. Received an empty response from the server.");
             }
 
@@ -570,7 +570,7 @@ public class QuizServiceImpl implements QuizService {
             System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ Redirect chain: " + String.join(" -> ", redirectChain));
             System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ Final URL: " + currentUri.toString());
             System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ Content-Type: " + contentType);
-            System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ HTML length: " + body.length() + " bytes");
+
 
             if (status == 401 || status == 403 || status == 407) {
                 throw new IllegalArgumentException("Website blocked automated requests (HTTP " + status + "). Permission denied or anti-scraping firewall detected.");
@@ -631,7 +631,7 @@ public class QuizServiceImpl implements QuizService {
                 cleanedContent = cleanedContent.substring(0, 11500);
             }
 
-            System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ Parsed text length: " + cleanedContent.length() + " characters");
+
 
             java.util.regex.Pattern qMarkerPattern = java.util.regex.Pattern.compile("(?im)(?:^|\\s)(?:\\d+[.):]|Q\\s*\\d+[.):]|\\bQuestion\\s*\\d+\\b|\"questionText\"|\"question\"|\\b\\d{8,13}\\s*,\\s*\"[^\"]{5,150}\"|\"[^\"]+\\?\")");
             java.util.regex.Matcher qMarkerMatcher = qMarkerPattern.matcher(cleanedContent);
@@ -675,7 +675,7 @@ public class QuizServiceImpl implements QuizService {
                 throw new IllegalArgumentException(aiResponse.getReasoning());
             }
             if (aiResponse.getRawInsights() == null || aiResponse.getRawInsights().trim().isEmpty() || aiResponse.getRawInsights().trim().equals("{}") || aiResponse.getRawInsights().trim().equals("[]")) {
-                System.err.println(">>> [URL EXTRACTION PIPELINE] AI returned zero questions or empty array.");
+
                 throw new IllegalArgumentException("No questions found. The source URL was fetched successfully, but the content does not contain extractable quiz questions.");
             }
 
@@ -719,7 +719,7 @@ public class QuizServiceImpl implements QuizService {
             }
 
             if (arrayNode == null || !arrayNode.isArray() || arrayNode.isEmpty()) {
-                System.err.println(">>> [URL EXTRACTION PIPELINE] Array node empty after parsing.");
+
                 throw new IllegalArgumentException("No questions found. The webpage content did not yield valid quiz items.");
             }
 
@@ -752,7 +752,7 @@ public class QuizServiceImpl implements QuizService {
             }
 
             System.out.println(">>> [URL EXTRACTION PIPELINE] ✔ Number of questions returned by AI: " + extracted.size());
-            System.out.println("========================================================================");
+
             return extracted;
         } catch (IllegalArgumentException ie) {
             throw ie;

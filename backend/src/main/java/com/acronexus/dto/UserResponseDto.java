@@ -31,6 +31,7 @@ public class UserResponseDto {
     
     // Department info
     private DepartmentInfo department;
+    private java.util.List<DepartmentInfo> departments;
     
     // Overview Dashboard assignments
     private java.util.List<String> classes;

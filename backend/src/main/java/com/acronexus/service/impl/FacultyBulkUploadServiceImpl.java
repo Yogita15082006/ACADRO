@@ -215,6 +215,7 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
         user.setLastName(lastName);
         user.setDepartment(department);
         user.setUpdatedBy(uploadedBy.getId());
+        user.setIsDeleted(false); // Restore if previously soft-deleted
         
         if (data.mobileNumber != null && !data.mobileNumber.isEmpty()) {
             user.setPhone(data.mobileNumber);
@@ -237,8 +238,8 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
             } else {
                 user.setIsActive(true);
             }
-        } else if (!isUpdate) {
-            user.setIsActive(true); // Default for new records if missing
+        } else {
+            user.setIsActive(true); // Default for new records or restored records if missing
         }
 
         log.info("[ROW {}] SAVING User: email={}, name='{} {}', dept={}, role={}, active={}", 
@@ -456,6 +457,12 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
             AiFacultyValidationResultDto result = aiService.validateData(aiRequest, AiFacultyValidationResultDto.class);
             result.setTotalAnalyzed(normalizedRows.size());
             result.setRawRecords(new ArrayList<>(rows)); // Save all original raw records
+            
+            int errorCount = result.getIssuesFound(); // AI counts each issue. Assume 1 issue per row max for now.
+            result.setErrorCount(errorCount);
+            result.setWarningCount(0);
+            result.setValidCount(Math.max(0, normalizedRows.size() - errorCount));
+            
             log.info("[STEP 6] AI validation successful. Issues found: {}", result.getIssuesFound());
             return result;
         } catch (Exception e) {
