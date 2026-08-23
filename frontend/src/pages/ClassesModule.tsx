@@ -303,6 +303,9 @@ export const ClassesModule = () => {
   
   const handleDeleteWorkspace = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!window.confirm("Deleting this Subject Card will permanently remove all academic data associated with it, including assignments, quizzes, materials, attendance records, and related submissions. This action cannot be undone.")) {
+      return;
+    }
     try {
       await api.delete(`/v1/class-subjects/${id}`);
       fetchWorkspaces();

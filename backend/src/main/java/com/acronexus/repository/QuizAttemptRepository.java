@@ -27,6 +27,6 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, UUID> 
     void deleteByQuiz_Id(UUID quizId);
 
     @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("DELETE FROM QuizAttempt qa WHERE qa.quiz.classSubject.id IN :csIds")
+    @org.springframework.data.jpa.repository.Query("DELETE FROM QuizAttempt qa WHERE qa.quiz.id IN (SELECT q.id FROM Quiz q WHERE q.classSubject.id IN :csIds)")
     void deleteByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") List<UUID> csIds);
 }

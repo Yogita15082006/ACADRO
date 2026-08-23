@@ -32,6 +32,22 @@ public class ClassSubjectService {
     private final SemesterRepository semesterRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
     private final AcademicSyllabusRepository academicSyllabusRepository;
+    private final StudentAttendanceRepository studentAttendanceRepository;
+    private final AttendanceSessionRepository attendanceSessionRepository;
+    private final FacultyActivityRepository facultyActivityRepository;
+    private final StudentAttendanceHistoryRepository studentAttendanceHistoryRepository;
+    private final AssignmentSubmissionRepository assignmentSubmissionRepository;
+    private final AssignmentRepository assignmentRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final QuizRepository quizRepository;
+    private final LectureMaterialRepository lectureMaterialRepository;
+    private final SubjectAnnouncementRepository subjectAnnouncementRepository;
+    private final EventAttendanceSessionRepository eventAttendanceSessionRepository;
+    private final com.acronexus.repository.EventAttendanceSessionSubjectRepository eventAttendanceSessionSubjectRepository;
+    private final EventAttendanceRecordRepository eventAttendanceRecordRepository;
+    private final FileStorageRepository fileStorageRepository;
+    private final EventRepository eventRepository;
 
     public List<ClassSubjectResponseDto> getAllWorkspaces() {
         return classSubjectRepository.findAll().stream()
@@ -49,6 +65,88 @@ public class ClassSubjectService {
         return classSubjectRepository.findByAcroClassIdAndIsActiveTrue(classId).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClassSubjectResponseDto> getWorkspacesForEvent(UUID eventId) {
+        log.info("DEBUG_ATTENDANCE: getWorkspacesForEvent called for event ID: {}", eventId);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("Event not found"));
+        
+        List<ClassSubjectResponseDto> result = new java.util.ArrayList<>();
+        List<ClassSubject> allActiveSubjects = classSubjectRepository.findAll().stream()
+                .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()))
+                .collect(Collectors.toList());
+
+        log.info("DEBUG_ATTENDANCE: Found {} total active subject cards in DB.", allActiveSubjects.size());
+        java.util.Set<UUID> addedSubjectIds = new java.util.HashSet<>();
+
+        if (event.getTargetAssignments() != null) {
+            log.info("DEBUG_ATTENDANCE: Found {} target assignments for event.", event.getTargetAssignments().size());
+            for (com.acronexus.entity.EventTargetAssignment t : event.getTargetAssignments()) {
+                
+                Integer targetSemNum = null;
+                if (t.getSemester() != null && !t.getSemester().isBlank()) {
+                    try {
+                        targetSemNum = Integer.parseInt(t.getSemester().replaceAll("[^0-9]", ""));
+                    } catch (Exception e) {}
+                }
+
+                log.info("DEBUG_ATTENDANCE: Assignment details -> IsEntireBatch: {}, AcroClassId: {}, Semester String: {}, Semester Num: {}", 
+                         t.getIsEntireBatch(), t.getAcroClass() != null ? t.getAcroClass().getId() : "null", t.getSemester(), targetSemNum);
+
+                if (Boolean.TRUE.equals(t.getIsEntireBatch()) && event.getDepartment() != null) {
+                    List<com.acronexus.entity.AcroClass> deptClasses = acroClassRepository.findByDepartmentId(event.getDepartment().getId());
+                    for (com.acronexus.entity.AcroClass ac : deptClasses) {
+                        UUID finalClassId = ac.getId();
+                        String finalClassName = ac.getName();
+                        Integer finalSemNum = targetSemNum;
+                        
+                        allActiveSubjects.stream().filter(cs -> {
+                            if (cs.getAcroClass() == null) return false;
+                            boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
+                                                 (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                            boolean matchSem = true;
+                            if (finalSemNum != null && cs.getSemester() != null) {
+                                matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
+                            }
+                            return matchClass && matchSem;
+                        }).forEach(cs -> {
+                            if (addedSubjectIds.add(cs.getId())) {
+                                result.add(mapToDto(cs));
+                            }
+                        });
+                    }
+                } else if (t.getAcroClass() != null) {
+                    UUID finalClassId = t.getAcroClass().getId();
+                    String finalClassName = t.getAcroClass().getName();
+                    Integer finalSemNum = targetSemNum;
+
+                    allActiveSubjects.stream().filter(cs -> {
+                        if (cs.getAcroClass() == null) return false;
+                        boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
+                                             (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                        boolean matchSem = true;
+                        if (finalSemNum != null && cs.getSemester() != null) {
+                            matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
+                        }
+                        
+                        if (matchClass && matchSem) {
+                            log.info("DEBUG_ATTENDANCE: MATCHED subject card {} for class {} ({})", cs.getSubject().getName(), finalClassName, finalClassId);
+                        }
+                        
+                        return matchClass && matchSem;
+                    }).forEach(cs -> {
+                        if (addedSubjectIds.add(cs.getId())) {
+                            result.add(mapToDto(cs));
+                        }
+                    });
+                }
+            }
+        }
+
+        log.info("DEBUG_ATTENDANCE: Total returned subject cards: {}", result.size());
+        return result;
     }
 
     public ClassSubjectResponseDto createWorkspace(ClassSubjectRequestDto dto) {
@@ -77,11 +175,90 @@ public class ClassSubjectService {
         return mapToDto(saved);
     }
 
+    @Transactional
     public void deleteWorkspace(UUID id) {
         ClassSubject classSubject = classSubjectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("ClassSubject not found"));
-        classSubject.setIsActive(false);
-        classSubjectRepository.save(classSubject);
+        
+        List<UUID> classSubjectIds = List.of(id);
+        
+        // 1. Find all FileStorage IDs associated with this Subject Card (from assignments, submissions, materials)
+        List<UUID> fileIds = new java.util.ArrayList<>();
+        fileIds.addAll(assignmentSubmissionRepository.findFileIdsByClassSubjectIds(classSubjectIds));
+        fileIds.addAll(assignmentRepository.findFileIdsByClassSubjectIds(classSubjectIds));
+        fileIds.addAll(lectureMaterialRepository.findFileIdsByClassSubjectIds(classSubjectIds));
+        
+        // Load the documentUrls to physically delete them from local disk after DB deletion
+        List<String> filePathsToDelete = new java.util.ArrayList<>();
+        if (!fileIds.isEmpty()) {
+            List<FileStorage> files = fileStorageRepository.findAllById(fileIds);
+            for (FileStorage fs : files) {
+                if (fs.getDocumentUrl() != null) {
+                    filePathsToDelete.add(fs.getDocumentUrl());
+                }
+            }
+        }
+
+        // 2. Delete Assignment Submissions (Child of Assignment)
+        assignmentSubmissionRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 3. Delete Assignments (Parent)
+        assignmentRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 4. Delete Quiz Attempts (Child of Quiz)
+        quizAttemptRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 5. Delete Quiz Questions (Child of Quiz)
+        quizQuestionRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 6. Delete Quizzes (Parent)
+        quizRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 7. Delete Lecture Materials
+        lectureMaterialRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 8. Delete Subject Announcements
+        subjectAnnouncementRepository.deleteByClassSubjectIds(classSubjectIds);
+        
+        // 9. Delete Student Attendance History
+        studentAttendanceHistoryRepository.deleteByClassSubjectIds(classSubjectIds);
+        
+        // 10. Delete Student Attendance records
+        studentAttendanceRepository.deleteByClassSubjectIds(classSubjectIds);
+        
+        // 11. Delete Attendance Sessions
+        attendanceSessionRepository.deleteByClassSubjectIds(classSubjectIds);
+        
+        // 12. Delete Faculty Teaching History
+        facultyActivityRepository.deleteByClassSubjectIds(classSubjectIds);
+
+        // 12.5 Delete Event Attendance Records and Sessions tied to this subject
+        eventAttendanceSessionSubjectRepository.deleteByClassSubjectIds(classSubjectIds);
+        List<com.acronexus.entity.EventAttendanceSession> orphanedSessions = eventAttendanceSessionRepository.findSessionsWithNoSubjects();
+        if (orphanedSessions != null && !orphanedSessions.isEmpty()) {
+            List<UUID> sessionIds = orphanedSessions.stream().map(com.acronexus.entity.EventAttendanceSession::getId).collect(Collectors.toList());
+            eventAttendanceRecordRepository.deleteBySessionIdIn(sessionIds);
+            eventAttendanceSessionRepository.deleteAll(orphanedSessions);
+        }
+
+        // 13. Hard Delete the ClassSubject itself
+        classSubjectRepository.deleteById(id);
+        
+        // 14. Delete the exclusively owned FileStorage records from the database
+        if (!fileIds.isEmpty()) {
+            fileStorageRepository.deleteAllById(fileIds);
+        }
+        
+        // 15. Physically delete the files from the local filesystem
+        for (String path : filePathsToDelete) {
+            try {
+                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(path));
+            } catch (java.io.IOException e) {
+                log.error("Failed to physically delete file: {}", path, e);
+            }
+        }
+        
+        log.info("Transactionally HARD DELETED Subject Card {} and all exclusively associated academic data.", id);
     }
 
     private ClassSubjectResponseDto mapToDto(ClassSubject classSubject) {

@@ -1,211 +1,192 @@
-# AcroNexus
-
-AcroNexus is an advanced, AI-powered university academic management and scheduling platform designed to streamline department administration, timetable orchestration, faculty coordination, student attendance, and academic resource dissemination. Built with a modular, full-stack microservices architecture, AcroNexus bridges administrative rigor with high-precision artificial intelligence to automate complex academic workflows.
-
----
-
-## Features
-
-- **Authentication & Role-Based Access**: Multi-tier secure access control tailored for Heads of Department (HODs), Faculty members, Coordinators, and Students.
-- **Faculty Management**: Comprehensive directory and administrative controls for faculty onboarding, specialization mapping, and workload tracking.
-- **Student Management**: End-to-end student cohort tracking across academic years, semesters, and sections.
-- **Coordinator Management**: Dedicated interfaces and workflows for academic batch and class coordinators.
-- **Timetable Management**: Creation, viewing, and conflict-aware structural alignment of department timetables.
-- **AI Match**: High-precision timetable ingestion engine powered by advanced LLM parsing and spatial line reconstruction to map subject codes, titles, and faculty allocations.
-- **OCR Support**: Robust computer vision processing (PaddleOCR & OpenCV) enabling accurate ingestion of both digital PDFs and scanned/image timetables (JPG, JPEG, PNG).
-- **Review & Assignment Workflow**: Interactive interactive confirmation UI allowing administrators to verify, edit, and assign AI-extracted timetable slots directly into the system database.
-- **Classes Module**: Organized management of lecture sessions, tutorial slots, and practical lab groups.
-- **Subject Cards**: Interactive academic course cards giving students and faculty immediate access to subject details, syllabi, and resources.
-- **Academic Resources**: Secure upload and categorization of lecture notes, lab assignments, and study materials with multi-format support.
-- **Attendance**: Real-time lecture and laboratory attendance recording and tracking interface.
-- **Dashboard**: Centralized analytics and quick-action hub providing visibility into active semester operations.
-- **Notifications**: System-wide announcements and targeted academic alerts.
+<div align="center">
+  <img src="frontend/public/icons/icon-192x192.png" alt="ACADRO Logo" width="120" height="120" />
+  
+  # ACADRO
+  **Intelligent Academic & Department Management System**
+  
+  <p align="center">
+    <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React" />
+    <img src="https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/spring-%236DB33F.svg?style=for-the-badge&logo=spring&logoColor=white" alt="Spring Boot" />
+    <img src="https://img.shields.io/badge/java-%23ED8B00.svg?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
+    <img src="https://img.shields.io/badge/postgresql-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/firebase-%23039BE5.svg?style=for-the-badge&logo=firebase" alt="Firebase" />
+  </p>
+</div>
 
 ---
 
-## Upcoming Features
+## 📖 Overview
 
-The project is currently under active development. The following modules and enhancements are planned for future releases:
+ACADRO is a centralized, AI-powered academic and department management platform designed to streamline interactions between students, faculty, coordinators, and administrators (HOD). Built with a modular microservices architecture, ACADRO bridges administrative rigor with high-precision artificial intelligence to automate complex academic workflows. 
 
-- **Advanced Conflict Resolution & Auto-Scheduling**: Automated slot rearrangement to resolve overlapping faculty or room allocations.
-- **Predictive Attendance Analytics**: Machine learning insights to identify students at risk of attendance shortages.
-- **Examination & Grading Suite**: Comprehensive mark distribution, grade calculation, and transit sheet generation.
-- **Interactive Syllabus Tracker**: Unit-by-unit real-time lesson plan tracking for theory and laboratory courses.
-- **Mobile Application Integration**: Native iOS and Android interfaces tailored for real-time campus updates.
+By bringing together attendance tracking, assignments, quizzes, examinations, events, notices, deadlines, and notifications into a single cohesive platform, ACADRO eliminates the fragmentation of academic data and communication across educational departments.
 
 ---
 
-## Tech Stack
+## ✨ Key Features
 
-### Frontend
-- **React**: Modern component-based UI engineering.
-- **TypeScript**: End-to-end type-safe client development.
-- **Tailwind CSS**: Responsive, utility-first design system.
-- **Vite**: Ultra-fast module bundler and dev environment.
+### 🎓 For Students
+- **Smart Dashboard:** Centralized analytics and quick-action hub.
+- **Attendance Tracking:** Real-time lecture and laboratory attendance visibility.
+- **Academic Workflow:** View active tasks, submit assignments, and attempt quizzes seamlessly.
+- **Departmental Updates:** Access event registrations, examination schedules, and department notices.
+- **Smart Reminders:** Push notifications and intelligent alerts for approaching deadlines (24h/1h).
+- **Study Materials:** Direct access to faculty-uploaded lecture notes and academic resources.
 
-### Backend
-- **Java 17+**: Robust enterprise backend processing.
-- **Spring Boot**: RESTful web architecture and inversion of control.
-- **Spring Security**: Enterprise-grade token verification and access control.
-- **Hibernate / JPA**: Object-relational persistence layer.
+### 👨‍🏫 For Faculty
+- **Faculty Dashboard:** Quick visibility into assigned classes, pending evaluations, and daily schedules.
+- **Class & Subject Management:** Direct control over assigned academic sections.
+- **Evaluations:** Creation, management, and grading of student submissions and quizzes.
+- **Interactive Attendance:** Streamlined, robust attendance recording interface.
+- **Real-Time Alerts:** Instant notifications when students submit academic deliverables.
 
-### Database
-- **PostgreSQL**: Advanced open-source relational SQL database.
-
-### AI Services
-- **Python 3.10+**: Core asynchronous AI computing server.
-- **FastAPI**: High-performance AI service REST endpoints.
-- **PaddleOCR**: Neural network optical character recognition for document scans.
-- **OpenCV**: Image pre-processing, deskewing, and spatial coordinate clustering.
+### 🏛️ For Administrators (Coordinator / HOD)
+- **Academic Administration:** Comprehensive oversight of students, faculty, classes, and sections.
+- **AI-Powered Timetables:** Upload, view, and extract departmental timetables using high-precision AI computer vision.
+- **Departmental Broadcasts:** Organization and dissemination of department-level events and notices.
+- **Event Management:** Monitor event registrations and administrative actions with automated notifications.
 
 ---
 
-## Project Structure
+## 🧠 AI Integration
 
+ACADRO integrates a robust Python/FastAPI microservice to automate tedious data entry:
+- **AI Timetable Matching:** High-precision engine powered by LLM parsing and spatial reconstruction.
+- **Computer Vision (OCR):** Supports PDF & image extraction for scanned timetables using PaddleOCR and OpenCV.
+- **Structured Extraction:** Automatically identifies subjects, faculty, and room allocations.
+- **Human-in-the-Loop:** Extracted data is presented in an interactive confirmation UI for validation before database insertion.
+
+---
+
+## 🔔 Notification & PWA Architecture
+
+### Intelligent Notification Flow
+- **Persistent Storage:** All notifications are stored in the database with unread counts and direct UI routing.
+- **Role-Based Targeting:** Notifications are securely targeted (e.g., assignment submissions alert the specific faculty member).
+- **Smart Schedulers:** Automated engine dispatches event and deadline reminders without duplicate spam.
+- **Firebase Push Notifications (FCM):** Real-time mobile and desktop push delivery. Device tokens are automatically registered on login and deactivated on logout.
+
+### Progressive Web App (PWA)
+ACADRO is fully installable, offering a native-like experience on desktop and mobile:
+- **Installable Application:** Add to Home Screen support for iOS, Android, and Desktop.
+- **Service Worker:** Offline asset caching using Workbox.
+- **Background Sync & Push:** Integrated `firebase-messaging-sw.js` for background FCM delivery (Requires HTTPS in production).
+
+---
+
+## 🏗️ System Architecture
+
+### Component Interaction
+```mermaid
+graph TD
+    User([User Device]) -->|HTTP / HTTPS| Frontend[ACADRO PWA / React]
+    Frontend -->|REST API + JWT| Backend[Spring Boot API]
+    Backend <-->|JPA| Database[(PostgreSQL)]
+    Backend <-->|REST| AI[Python AI / FastAPI]
 ```
-AcroNexus/
-├── backend/                   # Spring Boot Core Application Server
-│   ├── src/main/java/        # Controllers, Services, Repositories, Entities & DTOs
-│   ├── src/main/resources/   # Application properties & migration configs
-│   └── pom.xml               # Maven dependency configurations
-│
-├── frontend/                  # React + TypeScript Single-Page Application (SPA)
-│   ├── src/components/       # Reusable UI component library
-│   ├── src/pages/            # Application feature modules & workflows
-│   ├── src/services/         # Client API communication layers
-│   └── vite.config.ts        # Bundler setting definitions
-│
-├── ai-services/              # Python FastAPI Microservice for AI Ingestion & OCR
-│   ├── app/routers/          # Timetable OCR and AI parsing endpoints
-│   ├── app/config/           # AI service configuration settings
-│   └── requirements.txt      # Python environment dependency manifest
-│
-└── db-migration/             # SQL initialization scripts and data seeders
-    ├── 01_init_schema.sql    # Primary PostgreSQL relational schema definition
-    └── 02_add_profile.sql    # Supplemental table field updates
+
+### Notification Pipeline
+```mermaid
+graph TD
+    SystemEvent[Student Action / Smart Scheduler] --> NotificationService[Spring Boot NotificationService]
+    NotificationService --> DB[(Persistent Notification)]
+    NotificationService --> FCMService[FcmNotificationService]
+    FCMService --> Firebase[Firebase Cloud Messaging]
+    Firebase --> Device([User Device])
 ```
 
 ---
 
-## Installation
+## 💻 Technology Stack
+
+| Domain | Technology |
+| :--- | :--- |
+| **Frontend** | React, TypeScript, Tailwind CSS, Vite |
+| **Backend** | Java 17+, Spring Boot, Spring Security, JWT |
+| **Database & ORM** | PostgreSQL, Hibernate, Spring Data JPA |
+| **AI Microservice** | Python, FastAPI, PaddleOCR, OpenCV |
+| **Cloud & PWA** | Firebase Cloud Messaging (FCM), vite-plugin-pwa, Workbox |
+
+---
+
+## 🚀 Getting Started (Local Development)
 
 ### Prerequisites
-- Node.js (v18 or above) & npm / pnpm
-- Java JDK 17 or above & Maven
-- Python (3.10 to 3.12 recommended)
-- PostgreSQL (v14 or above)
+- **Node.js** (v18+) & **npm**
+- **Java JDK** 17+ & **Maven**
+- **Python** 3.10+
+- **PostgreSQL** 14+
+- A **Firebase Web Project**
 
 ### 1. Database Setup
-1. Create a clean PostgreSQL database named `acronexus`:
-   ```sql
-   CREATE DATABASE acronexus;
-   ```
-2. Execute the initial SQL migration scripts inside `db-migration/` to provision tables and default schema structures.
+Create a PostgreSQL database named exactly `acronexus`.
+Execute the initialization scripts inside the `db-migration/` folder.
 
-### 2. Backend Installation
-1. Navigate to the backend service directory:
-   ```bash
-   cd backend
-   ```
-2. Build project and download Maven dependencies:
-   ```bash
-   mvn clean install -DskipTests
-   ```
+### 2. Environment Variables
+Create the necessary environment configuration files (DO NOT commit these to version control).
 
-### 3. AI Services Installation
-1. Navigate to the AI microservice folder:
-   ```bash
-   cd ai-services
-   ```
-2. Create and activate a Python virtual environment:
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS / Linux:
-   source venv/bin/activate
-   ```
-3. Install required core Python libraries:
-   ```bash
-   pip install -r requirements.txt
-   ```
+**Frontend (`frontend/.env`):**
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_VAPID_KEY=your_vapid_key
+```
 
-### 4. Frontend Installation
-1. Navigate to the UI dashboard directory:
-   ```bash
-   cd frontend
-   ```
-2. Install Javascript dependencies:
-   ```bash
-   npm install
-   ```
+**Backend (`backend/src/main/resources/application.properties`):**
+```properties
+spring.datasource.password=your_db_password
+acronexus.app.jwtSecret=your_jwt_secret_base64
+ai.service.base-url=http://localhost:8000
+```
+*Note: Ensure the Firebase Admin SDK private key JSON file is securely placed in the backend resources directory.*
 
----
+**AI Service (`ai-services/.env`):**
+```env
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
 
-## Running the Project
+### 3. Run the Services
 
-To execute AcroNexus locally, start all three independent core application servers simultaneously:
-
-### Start PostgreSQL & Backend Server
+**Backend:**
 ```bash
 cd backend
 mvn spring-boot:run
 ```
-> Server runs on default HTTP port: `8080`.
 
-### Start AI Fast Ingestion Server
+**AI Service:**
 ```bash
 cd ai-services
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+python -m venv venv
+source venv/bin/activate  # (Windows: venv\Scripts\activate)
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
 ```
-> AI microservice operates on HTTP port: `8000`.
 
-### Start Frontend Client UI
+**Frontend:**
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
-> Frontend Vite client becomes accessible at `http://localhost:5173/` (or designated console port).
 
 ---
 
-## Environment Variables
-
-For security and local configuration independence, never hardcode credentials into versioned files. Use environment variables or local override files (`.env`, `application-local.properties`) excluded by `.gitignore`.
-
-### Backend Configuration Table (`application.properties` / Env overrides)
-
-| Variable Name / Property | Description | Example Placeholder |
-| :--- | :--- | :--- |
-| `DB_PASSWORD` / `spring.datasource.password` | PostgreSQL Database Access Password | `your_postgres_password_here` |
-| `JWT_SECRET` / `acronexus.app.jwtSecret` | 256-bit Base64 Secret for Signing Tokens | `your_256_bit_random_secret_key_string_here` |
-| `AI_SERVICE_URL` / `ai.service.base-url` | Base Routing HTTP address for AI engine | `http://localhost:8000` |
-
-### AI Service Configuration Table (`ai-services/.env`)
-
-| Variable Name | Description | Example Placeholder |
-| :--- | :--- | :--- |
-| `GROQ_API_KEY` | API Key for LLM Parsing Inference | `gsk_your_api_key_string_here` |
-| `GROQ_MODEL` | Default Target Inference Model | `llama-3.3-70b-versatile` |
-| `TIMEOUT_MS` | AI Request Timeout Target in Milliseconds | `300000` |
+## 🔐 Security & Access Control
+- **Role-Based Access Control (RBAC):** Strict enforcement using Spring Security `@PreAuthorize`.
+- **Stateless Authentication:** All frontend requests attach a secure JWT token.
+- **FCM Token Ownership:** Strict backend checks ensure a device token is solely owned by the authenticated user to prevent notification leaks.
 
 ---
 
-## Screenshots
+## 👨‍💻 Project Information
 
-*Application dashboard, AI Match interactive parsing popup, and responsive academic management interfaces.*
-
-> *(Screenshots section reserved for demonstration media during upcoming release deployments).*
-
----
-
-## Contributors
-
-- **Yogita** – Core Software Architecture & Full-Stack Development
-- **AcroNexus Academic Team** – Domain Engineering & Workflow Verification
-
----
-
-## License
-
-This project is open-source software licensed under the **MIT License**.
+- **Developer:** Yogita
+- **Team:** AcroNexus Academic Team
+- **Status:** Core Implementations Complete (v1.0)
+- **License:** MIT

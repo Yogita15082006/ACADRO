@@ -12,6 +12,7 @@ import com.acronexus.security.UserDetailsImpl;
 import com.acronexus.service.QuizAttemptService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.acronexus.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,6 +41,7 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
     private final ObjectMapper objectMapper;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final com.acronexus.service.AiService aiService;
+    private final NotificationService notificationService;
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -223,6 +225,19 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
         }
 
         QuizAttempt savedAttempt = attemptRepository.save(attempt);
+
+        // Reverse Notification to Faculty
+        if (quiz.getClassSubject() != null && quiz.getClassSubject().getFaculty() != null && quiz.getClassSubject().getFaculty().getUser() != null) {
+            String studentName = student.getUser() != null ? student.getUser().getFirstName() + " " + (student.getUser().getLastName() != null ? student.getUser().getLastName() : "").trim() : "A student";
+            notificationService.createSystemNotification(
+                quiz.getClassSubject().getFaculty().getUser().getId(),
+                "QUIZ",
+                "Quiz Submitted",
+                studentName + " submitted the quiz " + quiz.getTitle() + ".",
+                savedAttempt.getId().toString()
+            );
+        }
+
         QuizAttemptDto.Response resp = attemptMapper.toResponseDto(savedAttempt);
         for (QuizAttemptDto.Response r : getFullQuizRoster(quiz)) {
             if (r.getId() != null && r.getId().equals(savedAttempt.getId())) {

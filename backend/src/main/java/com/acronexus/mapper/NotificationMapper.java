@@ -18,6 +18,7 @@ public class NotificationMapper {
         notification.setMessage(request.getMessage());
         notification.setActionPath(request.getActionPath());
         notification.setType(request.getType());
+        notification.setReferenceId(request.getReferenceId());
         notification.setIsRead(false);
         return notification;
     }
@@ -31,6 +32,7 @@ public class NotificationMapper {
         notification.setMessage(request.getMessage());
         notification.setActionPath(request.getActionPath());
         notification.setType(request.getType());
+        notification.setReferenceId(request.getReferenceId());
     }
 
     public NotificationResponse toResponse(UserNotification notification) {
@@ -49,6 +51,8 @@ public class NotificationMapper {
         response.setType(notification.getType());
         response.setIsRead(notification.getIsRead());
         response.setCreatedAt(notification.getCreatedAt());
+        response.setReadAt(notification.getReadAt());
+        response.setReferenceId(notification.getReferenceId());
         return response;
     }
 }

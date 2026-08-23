@@ -18,4 +18,5 @@ public class NotificationRequest {
     private String message;
     private String actionPath;
     private String type;
+    private String referenceId;
 }

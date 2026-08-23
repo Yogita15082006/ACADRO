@@ -29,7 +29,7 @@ async def analyze_data(request: AnalyticsRequest):
     logger.info("Received analyze request (type=%s)", request.insightType)
     
     system_prompt = (
-        "You are an AI Analytics engine for AcroNexus ERP. "
+        "You are an AI Analytics engine for ACADRO. "
         "Analyze the provided data and return actionable insights. "
         "Return a valid JSON object matching this schema exactly:\n"
         "{\n"

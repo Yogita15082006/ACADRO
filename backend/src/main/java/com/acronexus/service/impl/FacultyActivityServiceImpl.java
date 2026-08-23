@@ -73,7 +73,7 @@ public class FacultyActivityServiceImpl implements FacultyActivityService {
             );
         } catch(Exception ex) {}
 
-        if (entity.getStatus() == FacultyActivityStatus.ABSENT || entity.getStatus() == FacultyActivityStatus.CLASS_MISSED) {
+        if (entity.getStatus() == FacultyActivityStatus.ABSENT || entity.getStatus() == FacultyActivityStatus.CLASS_MISSED || entity.getStatus() == FacultyActivityStatus.HOLIDAY) {
             try {
                 attendanceSessionService.createSystemGeneratedSession(entity);
             } catch (Exception e) {

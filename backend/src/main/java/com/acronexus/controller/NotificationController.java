@@ -14,8 +14,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+
 @RestController
-@RequestMapping("/api/notifications")
+@RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
 public class NotificationController {
 
@@ -59,10 +64,11 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("User notifications retrieved successfully", response));
     }
 
-    @GetMapping("/my")
+    @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<NotificationResponse>>> getMyNotifications() {
-        List<NotificationResponse> response = notificationService.getMyNotifications();
+    public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getMyNotifications(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<NotificationResponse> response = notificationService.getMyNotifications(pageable);
         return ResponseEntity.ok(ApiResponse.success("My notifications retrieved successfully", response));
     }
 
@@ -85,5 +91,19 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Long>> getUnreadCount() {
         long count = notificationService.getUnreadCount();
         return ResponseEntity.ok(ApiResponse.success("Unread count retrieved successfully", count));
+    }
+
+    @PostMapping("/device-token")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> registerDeviceToken(@RequestParam String token) {
+        notificationService.registerDeviceToken(token);
+        return ResponseEntity.ok(ApiResponse.success("Device token registered successfully", null));
+    }
+
+    @DeleteMapping("/device-token")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> unregisterDeviceToken(@RequestParam String token) {
+        notificationService.unregisterDeviceToken(token);
+        return ResponseEntity.ok(ApiResponse.success("Device token unregistered successfully", null));
     }
 }

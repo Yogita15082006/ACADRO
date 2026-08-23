@@ -567,7 +567,7 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
                       <Info className="w-6 h-6 text-primary" />
                     </div>
-                    <h4 className="font-bold text-foreground">AcroNexus ERP</h4>
+                    <h4 className="font-bold text-foreground">ACADRO</h4>
                     <p className="text-xs text-muted-foreground">Version 2.4.1 (Stable)</p>
                     <div className="flex gap-4 mt-4 pt-4 border-t border-border/40 w-full justify-center">
                       <a href="#" className="text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>

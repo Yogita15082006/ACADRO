@@ -38,8 +38,11 @@ public class EventServiceImpl implements EventService {
     private final EventAttendanceSessionRepository attendanceSessionRepository;
     private final EventAttendanceRecordRepository attendanceRecordRepository;
     private final EventNoticeRepository noticeRepository;
+    private final ClassSubjectRepository classSubjectRepository;
+    private final com.acronexus.repository.StudentAttendanceRepository studentAttendanceRepository;
     private final EventMapper eventMapper;
     private final com.acronexus.service.AiService aiService;
+    private final com.acronexus.service.NotificationService notificationService;
 
     @Override
     @Transactional
@@ -100,23 +103,11 @@ public class EventServiceImpl implements EventService {
             event.setTargetAssignments(savedAssignments);
         }
 
-        if (request.getAttendanceSessions() != null && !request.getAttendanceSessions().isEmpty()) {
-            java.util.List<EventAttendanceSession> savedSessions = new java.util.ArrayList<>();
-            for (com.acronexus.dto.request.EventAttendanceSessionDto dto : request.getAttendanceSessions()) {
-                EventAttendanceSession session = EventAttendanceSession.builder()
-                        .event(event)
-                        .halfType(dto.getHalfType())
-                        .selectedLectures(dto.getSelectedLectures())
-                        .timerDurationMinutes(dto.getTimerDurationMinutes())
-                        .uniqueCodeCount(dto.getUniqueCodeCount())
-                        .isIncludedInOverall(dto.getIsIncludedInOverall() != null ? dto.getIsIncludedInOverall() : false)
-                        .status("NOT_STARTED")
-                        .build();
-                savedSessions.add(attendanceSessionRepository.save(session));
-            }
-            event.setAttendanceSessions(savedSessions);
+        if (request.getIsAttendanceEnabled() != null) {
+            event.setIncludeInOverallAttendance(request.getIsAttendanceEnabled());
         }
-
+        
+        notifyEventCreated(event);
         return ApiResponse.success("Event created successfully", eventMapper.toResponse(event, 0L, false));
     }
 
@@ -186,6 +177,11 @@ public class EventServiceImpl implements EventService {
         event.setIsActive(isActive);
         event = eventRepository.save(event);
         long currentParticipants = eventRegistrationRepository.countByEventId(eventId);
+        
+        if (isActive) {
+            notifyEventCreated(event);
+        }
+        
         return ApiResponse.success("Event status updated", eventMapper.toResponse(event, currentParticipants, false));
     }
 
@@ -416,6 +412,19 @@ public class EventServiceImpl implements EventService {
                 .build();
                 
         registration = eventRegistrationRepository.save(registration);
+
+        // Reverse Notification to Event Creator (Coordinator)
+        if (event.getCreatedBy() != null) {
+            String studentName = student.getUser() != null ? student.getUser().getFirstName() + " " + (student.getUser().getLastName() != null ? student.getUser().getLastName() : "").trim() : "A student";
+            notificationService.createSystemNotification(
+                event.getCreatedBy().getId(),
+                "EVENT",
+                "New Event Registration",
+                studentName + " registered for " + event.getTitle() + ".",
+                registration.getId().toString()
+            );
+        }
+
         return ApiResponse.success("Successfully registered for event", eventMapper.toRegistrationResponse(registration));
     }
 
@@ -643,6 +652,7 @@ public class EventServiceImpl implements EventService {
         }
 
         notice = noticeRepository.save(notice);
+        notifyEventNoticePublished(notice);
         return ApiResponse.success("Notice published", toNoticeResponse(notice));
     }
 
@@ -728,25 +738,89 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
         checkEventManagementPermission(event, currentUserId);
 
-        String code = dto.getAttendanceCode();
-        if (code == null || code.trim().isEmpty()) {
-            code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        Integer requiredCount = dto.getLectureCount() != null ? dto.getLectureCount() : 1;
+
+        if (Boolean.TRUE.equals(dto.getIsIncludedInOverall()) && (dto.getClassSubjectIds() == null || dto.getClassSubjectIds().isEmpty())) {
+            throw new IllegalArgumentException("At least one Subject Card must be selected if this attendance session is included in overall attendance.");
         }
 
-        EventAttendanceSession session = EventAttendanceSession.builder()
-                .event(event)
-                .halfType(dto.getHalfType())
-                .selectedLectures(dto.getSelectedLectures())
-                .timerDurationMinutes(dto.getTimerDurationMinutes())
-                .uniqueCodeCount(dto.getUniqueCodeCount())
-                .isIncludedInOverall(dto.getIsIncludedInOverall())
-                .status("LIVE")
-                .sessionStartTime(Instant.now())
-                .attendanceCode(code)
-                .build();
-                
+        // Validate Class-wise Subject Card Selection Count
+        java.util.List<com.acronexus.entity.ClassSubject> selectedSubjects = new java.util.ArrayList<>();
+        if (dto.getClassSubjectIds() != null && !dto.getClassSubjectIds().isEmpty()) {
+            java.util.Map<UUID, Integer> classCounts = new java.util.HashMap<>();
+            java.util.Map<UUID, String> classNames = new java.util.HashMap<>();
+            for (UUID subjectId : dto.getClassSubjectIds()) {
+                com.acronexus.entity.ClassSubject classSubject = classSubjectRepository.findById(subjectId).orElse(null);
+                if (classSubject != null && classSubject.getAcroClass() != null) {
+                    selectedSubjects.add(classSubject);
+                    UUID classId = classSubject.getAcroClass().getId();
+                    classCounts.put(classId, classCounts.getOrDefault(classId, 0) + 1);
+                    classNames.put(classId, classSubject.getAcroClass().getName());
+                }
+            }
+            for (java.util.Map.Entry<UUID, Integer> entry : classCounts.entrySet()) {
+                if (!entry.getValue().equals(requiredCount)) {
+                    throw new IllegalArgumentException("Invalid Subject Card selection for class " + classNames.get(entry.getKey()) + ". Exactly " + requiredCount + " Subject Cards must be selected per target class.");
+                }
+            }
+        }
+
+        EventAttendanceSession session = attendanceSessionRepository.findByEventIdOrderByCreatedAtDesc(eventId).stream().findFirst().orElse(null);
+
+        if (session != null) {
+            // Reuse existing session
+            session.setLectureCount(requiredCount);
+            session.setTimerDurationMinutes(dto.getTimerDurationMinutes());
+            session.setUniqueCodeCount(dto.getUniqueCodeCount());
+            session.setIsIncludedInOverall(dto.getIsIncludedInOverall());
+            session.setStatus("LIVE");
+            session.setSessionStartTime(Instant.now());
+            // Do not generate a new code, keep the existing one unless it's empty
+            if (session.getAttendanceCode() == null || session.getAttendanceCode().trim().isEmpty()) {
+                String code = dto.getAttendanceCode();
+                if (code == null || code.trim().isEmpty()) {
+                    code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                }
+                session.setAttendanceCode(code);
+            }
+            
+            session.getSubjects().clear();
+            for (com.acronexus.entity.ClassSubject classSubject : selectedSubjects) {
+                com.acronexus.entity.EventAttendanceSessionSubject sessionSubject = com.acronexus.entity.EventAttendanceSessionSubject.builder()
+                        .eventAttendanceSession(session)
+                        .classSubject(classSubject)
+                        .build();
+                session.getSubjects().add(sessionSubject);
+            }
+        } else {
+            // Create new session
+            String code = dto.getAttendanceCode();
+            if (code == null || code.trim().isEmpty()) {
+                code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            }
+            session = EventAttendanceSession.builder()
+                    .event(event)
+                    .lectureCount(requiredCount)
+                    .timerDurationMinutes(dto.getTimerDurationMinutes())
+                    .uniqueCodeCount(dto.getUniqueCodeCount())
+                    .isIncludedInOverall(dto.getIsIncludedInOverall())
+                    .status("LIVE")
+                    .sessionStartTime(Instant.now())
+                    .attendanceCode(code)
+                    .subjects(new java.util.ArrayList<>())
+                    .build();
+
+            for (com.acronexus.entity.ClassSubject classSubject : selectedSubjects) {
+                com.acronexus.entity.EventAttendanceSessionSubject sessionSubject = com.acronexus.entity.EventAttendanceSessionSubject.builder()
+                        .eventAttendanceSession(session)
+                        .classSubject(classSubject)
+                        .build();
+                session.getSubjects().add(sessionSubject);
+            }
+        }
+
         session = attendanceSessionRepository.save(session);
-        return ApiResponse.success("Attendance session started", toSessionResponse(session));
+        return ApiResponse.success(session.getId() != null ? "Attendance session restarted" : "Attendance session started", toSessionResponse(session));
     }
 
     @Override
@@ -762,16 +836,57 @@ public class EventServiceImpl implements EventService {
         // Finalize pending students as NOT_SUBMITTED
         List<EventRegistration> registrations = eventRegistrationRepository.findByEventIdOrderByRegisteredAtDesc(session.getEvent().getId());
         List<EventAttendanceRecord> existingRecords = attendanceRecordRepository.findBySessionId(sessionId);
-        java.util.Set<UUID> submittedStudentIds = existingRecords.stream().map(r -> r.getStudent().getId()).collect(Collectors.toSet());
+        java.util.Set<UUID> submittedStudentIds = existingRecords.stream()
+                .filter(r -> "SUBMITTED".equals(r.getStatus()))
+                .map(r -> r.getStudent().getId())
+                .collect(Collectors.toSet());
+        
+        java.util.Set<UUID> allRecordStudentIds = existingRecords.stream()
+                .map(r -> r.getStudent().getId())
+                .collect(Collectors.toSet());
         
         for (EventRegistration reg : registrations) {
-            if (!submittedStudentIds.contains(reg.getStudent().getId())) {
+            if (!allRecordStudentIds.contains(reg.getStudent().getId())) {
                 EventAttendanceRecord notSubmitted = EventAttendanceRecord.builder()
                         .session(session)
                         .student(reg.getStudent())
                         .status("NOT_SUBMITTED")
                         .build();
                 attendanceRecordRepository.save(notSubmitted);
+            }
+        }
+        
+        if (Boolean.TRUE.equals(session.getIsIncludedInOverall())) {
+            // Idempotent processing: remove old records for this session
+            studentAttendanceRepository.deleteByRemarks("EVENT_ATTENDANCE:" + sessionId.toString());
+            
+            int lectureCount = session.getLectureCount() != null ? session.getLectureCount() : 1;
+            java.time.LocalDate attendanceDate = java.time.LocalDate.ofInstant(session.getSessionStartTime(), java.time.ZoneId.systemDefault());
+
+            for (com.acronexus.entity.EventAttendanceSessionSubject sessionSubject : session.getSubjects()) {
+                com.acronexus.entity.ClassSubject classSubject = sessionSubject.getClassSubject();
+                if (classSubject == null || classSubject.getAcroClass() == null) continue;
+                UUID subjectClassId = classSubject.getAcroClass().getId();
+                
+                for (EventRegistration reg : registrations) {
+                    com.acronexus.entity.Student student = reg.getStudent();
+                    com.acronexus.entity.StudentEnrollment enrollment = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(student.getId()).orElse(null);
+                    if (enrollment != null && enrollment.getAcroClass() != null && enrollment.getAcroClass().getId().equals(subjectClassId)) {
+                        boolean isSubmitted = submittedStudentIds.contains(student.getId());
+                        com.acronexus.entity.AttendanceStatus status = isSubmitted ? com.acronexus.entity.AttendanceStatus.PRESENT : com.acronexus.entity.AttendanceStatus.ABSENT;
+                        
+                        for (int i = 0; i < lectureCount; i++) {
+                            com.acronexus.entity.StudentAttendance sa = new com.acronexus.entity.StudentAttendance();
+                            sa.setClassSubject(classSubject);
+                            sa.setStudent(student);
+                            sa.setDate(attendanceDate);
+                            sa.setStatus(status);
+                            sa.setApprovalSource("EVENT_ATTENDANCE");
+                            sa.setRemarks("EVENT_ATTENDANCE:" + sessionId.toString());
+                            studentAttendanceRepository.save(sa);
+                        }
+                    }
+                }
             }
         }
         
@@ -953,17 +1068,82 @@ public class EventServiceImpl implements EventService {
                 .build();
     }
     
+    private void notifyEventCreated(Event event) {
+        if (!Boolean.TRUE.equals(event.getIsActive())) return;
+        
+        java.util.Set<UUID> targetUserIds = new java.util.HashSet<>();
+        
+        if (event.getTargetAssignments() != null && !event.getTargetAssignments().isEmpty()) {
+            for (EventTargetAssignment ta : event.getTargetAssignments()) {
+                if (ta.getAcroClass() != null) {
+                    targetUserIds.addAll(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(ta.getAcroClass().getId()).stream()
+                        .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+                        .map(e -> e.getStudent().getUser().getId())
+                        .collect(Collectors.toList()));
+                } else if (Boolean.TRUE.equals(ta.getIsEntireBatch()) && ta.getBatchYear() != null) {
+                    targetUserIds.addAll(studentRepository.findByBatchYear(ta.getBatchYear()).stream()
+                        .filter(s -> s.getUser() != null && Boolean.TRUE.equals(s.getUser().getIsActive()))
+                        .map(s -> s.getUser().getId())
+                        .collect(Collectors.toList()));
+                }
+            }
+        } else if (event.getTargetClass() != null) {
+            targetUserIds.addAll(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(event.getTargetClass().getId()).stream()
+                .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+                .map(e -> e.getStudent().getUser().getId())
+                .collect(Collectors.toList()));
+        } else if (event.getDepartment() != null) {
+            // Global department event? Could be too broad, maybe skip if no clear targets are provided.
+        }
+        
+        if (targetUserIds.isEmpty()) return;
+        
+        String title = "New Event: " + event.getTitle();
+        String message = "A new event has been announced.";
+        
+        notificationService.createBulkSystemNotifications(
+            new java.util.ArrayList<>(targetUserIds), 
+            title, 
+            message, 
+            "EVENT", 
+            event.getId().toString()
+        );
+    }
+    
+    private void notifyEventNoticePublished(EventNotice notice) {
+        if (notice.getEvent() == null) return;
+        
+        // Notify all registered students
+        List<UUID> targetUserIds = eventRegistrationRepository.findByEventIdOrderByRegisteredAtDesc(notice.getEvent().getId()).stream()
+            .filter(r -> r.getStudent() != null && r.getStudent().getUser() != null)
+            .map(r -> r.getStudent().getUser().getId())
+            .collect(Collectors.toList());
+            
+        if (targetUserIds.isEmpty()) return;
+        
+        String title = "Event Update: " + notice.getEvent().getTitle();
+        String message = "A new notice has been posted for the event: " + notice.getTitle();
+        
+        notificationService.createBulkSystemNotifications(
+            targetUserIds, 
+            title, 
+            message, 
+            "EVENT_NOTICE", 
+            notice.getId().toString()
+        );
+    }
+    
     private com.acronexus.dto.response.EventAttendanceSessionResponse toSessionResponse(EventAttendanceSession session) {
         return com.acronexus.dto.response.EventAttendanceSessionResponse.builder()
                 .id(session.getId())
-                .halfType(session.getHalfType())
-                .selectedLectures(session.getSelectedLectures())
+                .lectureCount(session.getLectureCount())
                 .status(session.getStatus())
                 .attendanceCode(session.getAttendanceCode())
                 .timerDurationMinutes(session.getTimerDurationMinutes())
                 .sessionStartTime(session.getSessionStartTime())
                 .uniqueCodeCount(session.getUniqueCodeCount())
                 .isIncludedInOverall(session.getIsIncludedInOverall())
+                .selectedSubjectCount(session.getSubjects() != null ? session.getSubjects().size() : 0)
                 .build();
     }
 

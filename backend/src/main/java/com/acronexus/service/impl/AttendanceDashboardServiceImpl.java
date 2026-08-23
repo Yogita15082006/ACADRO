@@ -288,25 +288,6 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
             }
         }
         
-        List<com.acronexus.entity.EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
-                .findByStudentIdAndSessionIsIncludedInOverallTrueAndSessionStatus(studentId, "CLOSED", startInstant, endInstant);
-        for (com.acronexus.entity.EventAttendanceRecord rec : eventRecords) {
-            String selectedLecturesStr = rec.getSession().getSelectedLectures();
-            if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
-                try {
-                    List<String> selectedLectures = objectMapper.readValue(selectedLecturesStr, 
-                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
-                    int lectureCount = selectedLectures.size();
-                    totalClasses += lectureCount;
-                    if ("SUBMITTED".equals(rec.getStatus())) {
-                        totalPresent += lectureCount;
-                    }
-                } catch (Exception e) {
-                    // Skip if JSON parse fails
-                }
-            }
-        }
-
         if (totalClasses == 0) {
             return OverallAttendanceDto.builder()
                     .studentName(studentName).email(email).semester(semesterStr).className(className).profilePictureUrl(profilePictureUrl)
@@ -370,27 +351,6 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
             if (sem != null) {
                 if (sem.getStartDate() != null) startInstant = sem.getStartDate().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
                 if (sem.getEndDate() != null) endInstant = sem.getEndDate().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
-            }
-        }
-        
-        List<com.acronexus.entity.EventAttendanceRecord> eventRecords = eventAttendanceRecordRepository
-                .findByStudentIdInAndSessionIsIncludedInOverallTrueAndSessionStatus(studentIds, "CLOSED", startInstant, endInstant);
-                
-        for (com.acronexus.entity.EventAttendanceRecord rec : eventRecords) {
-            UUID sid = rec.getStudent().getId();
-            String selectedLecturesStr = rec.getSession().getSelectedLectures();
-            if (selectedLecturesStr != null && !selectedLecturesStr.isEmpty()) {
-                try {
-                    List<String> selectedLectures = objectMapper.readValue(selectedLecturesStr, 
-                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
-                    int lectureCount = selectedLectures.size();
-                    totalClassesMap.put(sid, totalClassesMap.getOrDefault(sid, 0) + lectureCount);
-                    if ("SUBMITTED".equals(rec.getStatus())) {
-                        totalPresentMap.put(sid, totalPresentMap.getOrDefault(sid, 0) + lectureCount);
-                    }
-                } catch (Exception e) {
-                    // Skip
-                }
             }
         }
         

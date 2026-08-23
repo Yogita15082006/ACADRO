@@ -22,7 +22,7 @@ public interface AssignmentSubmissionRepository extends JpaRepository<Assignment
     List<UUID> findFileIdsByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") List<UUID> csIds);
 
     @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("DELETE FROM AssignmentSubmission s WHERE s.assignment.classSubject.id IN :csIds")
+    @org.springframework.data.jpa.repository.Query("DELETE FROM AssignmentSubmission s WHERE s.assignment.id IN (SELECT a.id FROM Assignment a WHERE a.classSubject.id IN :csIds)")
     void deleteByClassSubjectIds(@org.springframework.data.repository.query.Param("csIds") List<UUID> csIds);
 
     @EntityGraph(attributePaths = {"assignment", "student", "student.user", "file"})

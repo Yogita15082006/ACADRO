@@ -29,6 +29,8 @@ public class NoticeServiceImpl implements NoticeService {
     private final UserRepository userRepository;
     private final FileStorageRepository fileStorageRepository;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
+    private final StudentRepository studentRepository;
+    private final com.acronexus.service.NotificationService notificationService;
     private final NoticeMapper noticeMapper;
     private final com.acronexus.service.AiService aiService;
 
@@ -38,6 +40,8 @@ public class NoticeServiceImpl implements NoticeService {
                              UserRepository userRepository,
                              FileStorageRepository fileStorageRepository,
                              StudentEnrollmentRepository studentEnrollmentRepository,
+                             StudentRepository studentRepository,
+                             com.acronexus.service.NotificationService notificationService,
                              NoticeMapper noticeMapper,
                              com.acronexus.service.AiService aiService) {
         this.noticeRepository = noticeRepository;
@@ -46,6 +50,8 @@ public class NoticeServiceImpl implements NoticeService {
         this.userRepository = userRepository;
         this.fileStorageRepository = fileStorageRepository;
         this.studentEnrollmentRepository = studentEnrollmentRepository;
+        this.studentRepository = studentRepository;
+        this.notificationService = notificationService;
         this.noticeMapper = noticeMapper;
         this.aiService = aiService;
     }
@@ -107,6 +113,7 @@ public class NoticeServiceImpl implements NoticeService {
         notice.setIsDeleted(false);
 
         notice = noticeRepository.save(notice);
+        notifyNoticePublished(notice);
         return noticeMapper.toDto(notice);
     }
 
@@ -215,6 +222,11 @@ public class NoticeServiceImpl implements NoticeService {
 
         notice.setIsActive(isActive);
         notice = noticeRepository.save(notice);
+        
+        if (isActive) {
+            notifyNoticePublished(notice);
+        }
+        
         return noticeMapper.toDto(notice);
     }
 
@@ -439,5 +451,45 @@ public class NoticeServiceImpl implements NoticeService {
         } catch (java.io.IOException e) {
             throw new RuntimeException("Error reading file", e);
         }
+    }
+
+    private void notifyNoticePublished(Notice notice) {
+        if (!notice.getIsActive() || Boolean.TRUE.equals(notice.getIsDeleted())) return;
+        
+        java.util.Set<UUID> targetUserIds = new java.util.HashSet<>();
+        
+        if (notice.getTargetAssignments() == null || notice.getTargetAssignments().isEmpty()) {
+            targetUserIds.addAll(studentRepository.findAll().stream()
+                .filter(s -> s.getUser() != null && Boolean.TRUE.equals(s.getUser().getIsActive()))
+                .map(s -> s.getUser().getId())
+                .collect(Collectors.toSet()));
+        } else {
+            for (NoticeTargetAssignment ta : notice.getTargetAssignments()) {
+                if (ta.getAcroClass() != null) {
+                    targetUserIds.addAll(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(ta.getAcroClass().getId()).stream()
+                        .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+                        .map(e -> e.getStudent().getUser().getId())
+                        .collect(Collectors.toList()));
+                } else if (Boolean.TRUE.equals(ta.getIsEntireBatch()) && ta.getBatchYear() != null) {
+                    targetUserIds.addAll(studentRepository.findByBatchYear(ta.getBatchYear()).stream()
+                        .filter(s -> s.getUser() != null && Boolean.TRUE.equals(s.getUser().getIsActive()))
+                        .map(s -> s.getUser().getId())
+                        .collect(Collectors.toList()));
+                }
+            }
+        }
+        
+        if (targetUserIds.isEmpty()) return;
+        
+        String title = "New Notice: " + notice.getTitle();
+        String message = "A new notice has been published.";
+        
+        notificationService.createBulkSystemNotifications(
+            new ArrayList<>(targetUserIds), 
+            title, 
+            message, 
+            "NOTICE", 
+            notice.getId().toString()
+        );
     }
 }

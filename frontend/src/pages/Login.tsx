@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, ArrowRight, Sparkles, Eye, EyeOff, Mail } from 'lucide-react';
+import { User, Lock, ArrowRight, Sparkles, Eye, EyeOff, Mail, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { authService } from '../services/authService';
 import { getAssetUrl } from '@/lib/utils';
 import { profileService } from '../services/profileService';
 import { dashboardService } from '../services/dashboardService';
-
+import logoImg from '../assets/logo.jpg';
 export const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [userId, setUserId] = useState('');
@@ -19,7 +19,7 @@ export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
 
@@ -46,7 +46,7 @@ export const Login = () => {
         const subjects = await profileService.getFacultyAssignedSubjects();
         setAssignedSubjects(subjects);
       }
-      
+
       setShowProfilePopup(true);
     } catch (err) {
       console.error("Failed to fetch profile data for popup", err);
@@ -62,55 +62,55 @@ export const Login = () => {
     setIsLoading(true);
 
     try {
-        const loginRes = await login({ email: userId, password });
-        if (loginRes && loginRes.success) {
-            await fetchProfileData(loginRes.role);
-        } else {
-            setError(loginRes?.message || 'Login failed.');
-        }
+      const loginRes = await login({ email: userId, password });
+      if (loginRes && loginRes.success) {
+        await fetchProfileData(loginRes.role);
+      } else {
+        setError(loginRes?.message || 'Login failed.');
+      }
     } catch (err: any) {
-        setError(err.response?.data?.message || 'Invalid credentials.');
+      setError(err.response?.data?.message || 'Invalid credentials.');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
   const resetRegistrationForm = () => {
-      setRegEmail('');
-      setRegPassword('');
+    setRegEmail('');
+    setRegPassword('');
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     setIsLoading(true);
-    
+
     try {
-        // Phase 1: Verify Account
-        const verifyRes = await authService.verifyAccount({ email: regEmail });
-        
-        if (verifyRes.success) {
-            // Phase 2: Activate Account
-            const activateRes = await authService.activateAccount({ email: regEmail, password: regPassword });
-            
-            if (activateRes.success) {
-                // Success! Switch to login mode and pre-fill credentials
-                setIsRegistering(false);
-                setUserId(regEmail);
-                setPassword(regPassword);
-                resetRegistrationForm();
-                // Optionally show a success toast here
-            } else {
-                setError(activateRes.message || 'Failed to activate account.');
-            }
+      // Phase 1: Verify Account
+      const verifyRes = await authService.verifyAccount({ email: regEmail });
+
+      if (verifyRes.success) {
+        // Phase 2: Activate Account
+        const activateRes = await authService.activateAccount({ email: regEmail, password: regPassword });
+
+        if (activateRes.success) {
+          // Success! Switch to login mode and pre-fill credentials
+          setIsRegistering(false);
+          setUserId(regEmail);
+          setPassword(regPassword);
+          resetRegistrationForm();
+          // Optionally show a success toast here
         } else {
-            setError(verifyRes.message || 'Verification failed.');
+          setError(activateRes.message || 'Failed to activate account.');
         }
+      } else {
+        setError(verifyRes.message || 'Verification failed.');
+      }
     } catch (err: any) {
-        setError(err.response?.data?.message || 'Verification failed. This account may not exist in ERP records.');
+      setError(err.response?.data?.message || 'Verification failed. This account may not exist in ERP records.');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -123,31 +123,50 @@ export const Login = () => {
       </div>
 
       <Card className="w-full max-w-5xl flex flex-col md:flex-row overflow-hidden min-h-[600px] max-h-[95vh] shadow-2xl shadow-primary/10 border border-border bg-card rounded-3xl z-10 animate-in fade-in zoom-in-95 duration-700">
-        
+
         {/* Left Side - Branding */}
         <div className="w-full md:flex-1 bg-gradient-to-br from-primary via-blue-600 to-indigo-700 p-8 md:p-12 flex flex-col justify-center md:justify-between text-white relative overflow-hidden shrink-0">
-          <div className="relative z-10 animate-in fade-in slide-in-from-left-8 duration-1000 delay-150 fill-mode-both">
-            <div className="hidden md:flex w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md items-center justify-center font-bold text-3xl mb-8 shadow-xl border border-white/20">
-              A
+          <div className="relative z-10 animate-in fade-in slide-in-from-left-8 duration-1000 delay-150 fill-mode-both flex flex-col h-full">
+            
+            {/* Logo Section */}
+            <div className="hidden md:flex w-32 h-auto mb-10 shadow-2xl overflow-hidden bg-white rounded-xl border border-white/50 items-center justify-center p-3 shrink-0">
+              <img src={logoImg} alt="ACADRO Logo" className="w-full h-auto object-contain" />
             </div>
-            <h1 className="text-3xl md:text-5xl font-extrabold mb-2 md:mb-4 tracking-tight leading-tight">
-              Welcome to <br className="hidden md:block"/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-100 to-white">AcroNexus</span>
-            </h1>
-            <p className="text-sm md:text-lg text-primary-foreground/90 leading-relaxed max-w-sm mt-2 md:mt-4 font-medium">
-              The next-generation ERP platform for the Information Technology Department.
-            </p>
-          </div>
-          
-          <div className="relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both hidden md:block">
-            <div className="flex flex-wrap gap-3 mb-6">
-              <Badge variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-0 py-1.5 px-3 text-sm backdrop-blur-md shadow-sm">
-                <Sparkles size={14} className="mr-1.5" /> Smart Analytics
-              </Badge>
-              <Badge variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-0 py-1.5 px-3 text-sm backdrop-blur-md shadow-sm">
-                Real-time Sync
-              </Badge>
+            
+            {/* Main Content Section */}
+            <div className="flex-1 flex flex-col justify-center">
+              <h2 className="text-2xl md:text-3xl font-semibold mb-3 text-white/90">
+                Welcome to
+              </h2>
+              
+              <div className="mb-6">
+                <span className="inline-flex items-baseline">
+                  <span className="text-white font-extrabold text-5xl md:text-6xl tracking-tight">AC</span>
+                  <span className="text-white font-extrabold text-5xl md:text-6xl tracking-tight">AD</span>
+                  <span className="text-white font-extrabold text-5xl md:text-6xl tracking-tight">RO</span>
+                </span>
+              </div>
+              
+              <h3 className="text-lg md:text-xl text-white font-semibold mb-3 tracking-wide">
+                Academic & Department Management System
+              </h3>
+              
+              <p className="text-sm text-blue-100/90 leading-relaxed max-w-[380px] mb-10">
+                One unified platform for managing academics, departments, faculty, students, attendance, examinations, events, notices, and academic resources.
+              </p>
+              
+              {/* Feature Pills */}
+              <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+                <div className="bg-white/10 hover:bg-white/20 text-white border border-white/20 py-2 px-4 text-xs font-medium backdrop-blur-md shadow-sm rounded-lg flex items-center justify-center transition-colors">
+                  <Sparkles size={16} className="mr-2 shrink-0 text-blue-200" /> <span className="whitespace-nowrap">Smart Academic Management</span>
+                </div>
+                <div className="bg-white/10 hover:bg-white/20 text-white border border-white/20 py-2 px-4 text-xs font-medium backdrop-blur-md shadow-sm rounded-lg flex items-center justify-center transition-colors">
+                  <RefreshCw size={16} className="mr-2 shrink-0 text-blue-200" /> <span className="whitespace-nowrap">Real-time Department Sync</span>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-primary-foreground/70 font-medium tracking-wide uppercase">Powered by Acropolis Institute</p>
+
+            
           </div>
 
           {/* Decorative elements */}
@@ -177,9 +196,9 @@ export const Login = () => {
                   <label className="text-sm font-semibold text-muted-foreground">User ID / Email / Enrollment No.</label>
                   <div className="relative group">
                     <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input 
-                      type="text" 
-                      className="pl-10 h-12 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm" 
+                    <Input
+                      type="text"
+                      className="pl-10 h-12 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm"
                       placeholder="Email Address"
                       value={userId}
                       onChange={(e) => setUserId(e.target.value)}
@@ -195,15 +214,15 @@ export const Login = () => {
                   </div>
                   <div className="relative group">
                     <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input 
-                      type={showPassword ? "text" : "password"} 
-                      className="pl-10 pr-10 h-12 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm" 
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      className="pl-10 pr-10 h-12 bg-background border-border focus-visible:ring-primary/30 rounded-xl transition-all shadow-sm"
                       placeholder="Try 'password'"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
-                    <button 
+                    <button
                       type="button"
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                       onClick={() => setShowPassword(!showPassword)}
@@ -219,12 +238,12 @@ export const Login = () => {
                   </div>
                 )}
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full mt-4 h-12 text-base rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300 group"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Authenticating...' : 'Sign In'} 
+                  {isLoading ? 'Authenticating...' : 'Sign In'}
                   {!isLoading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
                 </Button>
               </form>
@@ -236,9 +255,9 @@ export const Login = () => {
                     <label className="text-sm font-semibold text-muted-foreground">Work/Student Email</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-                      <Input 
-                        type="email" 
-                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm" 
+                      <Input
+                        type="email"
+                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm"
                         placeholder="Email Address"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
@@ -246,21 +265,21 @@ export const Login = () => {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-muted-foreground">New Password</label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-                      <Input 
-                        type={showPassword ? "text" : "password"} 
-                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm" 
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        className="pl-10 h-11 bg-background border-border rounded-xl focus-visible:ring-primary/30 shadow-sm"
                         placeholder="Create a strong password"
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
                         required
                         minLength={6}
                       />
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
@@ -279,12 +298,12 @@ export const Login = () => {
                   </div>
                 )}
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full mt-4 h-12 text-base rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300 group"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Processing...' : 'Register'} 
+                  {isLoading ? 'Processing...' : 'Register'}
                   {!isLoading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
                 </Button>
               </form>
@@ -292,7 +311,7 @@ export const Login = () => {
 
             <p className="text-center mt-8 text-sm text-muted-foreground font-medium">
               {isRegistering ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <span 
+              <span
                 className="text-primary font-bold cursor-pointer hover:underline"
                 onClick={() => {
                   setIsRegistering(!isRegistering);
@@ -306,7 +325,7 @@ export const Login = () => {
         </div>
       </Card>
 
-      <Dialog open={showProfilePopup} onOpenChange={() => {}}>
+      <Dialog open={showProfilePopup} onOpenChange={() => { }}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden bg-card border-border rounded-2xl shadow-2xl [&>button]:hidden">
           <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white flex items-center gap-4">
             <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-lg">
@@ -320,13 +339,13 @@ export const Login = () => {
               <h2 className="text-2xl font-bold tracking-tight">{profileData?.firstName} {profileData?.lastName}</h2>
               <p className="text-white/80 font-medium">{profileData?.email} • {profileData?.role?.replace('ROLE_', '')}</p>
               <p className="text-white/80 text-sm">
-                {profileData?.departments?.length > 0 
-                  ? profileData.departments.map((d: any) => d.name).join(', ') 
+                {profileData?.departments?.length > 0
+                  ? profileData.departments.map((d: any) => d.name).join(', ')
                   : (profileData?.departmentName || 'Department of Information Technology')}
               </p>
             </div>
           </div>
-          
+
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
             {/* Basic Info */}
             <div className="space-y-4">
@@ -386,14 +405,14 @@ export const Login = () => {
                     <div className="col-span-2 mt-2">
                       <span className="text-muted-foreground block mb-1">All Classes</span>
                       <span className="font-medium">
-                        {profileData?.departments?.length > 0 
-                          ? `All classes across: ${profileData.departments.map((d: any) => d.name).join(', ')}` 
+                        {profileData?.departments?.length > 0
+                          ? `All classes across: ${profileData.departments.map((d: any) => d.name).join(', ')}`
                           : 'All applicable classes'}
                       </span>
                     </div>
                   </>
                 )}
-                
+
                 {currentRole === 'faculty' && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground block mb-2">Assigned Classes & Subjects</span>
@@ -431,17 +450,17 @@ export const Login = () => {
                     )}
                   </div>
                 )}
-                
+
                 {currentRole === 'student' && (
                   <div className="col-span-2 space-y-4">
                     <div>
                       <span className="text-muted-foreground block mb-2">Assigned Class & Section</span>
                       <div className="flex flex-wrap gap-2 text-xs">
-                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Batch:</span> <span className="font-medium">{profileData?.batchYear || 'Not available'}</span></div>
-                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Year:</span> <span className="font-medium">{profileData?.academicYearString || 'Not available'}</span></div>
-                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Semester:</span> <span className="font-medium">{profileData?.semesterName || profileData?.currentSemester || 'Not available'}</span></div>
-                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Class:</span> <span className="font-medium">{profileData?.className || profileData?.course || 'Not available'}</span></div>
-                         <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Section:</span> <span className="font-medium">{profileData?.sectionName || profileData?.section || 'Not available'}</span></div>
+                        <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Batch:</span> <span className="font-medium">{profileData?.batchYear || 'Not available'}</span></div>
+                        <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Year:</span> <span className="font-medium">{profileData?.academicYearString || 'Not available'}</span></div>
+                        <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Semester:</span> <span className="font-medium">{profileData?.semesterName || profileData?.currentSemester || 'Not available'}</span></div>
+                        <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Class:</span> <span className="font-medium">{profileData?.className || profileData?.course || 'Not available'}</span></div>
+                        <div className="bg-muted/50 p-2 rounded border"><span className="text-muted-foreground">Section:</span> <span className="font-medium">{profileData?.sectionName || profileData?.section || 'Not available'}</span></div>
                       </div>
                     </div>
                   </div>
@@ -451,7 +470,7 @@ export const Login = () => {
           </div>
 
           <DialogFooter className="p-4 bg-muted/30 border-t flex justify-end">
-            <Button 
+            <Button
               className="w-full sm:w-auto min-w-[200px]"
               onClick={() => currentRole === 'student' ? navigate('/student') : navigate('/admin')}
             >
@@ -463,3 +482,5 @@ export const Login = () => {
     </div>
   );
 };
+
+export default Login;

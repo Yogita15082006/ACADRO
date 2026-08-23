@@ -44,4 +44,7 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM Quiz q WHERE q.classSubject.id IN :csIds")
     void deleteByClassSubjectIds(@Param("csIds") List<UUID> csIds);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"classSubject", "classSubject.acroClass"})
+    List<Quiz> findByIsDeletedFalseAndEndTimeBetween(java.time.Instant start, java.time.Instant end);
 }

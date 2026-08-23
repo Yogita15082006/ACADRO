@@ -36,9 +36,8 @@ public class EventRequest {
     private UUID posterFileId;
     private UUID paymentQrFileId;
     private Boolean isActive = true;
-    private Boolean includeInOverallAttendance = false;
+    private Boolean isAttendanceEnabled = false;
 
     // Nested configurations
     private java.util.List<EventTargetAssignmentDto> targets;
-    private java.util.List<EventAttendanceSessionDto> attendanceSessions;
 }

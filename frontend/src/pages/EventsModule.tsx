@@ -70,37 +70,67 @@ export const EventsModule = () => {
   const [showStartAttendanceModal, setShowStartAttendanceModal] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<string | null>(null);
   const [startAttendanceForm, setStartAttendanceForm] = useState({
-    uniqueCodeCount: 50,
-    timerDurationMinutes: 15,
-    halfType: 'First Half',
-    selectedLectures: [] as string[],
+    lectureCount: 1,
+    timerDurationMinutes: 10,
+    uniqueCodeCount: 1,
     isIncludedInOverall: false,
-    attendanceCode: ''
+    classSubjectIds: [] as string[],
   });
   const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+  const [classSubjects, setClassSubjects] = useState<any[]>([]);
 
-  const toggleLecture = (l: string) => {
-    setStartAttendanceForm(prev => ({
-      ...prev,
-      selectedLectures: prev.selectedLectures.includes(l) 
-        ? prev.selectedLectures.filter(x => x !== l) 
-        : [...prev.selectedLectures, l]
-    }));
-  };
+  useEffect(() => {
+    if (showStartAttendanceModal && selectedEvent?.id) {
+      api.get(`/v1/class-subjects/event/${selectedEvent.id}`).then(res => {
+        if (Array.isArray(res.data)) {
+          setClassSubjects(res.data);
+        } else if (res.data && res.data.success) {
+          setClassSubjects(res.data.data);
+        }
+      }).catch(err => {
+        console.error("Failed to fetch subject cards", err);
+      });
+    }
+  }, [showStartAttendanceModal, selectedEvent]);
 
   const handleStartAttendance = async () => {
     if (!selectedEvent) return;
     
-    if (startAttendanceForm.isIncludedInOverall && startAttendanceForm.selectedLectures.length === 0) {
-      toast.error("Please select at least one lecture");
-      return;
+    if (startAttendanceForm.isIncludedInOverall) {
+      if (startAttendanceForm.classSubjectIds.length === 0) {
+        toast.error("Please select Subject Cards");
+        return;
+      }
+      const groupedClassSubjects = classSubjects.reduce((acc, cs) => {
+        const name = cs.className || 'Other';
+        if (!acc[name]) acc[name] = [];
+        acc[name].push(cs);
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      const requiredLectureCount = startAttendanceForm.lectureCount || 1;
+      let isValid = true;
+      let errorMsg = "";
+      
+      for (const [className, subjects] of Object.entries(groupedClassSubjects)) {
+        const selectedCount = subjects.filter(cs => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
+        if (selectedCount !== requiredLectureCount) {
+          isValid = false;
+          errorMsg = `Please select exactly ${requiredLectureCount} Subject Card(s) for class ${className}`;
+          break;
+        }
+      }
+      
+      if (!isValid) {
+        toast.error(errorMsg);
+        return;
+      }
     }
 
     const toastId = toast.loading("Starting attendance session...");
     try {
       const payload = {
-        ...startAttendanceForm,
-        selectedLectures: JSON.stringify(startAttendanceForm.selectedLectures)
+        ...startAttendanceForm
       };
       const res = await eventService.startAttendance(selectedEvent.id, payload);
       if (res.success) {
@@ -799,7 +829,7 @@ export const EventsModule = () => {
                           </div>
                           <div className="bg-background border border-border p-4 rounded-xl text-center">
                             <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Selected</p>
-                            <p className="text-lg font-black">{JSON.parse(activeSession.selectedLectures || '[]').length} Lectures</p>
+                            <p className="text-lg font-black">{activeSession.selectedSubjectCount || 0} Lectures</p>
                           </div>
                         </div>
 
@@ -1176,7 +1206,7 @@ export const EventsModule = () => {
                   <div className="w-20 h-20 bg-accent rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-background shadow-lg">
                     <Users size={32} className="text-foreground" />
                   </div>
-                  <p className="font-black text-xl text-foreground mb-1">{selectedEvent.creatorName || selectedEvent.organizer || 'AcroNexus Platform'}</p>
+                  <p className="font-black text-xl text-foreground mb-1">{selectedEvent.creatorName || selectedEvent.organizer || 'ACADRO Platform'}</p>
                   <p className="text-sm font-bold text-muted-foreground mb-6">{selectedEvent.departmentName || 'Event Coordinator'}</p>
                   
                   <div className="bg-accent/50 rounded-xl p-4 mb-6">
@@ -1734,7 +1764,7 @@ export const EventsModule = () => {
       <AnimatePresence>
         {showStartAttendanceModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card w-full max-w-lg max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
               <div className="p-8 border-b border-border bg-primary/5">
                 <div className="flex justify-between items-start">
                   <div>
@@ -1767,38 +1797,70 @@ export const EventsModule = () => {
                       {startAttendanceForm.isIncludedInOverall && (
                         <>
                           <div className="space-y-2">
-                            <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">Select Half</label>
-                            <select value={startAttendanceForm.halfType} onChange={e => {
-                              setStartAttendanceForm({...startAttendanceForm, halfType: e.target.value, selectedLectures: []});
-                            }} className="w-full p-4 border border-border rounded-xl bg-background font-bold text-sm focus:ring-2 focus:ring-primary/20">
-                              <option value="First Half">First Half</option>
-                              <option value="Second Half">Second Half</option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">Select Lectures</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {startAttendanceForm.halfType === 'First Half' ? (
-                                <>
-                                  {['Lecture 1 – 50 minutes', 'Lecture 2 – 50 minutes', 'Lecture 3 – 50 minutes'].map(l => (
-                                    <label key={l} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${startAttendanceForm.selectedLectures.includes(l) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
-                                      <input type="checkbox" checked={startAttendanceForm.selectedLectures.includes(l)} onChange={() => toggleLecture(l)} className="w-4 h-4 rounded text-primary focus:ring-primary" />
-                                      <span className="font-bold text-xs">{l}</span>
-                                    </label>
-                                  ))}
-                                </>
-                              ) : (
-                                <>
-                                  {['Lecture 1 – 50 minutes', 'Lecture 2 – 50 minutes', 'Lecture 3 – 45 minutes', 'Lecture 4 – 45 minutes'].map(l => (
-                                    <label key={l} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${startAttendanceForm.selectedLectures.includes(l) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
-                                      <input type="checkbox" checked={startAttendanceForm.selectedLectures.includes(l)} onChange={() => toggleLecture(l)} className="w-4 h-4 rounded text-primary focus:ring-primary" />
-                                      <span className="font-bold text-xs">{l}</span>
-                                    </label>
-                                  ))}
-                                </>
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">Select Subject Cards <span className="text-rose-500">*</span></label>
+                            <div className="grid grid-cols-1 gap-4 max-h-64 overflow-y-auto p-4 border border-border rounded-xl bg-background/50">
+                              {classSubjects.length === 0 && (
+                                <p className="text-sm text-muted-foreground p-2">No active subject cards found.</p>
                               )}
+                              {(() => {
+                                const grouped = classSubjects.reduce((acc, cs) => {
+                                  const name = cs.className || 'Other';
+                                  if (!acc[name]) acc[name] = [];
+                                  acc[name].push(cs);
+                                  return acc;
+                                }, {} as Record<string, any[]>);
+
+                                return Object.entries(grouped).map(([className, subjects]) => {
+                                  const requiredLectureCount = startAttendanceForm.lectureCount || 1;
+                                  const selectedCount = subjects.filter((cs: any) => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
+                                  const isValidCount = selectedCount === requiredLectureCount;
+                                  
+                                  return (
+                                    <div key={className} className="space-y-3">
+                                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                                        <h4 className="text-sm font-black text-foreground">{className}</h4>
+                                        <span className={`text-xs font-bold px-2 py-1 rounded ${isValidCount ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                          {selectedCount} / {requiredLectureCount} selected
+                                        </span>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {subjects.map((cs: any) => (
+                                          <label key={cs.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${startAttendanceForm.classSubjectIds.includes(cs.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
+                                          <input 
+                                            type="checkbox" 
+                                            checked={startAttendanceForm.classSubjectIds.includes(cs.id)} 
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setStartAttendanceForm({...startAttendanceForm, classSubjectIds: [...startAttendanceForm.classSubjectIds, cs.id]});
+                                              } else {
+                                                setStartAttendanceForm({...startAttendanceForm, classSubjectIds: startAttendanceForm.classSubjectIds.filter(id => id !== cs.id)});
+                                              }
+                                            }} 
+                                            className="w-4 h-4 rounded text-primary focus:ring-primary" 
+                                          />
+                                          <span className="font-bold text-xs">{cs.subjectName} - {cs.facultyName} ({cs.subjectCode})</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              });
+                              })()}
                             </div>
+                            <p className="text-xs text-muted-foreground ml-1">Select one or multiple subject cards to manage lifecycle.</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label className="text-xs font-black text-muted-foreground uppercase tracking-wider ml-1">Lectures to Contribute</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max="10" 
+                              value={startAttendanceForm.lectureCount} 
+                              onChange={e => setStartAttendanceForm({...startAttendanceForm, lectureCount: parseInt(e.target.value) || 1})} 
+                              className="w-full p-4 border border-border rounded-xl bg-background font-bold text-sm focus:ring-2 focus:ring-primary/20"
+                            />
+                            <p className="text-xs text-muted-foreground ml-1">Enter the number of lectures this event should count for in the student's overall attendance.</p>
                           </div>
                         </>
                       )}

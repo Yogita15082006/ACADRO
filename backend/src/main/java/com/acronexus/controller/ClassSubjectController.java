@@ -54,6 +54,13 @@ public class ClassSubjectController {
         return ResponseEntity.ok(classSubjectService.getWorkspacesForClass(classId));
     }
 
+    @GetMapping("/event/{eventId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT', 'COORDINATOR')")
+    @Operation(summary = "Get Workspaces For Event", description = "Returns active subject cards belonging to the target classes of a specific event.")
+    public ResponseEntity<List<ClassSubjectResponseDto>> getWorkspacesForEvent(@PathVariable UUID eventId) {
+        return ResponseEntity.ok(classSubjectService.getWorkspacesForEvent(eventId));
+    }
+
     @PostMapping
     public ResponseEntity<ClassSubjectResponseDto> createWorkspace(@RequestBody ClassSubjectRequestDto requestDto) {
         return ResponseEntity.ok(classSubjectService.createWorkspace(requestDto));
@@ -121,9 +128,19 @@ public class ClassSubjectController {
                     .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()))
                     .filter(cs -> {
                         if (cs.getAcroClass() == null) return false;
-                        boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
-                                             (finalClassName != null && cs.getAcroClass().getName() != null && 
-                                              cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                        boolean matchClass = false;
+                        if (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) {
+                            matchClass = true;
+                        } else if (finalClassName != null && cs.getAcroClass().getName() != null) {
+                            String csName = cs.getAcroClass().getName().trim().toLowerCase();
+                            String stName = finalClassName.trim().toLowerCase();
+                            
+                            if (csName.equals(stName)) {
+                                matchClass = true;
+                            } else if (csName.startsWith(stName + " -") || stName.startsWith(csName + " -")) {
+                                matchClass = true;
+                            }
+                        }
                         boolean matchSem = true;
                         if (finalSemNum != null && cs.getSemester() != null) {
                             matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);

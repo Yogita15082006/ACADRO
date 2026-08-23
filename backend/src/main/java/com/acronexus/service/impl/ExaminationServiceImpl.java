@@ -86,6 +86,7 @@ public class ExaminationServiceImpl implements ExaminationService {
     private final SemesterRepository semesterRepository;
     private final ExaminationMapper mapper;
     private final UserRepository userRepository;
+    private final com.acronexus.service.NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ExaminationServiceImpl(
@@ -97,7 +98,8 @@ public class ExaminationServiceImpl implements ExaminationService {
         DepartmentRepository departmentRepository,
         SemesterRepository semesterRepository,
         ExaminationMapper mapper,
-        UserRepository userRepository
+        UserRepository userRepository,
+        com.acronexus.service.NotificationService notificationService
     ) {
         this.eligibilityListRepository = eligibilityListRepository;
         this.eligibilityStudentRepository = eligibilityStudentRepository;
@@ -108,6 +110,7 @@ public class ExaminationServiceImpl implements ExaminationService {
         this.semesterRepository = semesterRepository;
         this.mapper = mapper;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
 
@@ -160,7 +163,10 @@ public class ExaminationServiceImpl implements ExaminationService {
             entity.setClasses(new java.util.HashSet<>(acroClasses));
         }
         
-        return mapper.toDto(repository.save(entity));
+        Examination saved = repository.save(entity);
+        notifyExaminationCreated(saved);
+        
+        return mapper.toDto(saved);
     }
     @Override
 @Transactional(readOnly = true)
@@ -561,5 +567,33 @@ public class ExaminationServiceImpl implements ExaminationService {
             throw new IllegalArgumentException("List does not belong to the given examination");
         }
         eligibilityListRepository.delete(list);
+    }
+    
+    private void notifyExaminationCreated(Examination examination) {
+        if (examination.getClasses() == null || examination.getClasses().isEmpty()) {
+            return;
+        }
+        
+        java.util.Set<UUID> targetUserIds = new java.util.HashSet<>();
+        
+        for (AcroClass acroClass : examination.getClasses()) {
+            targetUserIds.addAll(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId()).stream()
+                .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+                .map(e -> e.getStudent().getUser().getId())
+                .collect(Collectors.toList()));
+        }
+        
+        if (targetUserIds.isEmpty()) return;
+        
+        String title = "New Examination Scheduled";
+        String message = "A new examination (" + examination.getName() + ") has been scheduled.";
+        
+        notificationService.createBulkSystemNotifications(
+            new java.util.ArrayList<>(targetUserIds), 
+            title, 
+            message, 
+            "EXAMINATION", 
+            examination.getId().toString()
+        );
     }
 }

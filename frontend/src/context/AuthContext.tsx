@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/authService';
+import { pushNotificationService } from '../services/pushNotificationService';
 
 export const AuthContext = createContext<any>(null);
 
@@ -20,6 +21,9 @@ export const AuthProvider = ({ children }) => {
           if (profileRes.success) {
             setRealUser(profileRes.data);
             setRealRole(profileRes.data.role.replace('ROLE_', '').toLowerCase());
+            
+            // Automatically register FCM token if permission is granted
+            pushNotificationService.requestPermissionAndRegister().catch(console.error);
           }
         } catch (error) {
           console.error("Failed to fetch profile", error);
@@ -62,6 +66,9 @@ export const AuthProvider = ({ children }) => {
           setRealUser(profileRes.data);
           setRealRole(fetchedRole);
           
+          // Automatically prompt/register FCM token upon login
+          pushNotificationService.requestPermissionAndRegister().catch(console.error);
+          
           return { success: true, role: fetchedRole };
         }
       }
@@ -74,9 +81,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     setRealUser(null);
     setRealRole(null);
+    try {
+      await pushNotificationService.unregisterToken();
+    } catch (e) {
+      console.error('Failed to unregister push token during logout', e);
+    }
     localStorage.removeItem('acronexus_token');
     localStorage.removeItem('acronexus_user');
     localStorage.removeItem('acronexus_role');

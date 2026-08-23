@@ -17,6 +17,10 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM StudentAttendance sa WHERE sa.session.id = :sessionId")
     void deleteBySessionId(@Param("sessionId") UUID sessionId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM StudentAttendance sa WHERE sa.remarks = :remarks")
+    void deleteByRemarks(@Param("remarks") String remarks);
     
     // For Student: My Attendance History
     List<StudentAttendance> findByStudentIdOrderByDateDesc(UUID studentId);
@@ -30,6 +34,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
            "(COUNT(sa.id) - SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END)) as classesMissed " +
            "FROM StudentAttendance sa " +
            "WHERE sa.student.id = :studentId " +
+           "AND sa.classSubject.isActive = true " +
            "AND sa.classSubject.academicYear.id = :academicYearId " +
            "AND sa.classSubject.semester.id = :semesterId " +
            "GROUP BY sa.classSubject.subject.name, sa.classSubject.faculty.user.firstName, sa.classSubject.faculty.user.lastName")
@@ -42,6 +47,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
            "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as totalPresent " +
            "FROM StudentAttendance sa " +
            "WHERE sa.student.id = :studentId " +
+           "AND sa.classSubject.isActive = true " +
            "AND sa.classSubject.academicYear.id = :academicYearId " +
            "AND sa.classSubject.semester.id = :semesterId")
     Object getOverallAttendance(@Param("studentId") UUID studentId, @Param("academicYearId") UUID academicYearId, @Param("semesterId") UUID semesterId);
@@ -54,6 +60,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
            "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as totalPresent " +
            "FROM StudentAttendance sa " +
            "WHERE sa.student.id IN :studentIds " +
+           "AND sa.classSubject.isActive = true " +
            "AND sa.classSubject.academicYear.id = :academicYearId " +
            "AND sa.classSubject.semester.id = :semesterId " +
            "GROUP BY sa.student.id")
@@ -63,6 +70,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     @Query("SELECT sa FROM StudentAttendance sa " +
            "WHERE sa.student.id = :studentId " +
            "AND EXTRACT(MONTH FROM sa.date) = :month " +
+           "AND sa.classSubject.isActive = true " +
            "AND sa.classSubject.academicYear.id = :academicYearId " +
            "AND sa.classSubject.semester.id = :semesterId " +
            "ORDER BY sa.date DESC")
@@ -112,6 +120,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
            "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) " +
            "FROM StudentAttendance sa " +
            "WHERE sa.classSubject.acroClass.id = :classId " +
+           "AND sa.classSubject.isActive = true " +
            "GROUP BY sa.student.id, sa.student.user.firstName, sa.student.user.lastName, sa.student.enrollmentNo")
     List<Object[]> getClassStudentAttendanceSummary(@Param("classId") UUID classId);
 
@@ -122,6 +131,7 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
            "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) " +
            "FROM StudentAttendance sa " +
            "WHERE sa.classSubject.acroClass.department.id = :departmentId " +
+           "AND sa.classSubject.isActive = true " +
            "AND sa.classSubject.academicYear.id = :academicYearId " +
            "AND sa.classSubject.semester.id = :semesterId " +
            "GROUP BY sa.classSubject.acroClass.id, sa.classSubject.acroClass.name")
@@ -129,11 +139,11 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
                                                        @Param("academicYearId") UUID academicYearId, 
                                                        @Param("semesterId") UUID semesterId);
 
-    @Query("SELECT COUNT(sa) FROM StudentAttendance sa WHERE sa.classSubject.acroClass.department.id = :departmentId")
+    @Query("SELECT COUNT(sa) FROM StudentAttendance sa WHERE sa.classSubject.acroClass.department.id = :departmentId AND sa.classSubject.isActive = true")
     long countByDepartmentId(@Param("departmentId") UUID departmentId);
 
     @Query("SELECT COUNT(sa), SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) " +
-           "FROM StudentAttendance sa WHERE sa.classSubject.acroClass.department.id = :departmentId")
+           "FROM StudentAttendance sa WHERE sa.classSubject.acroClass.department.id = :departmentId AND sa.classSubject.isActive = true")
     Object getDepartmentOverallAttendance(@Param("departmentId") UUID departmentId);
 
     @org.springframework.data.jpa.repository.Modifying

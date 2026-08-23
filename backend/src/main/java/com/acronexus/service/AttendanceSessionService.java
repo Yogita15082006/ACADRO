@@ -27,8 +27,14 @@ public class AttendanceSessionService {
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
 
     public java.util.Map<String, Object> getFacultyStatistics(UUID facultyId) {
-        long daysPresent = sessionRepository.countDaysPresentByFacultyId(facultyId);
-        long daysAbsent = facultyActivityRepository.countDaysAbsentByFacultyId(facultyId);
+        java.util.Set<java.time.LocalDate> workingDates = sessionRepository.findWorkingDatesByFacultyId(facultyId);
+        java.util.Set<java.time.LocalDate> absentDates = new java.util.HashSet<>(facultyActivityRepository.findAbsentDatesByFacultyId(facultyId));
+
+        // A working date cancels out any absent mark on the same date
+        absentDates.removeAll(workingDates);
+
+        long daysPresent = workingDates.size();
+        long daysAbsent = absentDates.size();
         long totalWorkingDays = daysPresent + daysAbsent;
         
         java.util.Map<String, Object> stats = new java.util.HashMap<>();
@@ -40,7 +46,7 @@ public class AttendanceSessionService {
 
     @Transactional(readOnly = true)
     public List<TeachingHistoryDTO> getTeachingHistory(UUID facultyId) {
-        List<ClassSubject> classSubjects = classSubjectRepository.findByFacultyId(facultyId);
+        List<ClassSubject> classSubjects = classSubjectRepository.findByFacultyIdAndIsActiveTrue(facultyId);
         List<AttendanceSession> sessions = sessionRepository.findByFacultyId(facultyId);
         
         return classSubjects.stream().map(cs -> {
@@ -186,7 +192,7 @@ public class AttendanceSessionService {
         session.setCode(String.format("%06d", new java.util.Random().nextInt(999999)));
         session.setRequireVerification(false);
         session.setUniqueCodeCount(0);
-        session.setStatus(AttendanceSessionStatus.COMPLETED);
+        session.setStatus(AttendanceSessionStatus.ACTIVE);
         session.setIsSystemGenerated(true);
         session.setFacultyReason(activity.getReason());
 

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { eventService } from '../../services/eventService';
+import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 
 // --- Interfaces ---
@@ -200,13 +201,6 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
   const [registrationUrl, setRegistrationUrl] = useState('');
   
   const [isAttRequired, setIsAttRequired] = useState(false);
-  const [includeInOverall, setIncludeInOverall] = useState<'Include in overall' | 'Exclude in overall'>('Exclude in overall');
-  const [attHalf, setAttHalf] = useState<'First Half' | 'Second Half' | ''>('');
-  const [attSelectedLectures, setAttSelectedLectures] = useState<string[]>([]);
-  const [attUniqueCodeCount, setAttUniqueCodeCount] = useState<string>('60');
-  const [attTimerHours, setAttTimerHours] = useState('00');
-  const [attTimerMinutes, setAttTimerMinutes] = useState('10');
-  const [attTimerSeconds, setAttTimerSeconds] = useState('00');
 
   // --- Modals & UI State ---
   const [allBatches, setAllBatches] = useState<string[]>([]);
@@ -322,13 +316,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
     }
   };
 
-  const toggleLecture = (lecture: string) => {
-    if (attSelectedLectures.includes(lecture)) {
-      setAttSelectedLectures(attSelectedLectures.filter(l => l !== lecture));
-    } else {
-      setAttSelectedLectures([...attSelectedLectures, lecture]);
-    }
-  };
+
 
   const validateForm = () => {
     if (!title) return "Event title is required.";
@@ -359,11 +347,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
       if (registrationMethod === 'Manually' && !registrationUrl) return "Please enter a valid registration URL.";
     }
 
-    if (isAttRequired) {
-      if (!attHalf || attSelectedLectures.length === 0 || !attUniqueCodeCount || isNaN(parseInt(attUniqueCodeCount))) {
-        return "Please configure attendance (Half, Lectures, and valid Unique Code Count) before saving.";
-      }
-    }
+
 
     return null;
   };
@@ -415,15 +399,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
         }
       });
 
-      const totalTimerMinutes = (parseInt(attTimerHours) || 0) * 60 + (parseInt(attTimerMinutes) || 0) + (parseInt(attTimerSeconds) || 0) / 60;
-      
-      const attendanceSessions = isAttRequired ? [{
-        halfType: attHalf,
-        selectedLectures: attSelectedLectures.join(', '),
-        timerDurationMinutes: Math.round(totalTimerMinutes),
-        uniqueCodeCount: parseInt(attUniqueCodeCount) || null,
-        isIncludedInOverall: includeInOverall === 'Include in overall'
-      }] : [];
+      const attendanceSessions: any[] = [];
 
       let paymentQrFileId = undefined;
       if (paymentQrFile && registrationFee && parseFloat(registrationFee) > 0) {
@@ -461,7 +437,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
         aiRegistrationFormConfig: registrationMethod === 'Via AI' && aiCustomFields.length > 0 ? JSON.stringify(aiCustomFields) : undefined,
 
         isActive: true,
-        includeInOverallAttendance: isAttRequired && includeInOverall === 'Include in overall',
+        isAttendanceEnabled: isAttRequired,
         posterFileId,
         paymentQrFileId,
         targets,
@@ -791,32 +767,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
             </div>
           </div>
 
-          <AnimatePresence>
-            {isAttRequired && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-6 overflow-hidden">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attendance Inclusion</label>
-                  <select value={includeInOverall} onChange={e => setIncludeInOverall(e.target.value as any)} className="w-full max-w-sm p-3 border border-border rounded-xl bg-background font-medium">
-                    <option value="Exclude in overall">Exclude in overall</option>
-                    <option value="Include in overall">Include in overall</option>
-                  </select>
-                </div>
 
-                <div className="p-6 border border-border rounded-2xl bg-accent/10 flex flex-col items-start gap-4">
-                  <p className="text-sm font-medium text-muted-foreground">Configure the attendance tracking parameters (Half, Lectures, Code, and Timer). The actual attendance session must be started from the Event View page.</p>
-                  <Button onClick={() => setShowAttModal(true)} className="gap-2 font-bold px-6 py-6 rounded-xl shadow-md">
-                    <Settings size={18} /> Configure Attendance Form
-                  </Button>
-                  
-                  {attHalf && (
-                    <div className="mt-2 text-sm font-medium text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl flex items-center gap-2">
-                      <CheckCircle size={16}/> Configuration Saved: {attHalf}, {attSelectedLectures.length} Lectures, Codes: {attUniqueCodeCount || 'unlimited'}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         {/* --- SUBMIT BUTTON --- */}
@@ -968,102 +919,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
         )}
       </AnimatePresence>
 
-      {/* --- ATTENDANCE CONFIGURATION MODAL --- */}
-      <AnimatePresence>
-        {showAttModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-border flex justify-between items-center bg-accent/30">
-                <h3 className="text-2xl font-black flex items-center gap-2"><Settings className="text-primary"/> Attendance Configuration</h3>
-                <Button variant="ghost" size="icon" onClick={() => setShowAttModal(false)} className="rounded-full"><X size={24}/></Button>
-              </div>
-              
-              <div className="p-8 overflow-y-auto space-y-8 flex-1">
-                
-                <div className="space-y-4">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Select Half</label>
-                  <select value={attHalf} onChange={e => {
-                    setAttHalf(e.target.value as any);
-                    setAttSelectedLectures([]);
-                  }} className="w-full p-4 border border-border rounded-xl bg-background font-bold text-lg focus:ring-2 focus:ring-primary/20">
-                    <option value="">Select Half</option>
-                    <option value="First Half">First Half</option>
-                    <option value="Second Half">Second Half</option>
-                  </select>
-                </div>
 
-                {attHalf && (
-                  <div className="space-y-4">
-                    <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Select Lectures</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {attHalf === 'First Half' ? (
-                        <>
-                          {['Lecture 1 — 50 minutes', 'Lecture 2 — 50 minutes', 'Lecture 3 — 50 minutes'].map(l => (
-                            <label key={l} className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${attSelectedLectures.includes(l) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
-                              <input type="checkbox" checked={attSelectedLectures.includes(l)} onChange={() => toggleLecture(l)} className="w-5 h-5 rounded text-primary focus:ring-primary" />
-                              <span className="font-bold text-sm">{l}</span>
-                            </label>
-                          ))}
-                        </>
-                      ) : (
-                        <>
-                          {['Lecture 1 — 50 minutes', 'Lecture 2 — 50 minutes', 'Lecture 3 — 45 minutes', 'Lecture 4 — 45 minutes'].map(l => (
-                            <label key={l} className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${attSelectedLectures.includes(l) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
-                              <input type="checkbox" checked={attSelectedLectures.includes(l)} onChange={() => toggleLecture(l)} className="w-5 h-5 rounded text-primary focus:ring-primary" />
-                              <span className="font-bold text-sm">{l}</span>
-                            </label>
-                          ))}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Unique Code Count</label>
-                  <div className="flex flex-col gap-2">
-                    <input 
-                      type="number" 
-                      min="1" 
-                      value={attUniqueCodeCount} 
-                      onChange={e => setAttUniqueCodeCount(e.target.value)} 
-                      placeholder="e.g., 60"
-                      className="w-full p-4 border border-border rounded-xl bg-background font-medium focus:ring-2 focus:ring-primary/20"
-                    />
-                    <p className="text-xs text-muted-foreground ml-1">Enter the number of unique attendance codes to generate for this session.</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Attendance Timer (Manual Configuration)</label>
-                  <div className="flex gap-4 items-center">
-                    <div className="flex-1 space-y-1">
-                      <span className="text-xs font-bold text-muted-foreground ml-1">Hours</span>
-                      <input type="number" min="0" value={attTimerHours} onChange={e => setAttTimerHours(e.target.value)} className="w-full p-4 border border-border rounded-xl bg-background font-bold text-lg text-center" />
-                    </div>
-                    <span className="text-2xl font-black mt-4">:</span>
-                    <div className="flex-1 space-y-1">
-                      <span className="text-xs font-bold text-muted-foreground ml-1">Minutes</span>
-                      <input type="number" min="0" max="59" value={attTimerMinutes} onChange={e => setAttTimerMinutes(e.target.value)} className="w-full p-4 border border-border rounded-xl bg-background font-bold text-lg text-center" />
-                    </div>
-                    <span className="text-2xl font-black mt-4">:</span>
-                    <div className="flex-1 space-y-1">
-                      <span className="text-xs font-bold text-muted-foreground ml-1">Seconds</span>
-                      <input type="number" min="0" max="59" value={attTimerSeconds} onChange={e => setAttTimerSeconds(e.target.value)} className="w-full p-4 border border-border rounded-xl bg-background font-bold text-lg text-center" />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-              
-              <div className="p-6 border-t border-border bg-background flex justify-end gap-4">
-                <Button variant="outline" onClick={() => setShowAttModal(false)} className="px-6 py-4 rounded-xl font-bold border-2">Cancel</Button>
-                <Button onClick={() => setShowAttModal(false)} className="px-8 py-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20">Save Attendance Configuration</Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
     </motion.div>
   );

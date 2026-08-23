@@ -18,11 +18,12 @@ public class EventAttendanceSession extends BaseEntity {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @Column(name = "half_type")
-    private String halfType; // FIRST_HALF, SECOND_HALF
+    @OneToMany(mappedBy = "eventAttendanceSession", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<EventAttendanceSessionSubject> subjects = new java.util.ArrayList<>();
 
-    @Column(name = "selected_lectures", columnDefinition = "TEXT")
-    private String selectedLectures; // JSON array like [1, 2, 3]
+    @Column(name = "lecture_count")
+    @Builder.Default
+    private Integer lectureCount = 1;
 
     @Column(name = "status")
     @Builder.Default

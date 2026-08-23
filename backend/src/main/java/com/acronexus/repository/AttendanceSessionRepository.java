@@ -21,4 +21,7 @@ public interface AttendanceSessionRepository extends JpaRepository<AttendanceSes
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT a.date) FROM AttendanceSession a WHERE a.faculty.id = :facultyId AND (a.isSystemGenerated = false OR a.isSystemGenerated IS NULL) AND a.status IN ('SAVED', 'COMPLETED', 'CLOSED')")
     long countDaysPresentByFacultyId(@org.springframework.data.repository.query.Param("facultyId") UUID facultyId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a.date FROM AttendanceSession a WHERE a.faculty.id = :facultyId AND (a.isSystemGenerated = false OR a.isSystemGenerated IS NULL) AND a.status IN ('SAVED', 'COMPLETED', 'CLOSED')")
+    java.util.Set<java.time.LocalDate> findWorkingDatesByFacultyId(@org.springframework.data.repository.query.Param("facultyId") UUID facultyId);
 }

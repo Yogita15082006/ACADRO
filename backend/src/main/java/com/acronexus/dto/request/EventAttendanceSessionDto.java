@@ -9,4 +9,5 @@ public class EventAttendanceSessionDto {
     private Integer timerDurationMinutes;
     private Integer uniqueCodeCount;
     private Boolean isIncludedInOverall;
+    private java.util.List<java.util.UUID> classSubjectIds;
 }

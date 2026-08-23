@@ -35,7 +35,7 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final com.acronexus.service.AttendanceDashboardService attendanceDashboardService;
 
-    private User getLoggedInUser() {
+    public User getLoggedInUser() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
     }

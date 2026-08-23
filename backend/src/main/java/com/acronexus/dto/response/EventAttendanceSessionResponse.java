@@ -9,14 +9,14 @@ import java.util.UUID;
 @Builder
 public class EventAttendanceSessionResponse {
     private UUID id;
-    private String halfType;
-    private String selectedLectures;
+    private Integer lectureCount;
     private String status;
     private String attendanceCode;
     private Integer timerDurationMinutes;
     private Instant sessionStartTime;
     private Integer uniqueCodeCount;
     private Boolean isIncludedInOverall;
+    private Integer selectedSubjectCount;
     
     // Statistics
     private Long totalRegistered;

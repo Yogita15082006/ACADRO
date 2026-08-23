@@ -10,13 +10,19 @@ import com.acronexus.repository.UserNotificationRepository;
 import com.acronexus.repository.UserRepository;
 import com.acronexus.security.UserDetailsImpl;
 import com.acronexus.service.NotificationService;
+import com.acronexus.entity.UserFcmToken;
+import com.acronexus.repository.UserFcmTokenRepository;
+import com.acronexus.service.FcmNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -28,6 +34,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserNotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final NotificationMapper notificationMapper;
+    private final UserFcmTokenRepository tokenRepository;
+    private final FcmNotificationService fcmNotificationService;
 
     @Override
     @Transactional
@@ -133,11 +141,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationResponse> getMyNotifications() {
+    public Page<NotificationResponse> getMyNotifications(Pageable pageable) {
         UserDetailsImpl currentUser = getCurrentUser();
-        return notificationRepository.findByUserIdWithUser(currentUser.getId()).stream()
-                .map(notificationMapper::toResponse)
-                .collect(Collectors.toList());
+        return notificationRepository.findByUserIdWithUser(currentUser.getId(), pageable)
+                .map(notificationMapper::toResponse);
     }
 
     @Override
@@ -152,6 +159,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         notification.setIsRead(true);
+        notification.setReadAt(Instant.now());
         notificationRepository.save(notification);
     }
 
@@ -167,6 +175,72 @@ public class NotificationServiceImpl implements NotificationService {
     public long getUnreadCount() {
         UserDetailsImpl currentUser = getCurrentUser();
         return notificationRepository.countByUser_IdAndIsReadFalse(currentUser.getId());
+    }
+
+    @Override
+    @Transactional
+    public void createSystemNotification(UUID targetUserId, String title, String message, String type, String referenceId) {
+        if (referenceId != null && type != null) {
+            boolean exists = notificationRepository.existsByUser_IdAndTypeAndReferenceId(targetUserId, type, referenceId);
+            if (exists) {
+                return; // Prevent duplicate
+            }
+        }
+        
+        User targetUser = userRepository.findById(targetUserId).orElse(null);
+        if (targetUser == null) return;
+        
+        UserNotification notification = new UserNotification();
+        notification.setUser(targetUser);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setType(type);
+        notification.setReferenceId(referenceId);
+        notification.setModule(type); // Using type as module for simplicity
+        
+        notificationRepository.save(notification);
+
+        // Push delivery (non-blocking if possible, but currently inline async inside FcmService)
+        fcmNotificationService.sendPushNotification(targetUserId, title, message, type, referenceId);
+    }
+
+    @Override
+    @Transactional
+    public void createBulkSystemNotifications(List<UUID> targetUserIds, String title, String message, String type, String referenceId) {
+        if (targetUserIds == null || targetUserIds.isEmpty()) return;
+        
+        List<UserNotification> notificationsToSave = new java.util.ArrayList<>();
+        
+        for (UUID userId : targetUserIds) {
+            if (referenceId != null && type != null) {
+                boolean exists = notificationRepository.existsByUser_IdAndTypeAndReferenceId(userId, type, referenceId);
+                if (exists) continue; // Prevent duplicate
+            }
+            
+            User targetUser = userRepository.findById(userId).orElse(null);
+            if (targetUser == null) continue;
+            
+            UserNotification notification = new UserNotification();
+            notification.setUser(targetUser);
+            notification.setTitle(title);
+            notification.setMessage(message);
+            notification.setType(type);
+            notification.setReferenceId(referenceId);
+            notification.setModule(type);
+            
+            notificationsToSave.add(notification);
+        }
+        
+        if (!notificationsToSave.isEmpty()) {
+            notificationRepository.saveAll(notificationsToSave);
+            
+            // Push delivery
+            for (UserNotification n : notificationsToSave) {
+                fcmNotificationService.sendPushNotification(
+                    n.getUser().getId(), n.getTitle(), n.getMessage(), n.getType(), n.getReferenceId()
+                );
+            }
+        }
     }
 
     private UserDetailsImpl getCurrentUser() {
@@ -205,5 +279,40 @@ public class NotificationServiceImpl implements NotificationService {
         return user1.getDepartment() != null
                 && user2.getDepartment() != null
                 && user1.getDepartment().getId().equals(user2.getDepartment().getId());
+    }
+
+    @Override
+    @Transactional
+    public void registerDeviceToken(String token) {
+        UserDetailsImpl currentUser = getCurrentUser();
+        User user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        UserFcmToken fcmToken = tokenRepository.findByToken(token).orElse(null);
+        if (fcmToken != null) {
+            if (!fcmToken.getUser().getId().equals(user.getId())) {
+                fcmToken.setUser(user);
+            }
+            fcmToken.setIsActive(true);
+            fcmToken.setLastUsedAt(Instant.now());
+            tokenRepository.save(fcmToken);
+        } else {
+            fcmToken = UserFcmToken.builder()
+                    .user(user)
+                    .token(token)
+                    .isActive(true)
+                    .lastUsedAt(Instant.now())
+                    .build();
+            tokenRepository.save(fcmToken);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void unregisterDeviceToken(String token) {
+        tokenRepository.findByToken(token).ifPresent(fcmToken -> {
+            fcmToken.setIsActive(false);
+            tokenRepository.save(fcmToken);
+        });
     }
 }

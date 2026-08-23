@@ -31,7 +31,7 @@ public class EventMapper {
                 .aiRegistrationFormConfig(request.getAiRegistrationFormConfig())
                 .rulesAndGuidelines(request.getRulesAndGuidelines())
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
-                .includeInOverallAttendance(request.getIncludeInOverallAttendance() != null ? request.getIncludeInOverallAttendance() : false)
+                .includeInOverallAttendance(request.getIsAttendanceEnabled() != null ? request.getIsAttendanceEnabled() : false)
                 .build();
     }
 
@@ -57,8 +57,8 @@ public class EventMapper {
         if (request.getIsActive() != null) {
             event.setIsActive(request.getIsActive());
         }
-        if (request.getIncludeInOverallAttendance() != null) {
-            event.setIncludeInOverallAttendance(request.getIncludeInOverallAttendance());
+        if (request.getIsAttendanceEnabled() != null) {
+            event.setIncludeInOverallAttendance(request.getIsAttendanceEnabled());
         }
     }
 

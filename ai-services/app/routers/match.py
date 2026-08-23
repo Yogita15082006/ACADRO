@@ -55,7 +55,7 @@ async def match_data(request: MatchRequest):
     timetables = request.timetables or []
 
     system_prompt = (
-        "You are an intelligent data-matching engine for AcroNexus ERP. "
+        "You are an intelligent data-matching engine for ACADRO. "
         "Your role is to match uploaded entity data (students, faculty, subjects, classes) "
         "to each other based on department, specialization, year, semester, subject expertise, "
         "workload balance, and naming similarity. "

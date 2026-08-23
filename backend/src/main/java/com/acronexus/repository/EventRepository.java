@@ -40,4 +40,10 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
            "AND e.eventDate >= :now " +
            "ORDER BY e.eventDate ASC")
     List<Event> findAvailableEventsForStudent(@Param("departmentId") UUID departmentId, @Param("classId") UUID classId, @Param("batchYear") String batchYear, @Param("now") Instant now);
+
+    @EntityGraph(attributePaths = {"targetClass", "targetAssignments"})
+    List<Event> findByIsActiveTrueAndRegistrationEndBetween(Instant start, Instant end);
+
+    @EntityGraph(attributePaths = {"targetClass", "targetAssignments"})
+    List<Event> findByIsActiveTrueAndEventDateBetween(Instant start, Instant end);
 }

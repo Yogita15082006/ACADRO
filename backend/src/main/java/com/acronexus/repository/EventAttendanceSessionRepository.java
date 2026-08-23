@@ -11,4 +11,7 @@ import java.util.UUID;
 public interface EventAttendanceSessionRepository extends JpaRepository<EventAttendanceSession, UUID> {
     List<EventAttendanceSession> findByEventId(UUID eventId);
     List<EventAttendanceSession> findByEventIdOrderByCreatedAtDesc(UUID eventId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT e FROM EventAttendanceSession e WHERE SIZE(e.subjects) = 0")
+    List<EventAttendanceSession> findSessionsWithNoSubjects();
 }

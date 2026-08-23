@@ -54,7 +54,7 @@ async def validate_data(request: ValidationRequest):
         valid_classes_str = ", ".join(request.data.get("validClasses", []))
         
         system_prompt = (
-            "You are an AI assistant designed to validate and map faculty bulk upload data for AcroNexus ERP. "
+            "You are an AI assistant designed to validate and map faculty bulk upload data for ACADRO. "
             "You will be provided with a JSON array of faculty records parsed from an uploaded file (using raw column headers). "
             "Your task is to analyze each record for errors, missing fields, and potential mapping issues. "
             "Identify if headers are misspelled (e.g., 'Emp Code' instead of 'Employee ID', 'Branch' instead of 'Department') and map them conceptually. "
@@ -134,7 +134,7 @@ async def validate_data(request: ValidationRequest):
         valid_classes_str = ", ".join(request.data.get("validClasses", []))
         
         system_prompt = (
-            "You are an AI assistant designed to validate and map student bulk upload data for AcroNexus ERP. "
+            "You are an AI assistant designed to validate and map student bulk upload data for ACADRO. "
             "You will be provided with a JSON array of student records parsed from an uploaded file. "
             "Your task is to analyze each record for errors, missing fields, and potential mapping issues (e.g., misspelled class names, missing departments, invalid emails, gender formats). "
             "The expected fields in the ERP are: Student Name, Enrollment Number, College Email, Gender, Batch, Academic Year, Semester, Class, Section, Mobile Number. "

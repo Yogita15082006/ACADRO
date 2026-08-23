@@ -91,16 +91,6 @@ const SubjectAttendanceDetails = ({ subject, onBack, historyData }: { subject: a
     { date: 'Jun 29', pct: 86.4 },
   ];
 
-  const subjectHistory = [
-    { date: '2026-07-02', day: 'Thursday', lec: 'L-12', type: 'Theory', status: 'Present', time: '10:05 AM', code: 'JAVA24IT', verified: true, remarks: '-' },
-    { date: '2026-06-30', day: 'Tuesday', lec: 'L-11', type: 'Theory', status: 'Present', time: '10:02 AM', code: 'JAVA24IT', verified: true, remarks: '-' },
-    { date: '2026-06-25', day: 'Thursday', lec: 'L-10', type: 'Theory', status: 'Absent', time: '-', code: '-', verified: false, remarks: 'Missed' },
-    { date: '2026-06-23', day: 'Tuesday', lec: 'L-9', type: 'Lab', status: 'Present', time: '02:15 PM', code: 'JAVALAB', verified: true, remarks: 'Late Submission' },
-    { date: '2026-06-18', day: 'Thursday', lec: 'L-8', type: 'Theory', status: 'Present', time: '10:04 AM', code: 'JAVA24IT', verified: true, remarks: '-' },
-    { date: '2026-06-16', day: 'Tuesday', lec: 'L-7', type: 'Theory', status: 'Present', time: '10:00 AM', code: 'JAVA24IT', verified: true, remarks: '-' },
-    { date: '2026-06-11', day: 'Thursday', lec: 'L-6', type: 'Theory', status: 'Present', time: '10:06 AM', code: 'JAVA24IT', verified: true, remarks: '-' },
-  ];
-
   return (
     <motion.div
       key="subject-details"
@@ -149,7 +139,7 @@ const SubjectAttendanceDetails = ({ subject, onBack, historyData }: { subject: a
                      </TableRow>
                    </TableHeader>
                    <TableBody>
-                      {(historyData || subjectHistory).map((h, i) => (
+                      {(historyData || []).map((h, i) => (
                         <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b border-border/50">
                           <TableCell className="py-3">
                             <div className="flex flex-col">
@@ -1259,7 +1249,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
       <Card className="border border-border/50 shadow-sm bg-card overflow-hidden">
         <div className="bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-background border-b border-border/50 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-500"/> AI Attendance Summary & Action Plan</CardTitle>
-          <Badge variant="outline" className="text-[10px] text-indigo-500 border-indigo-500/20 bg-indigo-500/10 hidden sm:flex">Generated securely by AcroNexus AI</Badge>
+          <Badge variant="outline" className="text-[10px] text-indigo-500 border-indigo-500/20 bg-indigo-500/10 hidden sm:flex">Generated securely by ACADRO AI</Badge>
         </div>
         <CardContent className="p-5 flex flex-col md:flex-row gap-6 items-start">
           <div className="bg-indigo-500/10 p-4 rounded-full shrink-0">

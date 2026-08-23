@@ -1553,7 +1553,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
   const onSubmit = async (data: AssignmentFormValues) => {
     try {
-      const targetId = workspaceContext?.subjectId || data.subjectId || '00000000-0000-0000-0000-000000000000';
+      const targetId = workspaceContext ? workspaceContext.id : (data.subjectId || '00000000-0000-0000-0000-000000000000');
       const formData = new FormData();
       if (file) formData.append('file', file);
       formData.append('title', data.title);

@@ -47,6 +47,9 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Autowired
     private StudentEnrollmentRepository studentEnrollmentRepository;
 
+    @Autowired
+    private com.acronexus.service.NotificationService notificationService;
+
     private User getCurrentUser() {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findById(userDetails.getId())
@@ -92,6 +95,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         Assignment saved = assignmentRepository.save(assignment);
+        notifyAssignmentCreated(saved);
         return mapToDto(saved);
     }
 
@@ -536,6 +540,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             saved.getFile().setAssignmentId(saved.getId());
             fileStorageRepository.save(saved.getFile());
         }
+        notifyAssignmentCreated(saved);
         return mapToDto(saved);
     }
 
@@ -709,6 +714,18 @@ public class AssignmentServiceImpl implements AssignmentService {
             submission.setIsLate(isPastDeadline);
             submission = assignmentSubmissionRepository.save(submission);
 
+            // Reverse Notification to Faculty
+            if (assignment.getClassSubject() != null && assignment.getClassSubject().getFaculty() != null && assignment.getClassSubject().getFaculty().getUser() != null) {
+                String studentName = student.getUser() != null ? student.getUser().getFirstName() + " " + (student.getUser().getLastName() != null ? student.getUser().getLastName() : "").trim() : "A student";
+                notificationService.createSystemNotification(
+                    assignment.getClassSubject().getFaculty().getUser().getId(),
+                    "ASSIGNMENT",
+                    "Assignment Submitted",
+                    studentName + " submitted " + assignment.getTitle() + ".",
+                    submission.getId().toString()
+                );
+            }
+
             return mapSubmissionToDto(submission);
         } catch (Exception e) {
             throw new RuntimeException("Failed to save submission: " + e.getMessage(), e);
@@ -826,8 +843,15 @@ public class AssignmentServiceImpl implements AssignmentService {
                     } catch (Exception e) {
                         map.put("avatar", "https://ui-avatars.com/api/?name=Student");
                     }
-                    map.put("classId", classId);
-                    map.put("className", className);
+                    
+                    boolean s = submittedStudentIds.contains(st.getId());
+                    map.put("submitted", s);
+                    if (s) {
+                        AssignmentSubmission sub = submissions.stream().filter(x -> x.getStudent() != null && x.getStudent().getId().equals(st.getId())).findFirst().orElse(null);
+                        map.put("submissionId", sub != null ? sub.getId() : null);
+                        map.put("status", sub != null ? sub.getStatus() : "Submitted");
+                        map.put("marks", sub != null ? sub.getMarksAwarded() : null);
+                    }
                     return map;
                 })
                 .collect(Collectors.toList());
@@ -873,5 +897,21 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (lower.endsWith(".txt")) return "text/plain";
         if (lower.endsWith(".zip")) return "application/zip";
         return "application/octet-stream";
+    }
+
+    private void notifyAssignmentCreated(Assignment assignment) {
+        if (assignment.getClassSubject() == null || assignment.getClassSubject().getAcroClass() == null) return;
+        UUID classId = assignment.getClassSubject().getAcroClass().getId();
+        
+        List<UUID> targetUserIds = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId).stream()
+            .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+            .map(e -> e.getStudent().getUser().getId())
+            .collect(Collectors.toList());
+            
+        String subjectName = assignment.getClassSubject().getSubject() != null ? assignment.getClassSubject().getSubject().getName() : "a subject";
+        String title = "New Assignment: " + assignment.getTitle();
+        String message = "A new assignment has been posted for " + subjectName + ".";
+        
+        notificationService.createBulkSystemNotifications(targetUserIds, title, message, "ASSIGNMENT", assignment.getId().toString());
     }
 }

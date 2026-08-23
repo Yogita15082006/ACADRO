@@ -15,8 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="AcroNexus AI Services",
-    description="Centralized AI service layer for AcroNexus ERP. All AI logic lives here.",
+    title="ACADRO AI Services",
+    description="Centralized AI service layer for ACADRO. All AI logic lives here.",
     version="1.0.0",
 )
 
@@ -58,9 +58,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 async def root():
-    """Root endpoint for basic connectivity check."""
-    return {"service": "AcroNexus AI Services", "status": "running", "version": "1.0.0"}
+    return {"service": "ACADRO AI Services", "status": "running", "version": "1.0.0"}
 
 # Trigger reload

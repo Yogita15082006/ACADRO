@@ -2,6 +2,7 @@ package com.acronexus.repository;
 
 import com.acronexus.entity.Examination;
 import com.acronexus.entity.ExamType;
+import com.acronexus.entity.ExamStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -27,4 +28,6 @@ public interface ExaminationRepository extends JpaRepository<Examination, UUID> 
     long countByIsDeletedFalse();
     long countByDepartmentIdAndIsDeletedFalse(UUID departmentId);
 
+    @EntityGraph(attributePaths = {"classes"})
+    List<Examination> findByIsDeletedFalseAndStatusInAndStartDate(List<ExamStatus> statuses, java.time.LocalDate startDate);
 }

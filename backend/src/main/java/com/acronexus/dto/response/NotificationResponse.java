@@ -15,4 +15,6 @@ public class NotificationResponse {
     private String type;
     private Boolean isRead;
     private Instant createdAt;
+    private Instant readAt;
+    private String referenceId;
 }

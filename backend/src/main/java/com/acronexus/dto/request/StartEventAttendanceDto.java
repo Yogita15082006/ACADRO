@@ -11,12 +11,12 @@ public class StartEventAttendanceDto {
     @NotNull(message = "Timer duration is required")
     private Integer timerDurationMinutes;
     
-    private String halfType; // FIRST_HALF, SECOND_HALF, etc.
-    
-    private String selectedLectures; // JSON array string
+    private Integer lectureCount;
     
     @NotNull(message = "Inclusion flag is required")
     private Boolean isIncludedInOverall;
+    
+    private java.util.List<java.util.UUID> classSubjectIds;
     
     private String attendanceCode;
 }
