@@ -27,6 +27,11 @@ public class ExamAiFeedbackMapper {
         if (entity.getStudent() != null) {
             dto.setStudentId(entity.getStudent().getId());
         }
+        if (entity.getSubject() != null) {
+            dto.setSubjectId(entity.getSubject().getId());
+            dto.setSubjectCode(entity.getSubject().getCode());
+            dto.setSubjectName(entity.getSubject().getName());
+        }
         dto.setOverallPerformance(entity.getOverallPerformance());
         dto.setStrengths(entity.getStrengths());
         dto.setAreasOfImprovement(entity.getAreasOfImprovement());

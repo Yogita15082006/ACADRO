@@ -8,6 +8,7 @@ import com.acronexus.entity.ExamAiFeedback;
 import com.acronexus.entity.ExamResult;
 import com.acronexus.entity.Examination;
 import com.acronexus.entity.Student;
+import com.acronexus.entity.Subject;
 import com.acronexus.entity.User;
 import com.acronexus.exception.ResourceNotFoundException;
 import com.acronexus.mapper.ExamAiFeedbackMapper;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@org.springframework.transaction.annotation.Transactional
 public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
 
     private final ExamAiFeedbackRepository repository;
@@ -40,6 +42,7 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
     private final UserRepository userRepository;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Override
     @Transactional
@@ -49,6 +52,7 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ExamAiFeedbackResponseDto getById(UUID id) {
         return repository.findById(id)
                 .map(mapper::toDto)
@@ -56,6 +60,7 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ExamAiFeedbackResponseDto> getAll() {
         return repository.findAll().stream()
                 .map(mapper::toDto)
@@ -97,58 +102,37 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
             throw new IllegalArgumentException("No results found for the given examination and class");
         }
         
-        // Group by student
-        Map<UUID, List<ExamResult>> resultsByStudent = results.stream()
-                .collect(Collectors.groupingBy(er -> er.getStudent().getId()));
-                
-        List<Map<String, Object>> allStudentsData = new ArrayList<>();
+        List<Map<String, Object>> allResultsData = new ArrayList<>();
         
-        for (Map.Entry<UUID, List<ExamResult>> entry : resultsByStudent.entrySet()) {
-            UUID studentId = entry.getKey();
-            List<ExamResult> studentResults = entry.getValue();
-            
-            java.math.BigDecimal totalMarksObtained = java.math.BigDecimal.ZERO;
-            java.math.BigDecimal totalMaxMarks = java.math.BigDecimal.ZERO;
-
-            List<Map<String, Object>> marksData = new ArrayList<>();
-            for (ExamResult r : studentResults) {
-                Map<String, Object> m = new HashMap<>();
-                m.put("subject", r.getSubject().getName());
-                m.put("subjectCode", r.getSubject().getCode());
-                m.put("marksObtained", r.getMarksObtained());
-                m.put("maxMarks", r.getMaxMarks());
-                marksData.add(m);
-                
-                totalMarksObtained = totalMarksObtained.add(r.getMarksObtained());
-                totalMaxMarks = totalMaxMarks.add(r.getMaxMarks() != null ? r.getMaxMarks() : new java.math.BigDecimal("100"));
-            }
+        for (ExamResult r : results) {
+            Map<String, Object> dataPayload = new HashMap<>();
+            dataPayload.put("resultId", r.getId());
+            dataPayload.put("studentId", r.getStudent().getId());
+            dataPayload.put("examinationName", examination.getName());
+            dataPayload.put("subject", r.getSubject().getName());
+            dataPayload.put("subjectCode", r.getSubject().getCode());
+            dataPayload.put("marksObtained", r.getMarksObtained());
+            dataPayload.put("maxMarks", r.getMaxMarks());
             
             double percentage = 0.0;
-            if (totalMaxMarks.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                percentage = totalMarksObtained.doubleValue() / totalMaxMarks.doubleValue() * 100.0;
+            if (r.getMaxMarks() != null && r.getMaxMarks().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                percentage = r.getMarksObtained().doubleValue() / r.getMaxMarks().doubleValue() * 100.0;
             }
-            
-            Map<String, Object> dataPayload = new HashMap<>();
-            dataPayload.put("studentId", studentId);
-            dataPayload.put("examinationName", examination.getName());
-            dataPayload.put("marks", marksData);
-            dataPayload.put("totalMarksObtained", totalMarksObtained);
-            dataPayload.put("totalMaxMarks", totalMaxMarks);
             dataPayload.put("percentage", String.format("%.2f%%", percentage));
             
-            allStudentsData.add(dataPayload);
+            allResultsData.add(dataPayload);
         }
         
         try {
             int batchSize = 10; // Process 10 students at a time sequentially for faster overall generation without hitting rate limits
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             
-            for (int i = 0; i < allStudentsData.size(); i += batchSize) {
+            for (int i = 0; i < allResultsData.size(); i += batchSize) {
                 int start = i;
-                int end = Math.min(start + batchSize, allStudentsData.size());
-                java.util.List<Map<String, Object>> batch = allStudentsData.subList(start, end);
+                int end = Math.min(start + batchSize, allResultsData.size());
+                java.util.List<Map<String, Object>> batch = allResultsData.subList(start, end);
                     Map<String, Object> bulkPayload = new HashMap<>();
-                    bulkPayload.put("students", batch);
+                    bulkPayload.put("results", batch);
                     
                     AiAnalyticsRequest request = new AiAnalyticsRequest();
                     request.setInsightType("BULK_EXAM_FEEDBACK");
@@ -171,12 +155,18 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
                         
                         java.util.List<ExamAiFeedback> feedbacksToSave = new ArrayList<>();
                         for (com.fasterxml.jackson.databind.JsonNode node : jsonArray) {
-                            if (!node.has("studentId")) continue;
+                            if (!node.has("resultId")) continue;
                             
-                            String studentIdStr = node.get("studentId").asText();
-                            UUID studentId = UUID.fromString(studentIdStr);
+                            String resultIdStr = node.get("resultId").asText();
+                            UUID resultId = UUID.fromString(resultIdStr);
                             
-                            ExamAiFeedback feedback = repository.findByExaminationIdAndStudentId(examinationId, studentId)
+                            ExamResult examResult = examResultRepository.findById(resultId).orElse(null);
+                            if(examResult == null) continue;
+
+                            UUID studentId = examResult.getStudent().getId();
+                            UUID subjectId = examResult.getSubject().getId();
+                            
+                            ExamAiFeedback feedback = repository.findByExaminationIdAndStudentIdAndSubjectId(examinationId, studentId, subjectId)
                                     .orElse(new ExamAiFeedback());
                                     
                             Student detachedStudent = new Student();
@@ -184,9 +174,13 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
                             
                             Examination detachedExam = new Examination();
                             detachedExam.setId(examinationId);
+
+                            Subject detachedSubject = new Subject();
+                            detachedSubject.setId(subjectId);
                                     
                             feedback.setExamination(detachedExam);
                             feedback.setStudent(detachedStudent);
+                            feedback.setSubject(detachedSubject);
                             
                             String reasoning = node.has("reasoning") ? node.get("reasoning").asText() : "Analysis completed.";
                             feedback.setOverallPerformance(reasoning);
@@ -240,6 +234,7 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
     }
     
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.getReferenceById(userDetails.getId());
@@ -251,8 +246,7 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
             if (publishedResults.isEmpty()) {
                 return new ArrayList<>(); // Do not return feedback if results are not published
             }
-            java.util.Optional<ExamAiFeedback> feedbackOpt = repository.findByExaminationIdAndStudentId(examinationId, currentUser.getId());
-            feedbacks = feedbackOpt.map(java.util.Collections::singletonList).orElseGet(java.util.Collections::emptyList);
+            feedbacks = repository.findByExaminationIdAndStudentId(examinationId, currentUser.getId());
         } else if (className != null && !className.trim().isEmpty()) {
             feedbacks = repository.findByExaminationIdAndClassName(examinationId, className);
         } else {

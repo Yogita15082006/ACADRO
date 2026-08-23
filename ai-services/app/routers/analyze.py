@@ -150,14 +150,14 @@ async def analyze_data(request: AnalyticsRequest):
         )
     elif request.insightType == "BULK_EXAM_FEEDBACK":
         user_prompt = (
-            f"You are an expert academic counselor. Analyze the exam marks for these {len(request.data.get('students', []))} students: {json.dumps(request.data)}. "
-            f"Provide deeply constructive feedback for EACH student separately. "
-            f"CRITICAL RULE: DO NOT simply restate the marks. Give encouraging and actionable advice. "
+            f"You are an expert academic counselor. Analyze the subject exam marks for these {len(request.data.get('results', []))} results: {json.dumps(request.data)}. "
+            f"Provide deeply constructive feedback for EACH subject result separately. "
+            f"CRITICAL RULE: DO NOT simply restate the marks. Give encouraging and actionable advice specific to the subject. "
             f"IMPORTANT: Return a valid JSON object with 'confidence' (number), 'reasoning' (string), 'recommendations' (array of strings), and 'rawInsights' (a JSON array of objects). "
             f"'rawInsights' MUST be a direct JSON array `[...]` of objects (NOT stringified), where each object has exactly three fields: "
-            f"1. 'studentId' (matching the input exactly), "
-            f"2. 'reasoning' (2-3 sentence holistic summary of their performance trends), "
-            f"3. 'recommendations' (an array of 3 to 4 HIGHLY SPECIFIC, actionable steps for improvement)."
+            f"1. 'resultId' (matching the input exactly), "
+            f"2. 'reasoning' (2-3 sentence holistic summary of their performance trends in this subject), "
+            f"3. 'recommendations' (an array of 3 to 4 HIGHLY SPECIFIC, actionable steps for improvement in this subject)."
         )
 
     else:

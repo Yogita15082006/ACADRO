@@ -408,7 +408,7 @@ export const ExaminationModule = () => {
         
         const aiRes = await examResultService.getAIFeedback(selectedExam.id);
         if (aiRes.success && aiRes.data && aiRes.data.length > 0) {
-          setStudentAiFeedback(aiRes.data[0]);
+          setStudentAiFeedback(aiRes.data);
         }
       } catch (err) {
         console.error("Failed to fetch student results:", err);
@@ -2143,6 +2143,7 @@ export const ExaminationModule = () => {
 
       return {
         id: res.id,
+        subjectId: res.subjectId,
         code: res.subjectCode,
         name: res.subjectName,
         obtained: res.marksObtained,
@@ -2222,34 +2223,44 @@ export const ExaminationModule = () => {
           </div>
         </div>
 
-        {studentAiFeedback && (
-          <div className="bg-accent/30 rounded-xl p-5 text-left border border-border mt-8">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">AI Performance Feedback</h4>
-            <div className="space-y-4">
-              {studentAiFeedback.strengths && studentAiFeedback.strengths.length > 0 && (
-                 <div>
-                   <p className="font-semibold text-emerald-600 mb-1">Strengths:</p>
-                   <ul className="list-disc list-inside text-sm text-foreground ml-2">
-                     {studentAiFeedback.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                   </ul>
-                 </div>
-              )}
-              {studentAiFeedback.areasOfImprovement && studentAiFeedback.areasOfImprovement.length > 0 && (
-                 <div>
-                   <p className="font-semibold text-rose-600 mb-1">Areas for Improvement:</p>
-                   <ul className="list-disc list-inside text-sm text-foreground ml-2">
-                     {studentAiFeedback.areasOfImprovement.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                   </ul>
-                 </div>
-              )}
-              {studentAiFeedback.actionPlan && (
-                 <div>
-                   <p className="font-semibold text-indigo-600 mb-1">Action Plan:</p>
-                   <p className="text-sm text-foreground">{studentAiFeedback.actionPlan}</p>
-                 </div>
-              )}
-            </div>
-          </div>
+        {studentAiFeedback && Array.isArray(studentAiFeedback) && (
+            (() => {
+                const specificFeedback = studentAiFeedback.find((f:any) => 
+                    (f.subjectId && viewingSubjectResult.subjectId && f.subjectId === viewingSubjectResult.subjectId) || 
+                    (f.subjectCode && viewingSubjectResult.code && f.subjectCode === viewingSubjectResult.code) || 
+                    (f.subjectName && viewingSubjectResult.name && f.subjectName === viewingSubjectResult.name)
+                );
+                if (!specificFeedback) return null;
+                return (
+                  <div className="bg-accent/30 rounded-xl p-5 text-left border border-border mt-8">
+                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">AI Performance Feedback</h4>
+                    <div className="space-y-4">
+                      {specificFeedback.strengths && specificFeedback.strengths.length > 0 && (
+                         <div>
+                           <p className="font-semibold text-emerald-600 mb-1">Strengths:</p>
+                           <ul className="list-disc list-inside text-sm text-foreground ml-2">
+                             {specificFeedback.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                           </ul>
+                         </div>
+                      )}
+                      {specificFeedback.areasOfImprovement && specificFeedback.areasOfImprovement.length > 0 && (
+                         <div>
+                           <p className="font-semibold text-rose-600 mb-1">Areas for Improvement:</p>
+                           <ul className="list-disc list-inside text-sm text-foreground ml-2">
+                             {specificFeedback.areasOfImprovement.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                           </ul>
+                         </div>
+                      )}
+                      {specificFeedback.actionPlan && (
+                         <div>
+                           <p className="font-semibold text-indigo-600 mb-1">Action Plan:</p>
+                           <p className="text-sm text-foreground">{specificFeedback.actionPlan}</p>
+                         </div>
+                      )}
+                    </div>
+                  </div>
+                );
+            })()
         )}
       </div>
     </motion.div>

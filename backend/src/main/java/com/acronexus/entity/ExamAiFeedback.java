@@ -21,6 +21,10 @@ public class ExamAiFeedback {
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subject_id", nullable = true)
+    private Subject subject;
+
     @Column(columnDefinition = "TEXT")
     private String overallPerformance;
 

@@ -8,6 +8,9 @@ public class ExamAiFeedbackResponseDto {
     private UUID id;
     private UUID examinationId;
     private UUID studentId;
+    private UUID subjectId;
+    private String subjectCode;
+    private String subjectName;
     private String overallPerformance;
     private String[] strengths;
     private String[] areasOfImprovement;
