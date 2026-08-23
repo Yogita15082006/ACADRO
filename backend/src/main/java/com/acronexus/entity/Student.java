@@ -113,6 +113,16 @@ public class Student implements Persistable<java.util.UUID> {
     @Column(precision = 4, scale = 2) private java.math.BigDecimal sgpaSem7;
     @Column(precision = 4, scale = 2) private java.math.BigDecimal sgpaSem8;
 
+    // Marksheet URLs for 8 semesters
+    @Column(name = "marksheet_url_sem1") private String marksheetUrlSem1;
+    @Column(name = "marksheet_url_sem2") private String marksheetUrlSem2;
+    @Column(name = "marksheet_url_sem3") private String marksheetUrlSem3;
+    @Column(name = "marksheet_url_sem4") private String marksheetUrlSem4;
+    @Column(name = "marksheet_url_sem5") private String marksheetUrlSem5;
+    @Column(name = "marksheet_url_sem6") private String marksheetUrlSem6;
+    @Column(name = "marksheet_url_sem7") private String marksheetUrlSem7;
+    @Column(name = "marksheet_url_sem8") private String marksheetUrlSem8;
+
     // Transient flag for Persistable support
     @Transient
     private boolean isNewEntity = false;

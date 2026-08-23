@@ -13,7 +13,10 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('acronexus_token');
+      const urlParams = new URLSearchParams(window.location.search);
+      const impersonateToken = urlParams.get('impersonate_token');
+      
+      const storedToken = impersonateToken || localStorage.getItem('acronexus_token');
       
       if (storedToken) {
         try {
@@ -27,7 +30,9 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error("Failed to fetch profile", error);
-          localStorage.removeItem('acronexus_token');
+          if (!impersonateToken) {
+            localStorage.removeItem('acronexus_token');
+          }
         }
       }
       setLoading(false);

@@ -133,6 +133,15 @@ public class ProfileDto {
         private java.math.BigDecimal sem6;
         private java.math.BigDecimal sem7;
         private java.math.BigDecimal sem8;
+        
+        private String marksheetUrlSem1;
+        private String marksheetUrlSem2;
+        private String marksheetUrlSem3;
+        private String marksheetUrlSem4;
+        private String marksheetUrlSem5;
+        private String marksheetUrlSem6;
+        private String marksheetUrlSem7;
+        private String marksheetUrlSem8;
     }
 
     @Data

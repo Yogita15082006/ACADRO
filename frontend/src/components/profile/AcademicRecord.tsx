@@ -3,7 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Edit, Save, BookOpen, GraduationCap, X, Plus } from 'lucide-react';
+import { Edit, Save, BookOpen, GraduationCap, X, Plus, FileText, Upload, Eye, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../../services/api';
+import { getAssetUrl } from '@/lib/utils';
 
 interface AcademicRecordProps {
   data: any;
@@ -14,6 +17,39 @@ interface AcademicRecordProps {
 export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newSubject, setNewSubject] = useState('');
+  const [uploadingSem, setUploadingSem] = useState<number | null>(null);
+  
+  const handleMarksheetUpload = async (sem: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+      
+      try {
+        setUploadingSem(sem);
+        const response = await api.post(`/v1/profile/marksheet/${sem}`, formDataUpload);
+        
+        if (response.data.success) {
+          const newUrl = response.data.data.url;
+          setFormData(prev => ({
+            ...prev,
+            sgpa: {
+              ...prev.sgpa,
+              [`marksheetUrlSem${sem}`]: newUrl
+            }
+          }));
+          toast.success(`Semester ${sem} marksheet uploaded successfully`);
+        }
+      } catch (error) {
+        console.error('Failed to upload marksheet:', error);
+        toast.error('Failed to upload marksheet');
+      } finally {
+        setUploadingSem(null);
+        // Reset the input value so the same file can be uploaded again if needed
+        e.target.value = '';
+      }
+    }
+  };
   
   const [formData, setFormData] = useState({
     year: data.year || '',
@@ -35,6 +71,14 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
       sem6: data.sgpa?.sem6 || '',
       sem7: data.sgpa?.sem7 || '',
       sem8: data.sgpa?.sem8 || '',
+      marksheetUrlSem1: data.sgpa?.marksheetUrlSem1 || '',
+      marksheetUrlSem2: data.sgpa?.marksheetUrlSem2 || '',
+      marksheetUrlSem3: data.sgpa?.marksheetUrlSem3 || '',
+      marksheetUrlSem4: data.sgpa?.marksheetUrlSem4 || '',
+      marksheetUrlSem5: data.sgpa?.marksheetUrlSem5 || '',
+      marksheetUrlSem6: data.sgpa?.marksheetUrlSem6 || '',
+      marksheetUrlSem7: data.sgpa?.marksheetUrlSem7 || '',
+      marksheetUrlSem8: data.sgpa?.marksheetUrlSem8 || '',
     },
     subjects: data.subjects || [],
     tenthSchoolName: data.tenthSchoolName || '',
@@ -68,6 +112,14 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
         sem6: data.sgpa?.sem6 || '',
         sem7: data.sgpa?.sem7 || '',
         sem8: data.sgpa?.sem8 || '',
+        marksheetUrlSem1: data.sgpa?.marksheetUrlSem1 || '',
+        marksheetUrlSem2: data.sgpa?.marksheetUrlSem2 || '',
+        marksheetUrlSem3: data.sgpa?.marksheetUrlSem3 || '',
+        marksheetUrlSem4: data.sgpa?.marksheetUrlSem4 || '',
+        marksheetUrlSem5: data.sgpa?.marksheetUrlSem5 || '',
+        marksheetUrlSem6: data.sgpa?.marksheetUrlSem6 || '',
+        marksheetUrlSem7: data.sgpa?.marksheetUrlSem7 || '',
+        marksheetUrlSem8: data.sgpa?.marksheetUrlSem8 || '',
       },
       subjects: data.subjects || [],
       tenthSchoolName: data.tenthSchoolName || '',
@@ -237,23 +289,99 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
               <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <BookOpen className="w-4 h-4" /> SGPA per Semester
               </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                  <div key={sem} className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Semester {sem}</label>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      max="10"
-                      placeholder="SGPA"
-                      value={formData.sgpa[`sem${sem}` as keyof typeof formData.sgpa]}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        sgpa: { ...formData.sgpa, [`sem${sem}`]: e.target.value }
-                      })}
-                    />
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+                  const marksheetUrl = formData.sgpa[`marksheetUrlSem${sem}` as keyof typeof formData.sgpa];
+                  
+                  return (
+                    <div key={sem} className="flex flex-col border border-border/60 rounded-xl bg-card shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+                      <div className="bg-muted/30 px-4 py-2 border-b border-border/40 flex justify-between items-center">
+                        <h5 className="text-sm font-semibold text-foreground tracking-tight">Semester {sem}</h5>
+                      </div>
+                      
+                      <div className="p-4 space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">SGPA</label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            max="10"
+                            placeholder="Enter SGPA"
+                            className="h-9 font-medium"
+                            value={formData.sgpa[`sem${sem}` as keyof typeof formData.sgpa]}
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              sgpa: { ...formData.sgpa, [`sem${sem}`]: e.target.value }
+                            })}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 pt-3 border-t border-border/40">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Marksheet</label>
+                          
+                          {marksheetUrl ? (
+                            <div className="flex items-center gap-2 w-full">
+                              <a 
+                                href={getAssetUrl(marksheetUrl as string)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="flex-1 flex items-center justify-center gap-1.5 h-8 px-2 text-xs font-medium border border-primary/20 bg-primary/5 text-primary rounded-md hover:bg-primary/10 transition-colors truncate"
+                                title="View uploaded marksheet"
+                              >
+                                <Eye className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">View</span>
+                              </a>
+                              <div className="relative flex-1">
+                                <input
+                                  type="file"
+                                  id={`marksheet-upload-sem${sem}`}
+                                  className="hidden"
+                                  accept=".pdf,image/*"
+                                  onChange={(e) => handleMarksheetUpload(sem, e)}
+                                  disabled={uploadingSem === sem}
+                                />
+                                <label 
+                                  htmlFor={`marksheet-upload-sem${sem}`}
+                                  className={`flex items-center justify-center h-8 gap-1.5 px-2 text-xs font-medium border rounded-md cursor-pointer transition-colors truncate ${
+                                    uploadingSem === sem 
+                                      ? 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground' 
+                                      : 'bg-muted/50 text-muted-foreground hover:bg-muted border-border/60'
+                                  }`}
+                                  title="Replace existing marksheet"
+                                >
+                                  {uploadingSem === sem ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Upload className="w-3.5 h-3.5 shrink-0" />}
+                                  <span className="truncate">{uploadingSem === sem ? '...' : 'Replace'}</span>
+                                </label>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative w-full">
+                              <input
+                                type="file"
+                                id={`marksheet-upload-sem${sem}`}
+                                className="hidden"
+                                accept=".pdf,image/*"
+                                onChange={(e) => handleMarksheetUpload(sem, e)}
+                                disabled={uploadingSem === sem}
+                              />
+                              <label 
+                                htmlFor={`marksheet-upload-sem${sem}`}
+                                className={`flex items-center justify-center w-full h-8 gap-1.5 px-3 text-xs font-medium border rounded-md cursor-pointer transition-colors truncate ${
+                                  uploadingSem === sem 
+                                    ? 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground' 
+                                    : 'bg-primary/5 text-primary border-primary/20 hover:bg-primary/10'
+                                }`}
+                              >
+                                {uploadingSem === sem ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Upload className="w-3.5 h-3.5 shrink-0" />}
+                                <span className="truncate">{uploadingSem === sem ? 'Uploading...' : 'Upload Marksheet'}</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -355,14 +483,43 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
                 <BookOpen className="w-4 h-4" />
                 Semester Performance (SGPA)
               </h4>
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
                   const sgpaValue = formData.sgpa ? formData.sgpa[`sem${sem}` as keyof typeof formData.sgpa] : undefined;
+                  const marksheetUrl = formData.sgpa ? formData.sgpa[`marksheetUrlSem${sem}` as keyof typeof formData.sgpa] : undefined;
+                  
                   return (
-                    <div key={sem} className={`rounded-lg border p-2 sm:p-3 text-center shadow-sm flex flex-col justify-center items-center ${sgpaValue ? 'bg-background border-border' : 'bg-muted/30 border-dashed border-border/50 opacity-60'}`}>
-                      <div className="text-[10px] sm:text-xs text-muted-foreground mb-1 font-medium">Sem {sem}</div>
-                      <div className={`text-sm sm:text-base font-semibold ${sgpaValue ? 'text-foreground' : 'text-muted-foreground/50'}`}>
-                        {sgpaValue ? Number(sgpaValue).toFixed(2) : '-'}
+                    <div key={sem} className="flex flex-col border border-border/50 rounded-xl bg-card shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+                      <div className="bg-muted/20 px-4 py-2.5 border-b border-border/40 flex justify-between items-center">
+                        <h5 className="text-sm font-semibold text-foreground tracking-tight">Semester {sem}</h5>
+                      </div>
+                      
+                      <div className="p-4 space-y-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">SGPA</p>
+                          <p className={`text-xl font-bold ${sgpaValue ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                            {sgpaValue ? Number(sgpaValue).toFixed(2) : '—'}
+                          </p>
+                        </div>
+                        
+                        <div className="pt-3 border-t border-border/40">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Marksheet</p>
+                          {marksheetUrl ? (
+                            <a 
+                              href={getAssetUrl(marksheetUrl as string)} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="flex items-center justify-center gap-1.5 h-8 px-3 text-xs font-medium border border-primary/20 bg-primary/5 text-primary rounded-md hover:bg-primary/10 transition-colors w-full truncate"
+                            >
+                              <FileText className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">View Marksheet</span>
+                            </a>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 h-8 px-3 text-xs font-medium border border-dashed border-border/60 bg-muted/20 text-muted-foreground/60 rounded-md w-full">
+                              <span className="truncate">Not Uploaded</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

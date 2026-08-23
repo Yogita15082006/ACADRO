@@ -59,6 +59,7 @@ export const ClassesModule = () => {
   const [announcementContent, setAnnouncementContent] = useState('');
   const [announcementPriority, setAnnouncementPriority] = useState('Normal');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<string | null>(null);
 
   const fetchAnnouncements = async (silent = false) => {
     if (!activeWorkspace) return;
@@ -303,14 +304,20 @@ export const ClassesModule = () => {
   
   const handleDeleteWorkspace = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("Deleting this Subject Card will permanently remove all academic data associated with it, including assignments, quizzes, materials, attendance records, and related submissions. This action cannot be undone.")) {
-      return;
-    }
+    setWorkspaceToDelete(id);
+  };
+
+  const confirmDeleteWorkspace = async () => {
+    if (!workspaceToDelete) return;
     try {
-      await api.delete(`/v1/class-subjects/${id}`);
-      fetchWorkspaces();
-    } catch (e) {
+      await api.delete(`/v1/class-subjects/${workspaceToDelete}`);
+      await fetchWorkspaces();
+      toast.success("Subject workspace deleted successfully");
+    } catch (e: any) {
       console.error('Failed to delete workspace', e);
+      toast.error(e.response?.data?.message || "Failed to delete workspace");
+    } finally {
+      setWorkspaceToDelete(null);
     }
   };
 
@@ -891,6 +898,22 @@ export const ClassesModule = () => {
             <Button onClick={handleCreateWorkspace} disabled={!newWorkspace.subjectName || !newWorkspace.year || !newWorkspace.semester || !newWorkspace.className}>
               Create Subject Workspace
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Workspace Confirmation Modal */}
+      <Dialog open={!!workspaceToDelete} onOpenChange={(open) => !open && setWorkspaceToDelete(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Subject Workspace</DialogTitle>
+            <DialogDescription>
+              Deleting this Subject Card will permanently remove all academic data associated with it, including assignments, quizzes, materials, attendance records, and related submissions. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorkspaceToDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteWorkspace}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

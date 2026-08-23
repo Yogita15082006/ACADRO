@@ -189,23 +189,30 @@ export const StudentsModule = () => {
     }
   };
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!form.enrollmentNumber || !form.name) { toast.error('Fill all fields'); return; }
-    const { year, semester } = calcFromBatch(form.batch);
-    const newStudent = {
-      id: `STU_NEW_${Date.now()}`,
-      ...form,
-      email: `${form.name.toLowerCase().replace(/\s/g, '.')}@acropolis.in`,
-      phone: `+91 9${Math.floor(Math.random() * 999999999)}`,
-      classId: '', className: 'Unassigned', year, semester: semester.replace('Semester ', ''),
-      batch: form.batch, branch: 'Information Technology',
-      overallAttendance: 0, avatar: `https://ui-avatars.com/api/?name=${form.name}&background=4F46E5&color=fff`, profilePictureUrl: null,
-      status: 'Active', sgpa: {}, cgpa: '0.00', activeBacklogs: 0, subjects: [], batchCoordinator: '-',
-    };
-    setStudents([newStudent, ...students]);
-    setShowAdd(false);
-    setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '2024-2028' });
-    toast.success('Student added successfully');
+    try {
+      const response = await api.post('/v1/students', {
+        enrollmentNumber: form.enrollmentNumber,
+        name: form.name,
+        gender: form.gender,
+        batch: form.batch
+      });
+      
+      const newStudent = response.data?.data;
+      if (newStudent) {
+        setStudents([newStudent, ...students]);
+      } else {
+        // Fallback to fetch if creation doesn't return full object
+        fetchStudents();
+      }
+      
+      setShowAdd(false);
+      setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '2024-2028' });
+      toast.success('Student added successfully');
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to add student');
+    }
   };
 
   const handleEditStudent = () => {

@@ -66,4 +66,17 @@ public class ProfileController {
             throw e;
         }
     }
+
+    @PostMapping("/marksheet/{semester}")
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadSemesterMarksheet(
+            @PathVariable int semester,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        try {
+            UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String documentUrl = profileService.uploadSemesterMarksheet(userDetails.getId(), semester, file);
+            return ResponseEntity.ok(ApiResponse.success("Marksheet uploaded successfully", java.util.Map.of("url", documentUrl)));
+        } catch (Exception e) {
+            throw e;
+        }
+    }
 }

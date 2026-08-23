@@ -2528,6 +2528,15 @@ export const ExaminationModule = () => {
     window.print();
   };
 
+  const handlePrintEligibleOnly = () => {
+    const previousStatus = elgFilter.status;
+    setElgFilter(prev => ({...prev, status: 'Eligible'}));
+    setTimeout(() => {
+      window.print();
+      setElgFilter(prev => ({...prev, status: previousStatus}));
+    }, 100);
+  };
+
   const handleDeleteEligibilityList = async (listId?: string) => {
     if (!selectedExam) return;
     try {
@@ -2595,9 +2604,7 @@ export const ExaminationModule = () => {
                     <Button variant="outline" className="flex-1 min-w-[80px] text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground border-primary/20 hover:border-primary transition-colors" onClick={() => setElgViewMode('view')}>
                       <Eye size={16} className="mr-1.5"/> View
                     </Button>
-                    <Button variant="outline" className="flex-1 min-w-[80px] text-sm font-semibold rounded-lg" onClick={handlePrint}>
-                      <Printer size={16} className="mr-1.5"/> Print
-                    </Button>
+
                     {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
                       <Button variant="outline" className="w-full text-sm font-semibold rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200" onClick={() => handleDeleteEligibilityList()}>
                         <Trash2 size={16} className="mr-1.5"/> Delete
@@ -2638,7 +2645,7 @@ export const ExaminationModule = () => {
 
       return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-7xl mx-auto">
-          <div className="flex flex-col gap-4 mb-4">
+          <div className="flex flex-col gap-4 mb-4 print:hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <Button variant="outline" onClick={() => setElgViewMode(isEligibilitySaved ? 'saved' : 'create')} className="gap-2 font-semibold">
@@ -2651,21 +2658,32 @@ export const ExaminationModule = () => {
                   <p className="text-sm text-muted-foreground">Class: {selectedExam?.class} • Sem: {selectedExam?.semester} • Exam: {selectedExam?.name}</p>
                 </div>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                
+              <div className="flex flex-wrap items-center justify-end gap-2 w-full lg:w-auto mt-2 sm:mt-0">
                   {!isEligibilitySaved && (
-                    <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={saveEligibilityListToBackend}>
+                    <Button className="gap-2 bg-primary text-primary-foreground" size="sm" onClick={saveEligibilityListToBackend}>
                       <CheckCircle size={16}/> Save List
                     </Button>
                   )}
-                <Button variant="outline" className="gap-2 flex-1 sm:flex-none bg-accent hover:bg-primary hover:text-primary-foreground" onClick={() => setElgViewMode('create')}><BrainCircuit size={16}/> Generate List</Button>
-                  <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={() => setElgViewMode('saved')}><List size={16}/> Back to Saved Lists</Button>
-                  <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handlePrint}><Printer size={16}/> Print</Button>
+                  <Button variant="outline" size="sm" className="gap-2 bg-accent hover:bg-primary hover:text-primary-foreground" onClick={() => setElgViewMode('create')}>
+                    <BrainCircuit size={16}/> Generate List
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => setElgViewMode('saved')}>
+                    <List size={16}/> Back to Saved
+                  </Button>
+                  
+                  <div className="flex items-center gap-2 pl-2 border-l border-border/50 ml-1">
+                    <Button variant="outline" size="sm" className="gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200" onClick={handlePrintEligibleOnly}>
+                      <Printer size={16}/> Print Eligible
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={handlePrint}>
+                      <Printer size={16}/> Print All
+                    </Button>
+                  </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 print:hidden">
             <div className="bg-card border border-border rounded-xl p-5 shadow-sm text-center">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Total Students</p>
               <p className="text-3xl font-black text-blue-500">{elgInsights.total}</p>
@@ -2684,8 +2702,8 @@ export const ExaminationModule = () => {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mt-6">
-            <div className="p-4 border-b border-border bg-accent/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mt-6 print:border-none print:shadow-none print:mt-0">
+            <div className="p-4 border-b border-border bg-accent/30 flex flex-col sm:flex-row gap-4 justify-between items-center print:hidden">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                 <input 

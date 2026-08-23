@@ -209,6 +209,16 @@ public class ProfileServiceImpl implements ProfileService {
                 sgpaDto.setSem6(student.getSgpaSem6());
                 sgpaDto.setSem7(student.getSgpaSem7());
                 sgpaDto.setSem8(student.getSgpaSem8());
+                
+                sgpaDto.setMarksheetUrlSem1(student.getMarksheetUrlSem1());
+                sgpaDto.setMarksheetUrlSem2(student.getMarksheetUrlSem2());
+                sgpaDto.setMarksheetUrlSem3(student.getMarksheetUrlSem3());
+                sgpaDto.setMarksheetUrlSem4(student.getMarksheetUrlSem4());
+                sgpaDto.setMarksheetUrlSem5(student.getMarksheetUrlSem5());
+                sgpaDto.setMarksheetUrlSem6(student.getMarksheetUrlSem6());
+                sgpaDto.setMarksheetUrlSem7(student.getMarksheetUrlSem7());
+                sgpaDto.setMarksheetUrlSem8(student.getMarksheetUrlSem8());
+                
                 builder.sgpa(sgpaDto);
 
                 // Academic Records (10th/12th)
@@ -459,6 +469,15 @@ public class ProfileServiceImpl implements ProfileService {
                     student.setSgpaSem6(profileDto.getSgpa().getSem6());
                     student.setSgpaSem7(profileDto.getSgpa().getSem7());
                     student.setSgpaSem8(profileDto.getSgpa().getSem8());
+                    
+                    if (profileDto.getSgpa().getMarksheetUrlSem1() != null) student.setMarksheetUrlSem1(profileDto.getSgpa().getMarksheetUrlSem1());
+                    if (profileDto.getSgpa().getMarksheetUrlSem2() != null) student.setMarksheetUrlSem2(profileDto.getSgpa().getMarksheetUrlSem2());
+                    if (profileDto.getSgpa().getMarksheetUrlSem3() != null) student.setMarksheetUrlSem3(profileDto.getSgpa().getMarksheetUrlSem3());
+                    if (profileDto.getSgpa().getMarksheetUrlSem4() != null) student.setMarksheetUrlSem4(profileDto.getSgpa().getMarksheetUrlSem4());
+                    if (profileDto.getSgpa().getMarksheetUrlSem5() != null) student.setMarksheetUrlSem5(profileDto.getSgpa().getMarksheetUrlSem5());
+                    if (profileDto.getSgpa().getMarksheetUrlSem6() != null) student.setMarksheetUrlSem6(profileDto.getSgpa().getMarksheetUrlSem6());
+                    if (profileDto.getSgpa().getMarksheetUrlSem7() != null) student.setMarksheetUrlSem7(profileDto.getSgpa().getMarksheetUrlSem7());
+                    if (profileDto.getSgpa().getMarksheetUrlSem8() != null) student.setMarksheetUrlSem8(profileDto.getSgpa().getMarksheetUrlSem8());
                 }
 
                 studentRepository.saveAndFlush(student);
@@ -628,6 +647,54 @@ public class ProfileServiceImpl implements ProfileService {
             return "/api/v1/resources/download/" + fs.getId();
         } catch (java.io.IOException e) {
             throw new RuntimeException("Failed to store profile document", e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public String uploadSemesterMarksheet(UUID userId, int semester, org.springframework.web.multipart.MultipartFile file) {
+        if (semester < 1 || semester > 8) {
+            throw new IllegalArgumentException("Invalid semester: " + semester + ". Must be between 1 and 8.");
+        }
+
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            Student student = studentRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Student not found"));
+
+            String uploadDir = "uploads/marksheets/";
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            java.nio.file.Path filePath = uploadPath.resolve(fileName);
+            java.nio.file.Files.copy(file.getInputStream(), filePath);
+
+            FileStorage fs = new FileStorage();
+            fs.setFileName(file.getOriginalFilename());
+            fs.setDocumentUrl(filePath.toString());
+            fs.setUploadedBy(user);
+            fileStorageRepository.save(fs);
+
+            String documentUrl = "/api/v1/resources/download/" + fs.getId();
+
+            switch (semester) {
+                case 1: student.setMarksheetUrlSem1(documentUrl); break;
+                case 2: student.setMarksheetUrlSem2(documentUrl); break;
+                case 3: student.setMarksheetUrlSem3(documentUrl); break;
+                case 4: student.setMarksheetUrlSem4(documentUrl); break;
+                case 5: student.setMarksheetUrlSem5(documentUrl); break;
+                case 6: student.setMarksheetUrlSem6(documentUrl); break;
+                case 7: student.setMarksheetUrlSem7(documentUrl); break;
+                case 8: student.setMarksheetUrlSem8(documentUrl); break;
+            }
+            studentRepository.save(student);
+
+            return documentUrl;
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to store marksheet", e);
         }
     }
 }

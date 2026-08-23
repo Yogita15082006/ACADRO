@@ -1099,9 +1099,6 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
         </div>
         <div className="flex items-center gap-3">
           {getStatusBadge(student.attendance)}
-          <Button variant="outline" size="sm" className="gap-2 bg-background">
-            <Printer size={14} /> Export Report
-          </Button>
         </div>
       </div>
 
@@ -1246,45 +1243,6 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
         </Card>
       </div>
 
-      <Card className="border border-border/50 shadow-sm bg-card overflow-hidden">
-        <div className="bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-background border-b border-border/50 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-500"/> AI Attendance Summary & Action Plan</CardTitle>
-          <Badge variant="outline" className="text-[10px] text-indigo-500 border-indigo-500/20 bg-indigo-500/10 hidden sm:flex">Generated securely by ACADRO AI</Badge>
-        </div>
-        <CardContent className="p-5 flex flex-col md:flex-row gap-6 items-start">
-          <div className="bg-indigo-500/10 p-4 rounded-full shrink-0">
-             <Sparkles className="w-8 h-8 text-indigo-500" />
-          </div>
-          <div className="space-y-4 w-full">
-            <p className="text-sm text-foreground font-medium leading-relaxed">
-              {aiInsight}
-            </p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 mt-2 border-t border-border/50">
-              <div className="flex flex-col space-y-1">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pattern: Mon Mornings</span>
-                <Badge variant="outline" className="w-fit text-[10px] text-amber-500 border-amber-500/20 bg-amber-500/10">High Absence</Badge>
-              </div>
-              <div className="flex flex-col space-y-1">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pattern: Labs</span>
-                <Badge variant="outline" className="w-fit text-[10px] text-emerald-500 border-emerald-500/20 bg-emerald-500/10">100% Present</Badge>
-              </div>
-              <div className="flex flex-col space-y-1">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pattern: Pre-Holiday</span>
-                <Badge variant="outline" className="w-fit text-[10px] text-rose-500 border-rose-500/20 bg-rose-500/10">Often Missed</Badge>
-              </div>
-              <div className="flex flex-col space-y-1">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recommended Action</span>
-                {student.attendance < 75 ? (
-                  <Button size="sm" className="h-6 text-[10px] bg-rose-500 hover:bg-rose-600 text-white shadow-sm w-fit"><AlertTriangle className="w-3 h-3 mr-1"/> Issue Warning</Button>
-                ) : (
-                  <Badge variant="outline" className="w-fit text-[10px] text-emerald-500 border-emerald-500/20 bg-emerald-500/10"><CheckCircle className="w-3 h-3 mr-1"/> On Track</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </motion.div>
   );
 };

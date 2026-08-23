@@ -13,6 +13,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -109,5 +111,32 @@ public class AuthController {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         UserProfileResponseDto updatedProfile = authService.updateProfile(userDetails.getId(), requestDto);
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", updatedProfile));
+    }
+
+    @GetMapping("/impersonate/{targetUserId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    public ResponseEntity<ApiResponse<AuthResponseDto>> impersonateUser(@PathVariable UUID targetUserId) {
+        com.acronexus.entity.User targetUser = authService.getUserEntity(targetUserId);
+        if (targetUser == null) {
+            return ResponseEntity.status(404).body(ApiResponse.error("Target user not found"));
+        }
+        
+        UserDetailsImpl targetUserDetails = UserDetailsImpl.build(targetUser);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(targetUserDetails, null, targetUserDetails.getAuthorities());
+        String jwt = jwtUtils.generateJwtToken(authentication);
+
+        String role = targetUserDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElse("ROLE_STUDENT");
+
+        AuthResponseDto authResponse = AuthResponseDto.builder()
+                .token(jwt)
+                .id(targetUserDetails.getId())
+                .email(targetUserDetails.getUsername())
+                .role(role)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Impersonation successful", authResponse));
     }
 }

@@ -278,6 +278,8 @@ export const FacultyManagementModule = () => {
   const { departmentsList } = useMetadata();
   const [activeTab, setActiveTab] = useState<Tab>('faculty-coordinators');
   const [previewFaculty, setPreviewFaculty] = useState<any>(null);
+  const [impersonateToken, setImpersonateToken] = useState<string | null>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const [search, setSearch] = useState('');
   
   const [localFaculty, setLocalFaculty] = useState<any[]>([]);
@@ -304,6 +306,21 @@ export const FacultyManagementModule = () => {
       setLocalTimetables(resources.filter((r: any) => r.fileType === 'TIMETABLE'));
     } catch (e) {
       console.error('Failed to fetch resources', e);
+    }
+  };
+
+  const handleViewPanel = async (faculty: any) => {
+    try {
+      setIsImpersonating(true);
+      const res = await api.get(`/auth/impersonate/${faculty.empId || faculty.id}`);
+      if (res.data?.data?.token) {
+        setImpersonateToken(res.data.data.token);
+        setPreviewFaculty(faculty);
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Failed to impersonate user.");
+    } finally {
+      setIsImpersonating(false);
     }
   };
 
@@ -1141,12 +1158,10 @@ export const FacultyManagementModule = () => {
         <div className="bg-primary text-primary-foreground px-4 py-2.5 flex items-center justify-between shrink-0 shadow-md">
           <div className="flex items-center gap-4">
             <Button 
-              variant="secondary" 
-              size="sm"
-              onClick={() => setPreviewFaculty(null)}
-              className="gap-2 h-8 font-medium text-xs shadow-sm hover:scale-105 transition-all"
+              onClick={() => { setPreviewFaculty(null); setImpersonateToken(null); }}
+              className="gap-2 h-10 px-5 font-bold text-sm bg-red-500 hover:bg-red-600 text-white border-2 border-red-600/50 rounded-full shadow-xl hover:scale-105 transition-all"
             >
-              <ChevronLeft size={16} /> Back to Faculty Management
+              <ChevronLeft size={18} strokeWidth={3} /> Exit Impersonation (Back)
             </Button>
             <div className="flex items-center gap-3 border-l border-white/20 pl-4">
               <span className="relative flex h-2.5 w-2.5">
@@ -1158,11 +1173,17 @@ export const FacultyManagementModule = () => {
           </div>
         </div>
         <div className="flex-1 relative">
-          <iframe 
-            src={`/admin?preview=${previewFaculty.empId || previewFaculty.id}`}
-            className="absolute inset-0 w-full h-full border-0 bg-background"
-            title={`Preview of ${previewFaculty.name}'s Portal`}
-          />
+          {impersonateToken ? (
+            <iframe 
+              src={`/admin?impersonate_token=${impersonateToken}`}
+              className="absolute inset-0 w-full h-full border-0 bg-background"
+              title={`Preview of ${previewFaculty.name}'s Portal`}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full w-full">
+              <span className="text-muted-foreground">Loading preview...</span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1398,9 +1419,10 @@ export const FacultyManagementModule = () => {
                     <Button 
                       className="w-full mt-4 gap-2" 
                       variant="outline"
-                      onClick={() => setPreviewFaculty(f)}
+                      disabled={isImpersonating}
+                      onClick={() => handleViewPanel(f)}
                     >
-                      <Eye size={16} /> View Panel
+                      <Eye size={16} /> {isImpersonating ? "Loading..." : "View Panel"}
                     </Button>
                   </CardContent>
                 </Card>
