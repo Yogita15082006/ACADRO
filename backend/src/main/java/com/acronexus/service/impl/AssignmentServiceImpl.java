@@ -651,12 +651,8 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new IllegalArgumentException("Deadline has passed and late submissions are not allowed for this assignment.");
         }
 
-        Student student = studentRepository.findById(userDetails.getId())
-                .orElseGet(() -> {
-                    return studentRepository.findAll().stream()
-                            .filter(s -> s.getUser() != null && s.getUser().getId().equals(userDetails.getId()))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Student profile not found for user: " + userDetails.getUsername()));
-                });
+        Student student = studentRepository.findByUser_Id(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("Student profile not found for user: " + userDetails.getUsername()));
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Submission file cannot be empty");
@@ -765,10 +761,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Override
     @Transactional(readOnly = true)
     public List<AssignmentSubmissionDto.Response> getStudentSubmissions(UUID classSubjectId, UserDetailsImpl userDetails) {
-        Student student = studentRepository.findAll().stream()
-                .filter(s -> s.getUser() != null && s.getUser().getId().equals(userDetails.getId()))
-                .findFirst()
-                .orElse(null);
+        Student student = studentRepository.findByUser_Id(userDetails.getId()).orElse(null);
         if (student != null) {
             return assignmentSubmissionRepository.findByStudentId(student.getId()).stream()
                     .map(this::mapSubmissionToDto).collect(Collectors.toList());

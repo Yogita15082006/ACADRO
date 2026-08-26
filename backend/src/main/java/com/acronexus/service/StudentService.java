@@ -558,6 +558,7 @@ public class StudentService {
 
         Student student = new Student();
         student.setUser(savedUser);
+        student.markAsNew();
         student.setEnrollmentNo(request.getEnrollmentNumber());
         student.setBatchYear(request.getBatch());
         Student savedStudent = studentRepository.save(student);
