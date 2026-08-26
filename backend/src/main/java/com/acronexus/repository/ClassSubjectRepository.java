@@ -26,6 +26,9 @@ public interface ClassSubjectRepository extends JpaRepository<ClassSubject, UUID
     List<ClassSubject> findByAcroClassIdAndIsActiveTrue(UUID classId);
     List<ClassSubject> findByAcroClassId(UUID classId);
 
+    @Query("SELECT DISTINCT cs.acroClass FROM ClassSubject cs WHERE cs.semester.id = :semesterId AND cs.isActive = true")
+    List<com.acronexus.entity.AcroClass> findValidClassesForSemester(@Param("semesterId") UUID semesterId);
+
     @org.springframework.data.jpa.repository.Modifying
     @Query("DELETE FROM ClassSubject cs WHERE cs.id IN :csIds")
     void deleteByIdIn(@Param("csIds") List<UUID> csIds);

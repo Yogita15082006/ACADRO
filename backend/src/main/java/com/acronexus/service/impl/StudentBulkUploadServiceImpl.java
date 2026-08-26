@@ -447,7 +447,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         return false;
     }
 
-    private AcroClass resolveAcroClass(String className, String sectionName) {
+    private AcroClass resolveAcroClass(String className, String sectionName, String deptName, String degreeName) {
         String cleanClass = className != null ? className.trim() : "";
         String cleanSec = sectionName != null ? sectionName.trim() : "";
 
@@ -475,8 +475,8 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
         // 3. Create dynamically with exactly the requested name
         log.info("AcroClass not found. Creating dynamically: Name={}, Sec={}", cleanClass, cleanSec);
-        Department dept = resolveDepartment(null, null);
-        DegreeProgram degree = resolveDegreeProgram(null, null, dept);
+        Department dept = resolveDepartment(null, deptName);
+        DegreeProgram degree = resolveDegreeProgram(null, degreeName, dept);
 
         AcroClass newClass = new AcroClass();
         newClass.setName(cleanClass);
@@ -698,7 +698,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         String academicYearInput = data.academicYear != null && !data.academicYear.trim().isEmpty() ? data.academicYear.trim() : "";
         String semesterInput = data.semester != null && !data.semester.trim().isEmpty() ? data.semester.trim() : (existingStudent != null ? existingStudent.getCurrentSemester() : "");
 
-        AcroClass acroClass = resolveAcroClass(classInput, sectionInput);
+        AcroClass acroClass = resolveAcroClass(classInput, sectionInput, data.department, data.degree);
         Department department = resolveDepartment(acroClass, data.department);
         DegreeProgram degreeProgram = resolveDegreeProgram(acroClass, data.degree, department);
         

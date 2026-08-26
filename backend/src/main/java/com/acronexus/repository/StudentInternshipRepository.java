@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface StudentInternshipRepository extends JpaRepository<StudentInternship, UUID> {
     List<StudentInternship> findByStudentId(UUID studentId);
+    List<StudentInternship> findByStudentIdIn(List<UUID> studentIds);
 }

@@ -40,4 +40,19 @@ public class StudentResponseDto {
     private String bloodGroup;
     private String hobbies;
     private String clubs;
+
+    // Additional fields for full profile export and edit pre-filling
+    private UUID classId;
+    private UUID academicYearId;
+    private UUID semesterId;
+
+    private java.math.BigDecimal sgpaSem1;
+    private java.math.BigDecimal sgpaSem2;
+    private java.math.BigDecimal sgpaSem3;
+    private java.math.BigDecimal sgpaSem4;
+    private java.math.BigDecimal sgpaSem5;
+    private java.math.BigDecimal sgpaSem6;
+    private java.math.BigDecimal sgpaSem7;
+    private java.math.BigDecimal sgpaSem8;
+    private java.math.BigDecimal cgpa;
 }

@@ -14,4 +14,12 @@ public class StudentRequestDto {
     private String gender;
     
     private String batch;
+    
+    private String status;
+    
+    private java.util.UUID classId;
+    
+    private java.util.UUID academicYearId;
+    
+    private java.util.UUID semesterId;
 }

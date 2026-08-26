@@ -243,8 +243,9 @@ public class UserService {
         jdbcTemplate.update("DELETE FROM user_notifications WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM address_details WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM family_details WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_departments WHERE faculty_id = ?", id);
         jdbcTemplate.update("DELETE FROM faculty_class_assignments WHERE faculty_id = ?", id);
-        jdbcTemplate.update("DELETE FROM faculties WHERE id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculties WHERE user_id = ?", id);
         
         // Hard delete the user
         userRepository.delete(user);

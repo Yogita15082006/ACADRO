@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface StudentCertificationRepository extends JpaRepository<StudentCertification, UUID> {
     List<StudentCertification> findByStudentId(UUID studentId);
+    List<StudentCertification> findByStudentIdIn(List<UUID> studentIds);
 }

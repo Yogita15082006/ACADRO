@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface AcademicRecordRepository extends JpaRepository<AcademicRecord, UUID> {
     List<AcademicRecord> findByStudentId(UUID studentId);
+    List<AcademicRecord> findByStudentIdIn(List<UUID> studentIds);
 }

@@ -43,6 +43,37 @@ public class StudentController {
         return ResponseEntity.ok(ApiResponse.success("Classes retrieved successfully", studentService.getClasses()));
     }
 
+    @GetMapping("/options/academic-years")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getAcademicYearOptions() {
+        return ResponseEntity.ok(ApiResponse.success("Academic Years retrieved", studentService.getAcademicYearOptions()));
+    }
+
+    @GetMapping("/options/semesters")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getSemesterOptions(@RequestParam UUID academicYearId) {
+        return ResponseEntity.ok(ApiResponse.success("Semesters retrieved", studentService.getSemesterOptions(academicYearId)));
+    }
+
+    @GetMapping("/options/classes")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getClassOptions(
+            @RequestParam(required = false) String batch,
+            @RequestParam(required = false) UUID academicYearId,
+            @RequestParam(required = false) UUID semesterId) {
+        return ResponseEntity.ok(ApiResponse.success("Classes retrieved", studentService.getClassOptions(batch, academicYearId, semesterId)));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportStudentsToExcel(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String batch,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) String status) {
+        byte[] excelBytes = studentService.exportStudentsToExcel(search, batch, className, status);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=students_export.xlsx")
+                .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(excelBytes);
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<StudentResponseDto>> createStudent(@Valid @RequestBody StudentRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)

@@ -30,6 +30,16 @@ function calcFromBatch(batch: string) {
   return { year: yearLabels[clampedYear] || `${clampedYear}th Year`, semester: `Semester ${clampedSem}` };
 }
 
+export const formatYear = (year: any, fallbackYear?: string): string => {
+  if (!year) return fallbackYear || '';
+  const yStr = String(year).trim().toLowerCase();
+  if (yStr === '1' || yStr === '1st' || yStr === 'first_year' || yStr === 'first year' || yStr === '1st year') return '1st Year';
+  if (yStr === '2' || yStr === '2nd' || yStr === 'second_year' || yStr === 'second year' || yStr === '2nd year') return '2nd Year';
+  if (yStr === '3' || yStr === '3rd' || yStr === 'third_year' || yStr === 'third year' || yStr === '3rd year') return '3rd Year';
+  if (yStr === '4' || yStr === '4th' || yStr === 'fourth_year' || yStr === 'fourth year' || yStr === '4th year') return '4th Year';
+  return String(year);
+};
+
 export const StudentsModule = () => {
   const { role } = useAuth();
   const isHod = role === 'hod';
@@ -37,7 +47,12 @@ export const StudentsModule = () => {
 
   const [students, setStudents] = useState<any[]>([]);
   const [batches, setBatches] = useState<string[]>([]);
-  const [classesList, setClassesList] = useState<string[]>([]);
+  const [classesList, setClassesList] = useState<any[]>([]);
+
+  // New options states
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [classOptions, setClassOptions] = useState<any[]>([]);
 
   const [validationResult, setValidationResult] = useState<any>(null);
   const [showValidationReview, setShowValidationReview] = useState(false);
@@ -65,10 +80,17 @@ export const StudentsModule = () => {
       setBatches(bRes.data?.data || []);
       const cRes = await api.get('/v1/students/classes');
       setClassesList(cRes.data?.data || []);
+
+      const ayRes = await api.get('/v1/students/options/academic-years');
+      setAcademicYears(ayRes.data?.data || []);
+      const classOptRes = await api.get('/v1/students/options/classes');
+      setClassOptions(classOptRes.data?.data || []);
     } catch (e) {
       console.error(e);
     }
   };
+
+
 
   useEffect(() => {
     fetchStudents();
@@ -89,7 +111,48 @@ export const StudentsModule = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // Form state
-  const [form, setForm] = useState({ enrollmentNumber: '', name: '', gender: 'Male', batch: '2024-2028' });
+  const [form, setForm] = useState({ 
+    enrollmentNumber: '', name: '', gender: 'Male', batch: '', 
+    academicYearId: '', semesterId: '', classId: '', status: 'Active' 
+  });
+
+  useEffect(() => {
+    if (form.academicYearId) {
+      api.get(`/v1/students/options/semesters?academicYearId=${form.academicYearId}`)
+         .then(res => {
+           const opts = res.data?.data || [];
+           setSemesters(opts);
+           setForm(prev => {
+             if (prev.semesterId && !opts.find((o: any) => o.id === prev.semesterId)) {
+               return { ...prev, semesterId: '' };
+             }
+             return prev;
+           });
+         })
+         .catch(() => setSemesters([]));
+    } else {
+      setSemesters([]);
+    }
+  }, [form.academicYearId]);
+
+  useEffect(() => {
+    if (form.semesterId && form.batch && form.academicYearId) {
+      api.get(`/v1/students/options/classes?batch=${encodeURIComponent(form.batch)}&academicYearId=${form.academicYearId}&semesterId=${form.semesterId}`)
+         .then(res => {
+           const opts = res.data?.data || [];
+           setClassOptions(opts);
+           setForm(prev => {
+             if (prev.classId && !opts.find((o: any) => o.id === prev.classId)) {
+               return { ...prev, classId: '' };
+             }
+             return prev;
+           });
+         })
+         .catch(() => setClassOptions([]));
+    } else {
+      setClassOptions([]);
+    }
+  }, [form.batch, form.academicYearId, form.semesterId]);
 
 
 
@@ -121,6 +184,120 @@ export const StudentsModule = () => {
     });
     return Array.from(set).sort();
   }, [classesList, students]);
+  const handleExportExcel = async () => {
+    try {
+      toast.info('Generating Excel file...');
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (filterBatch) params.append('batch', filterBatch);
+      if (filterClass) params.append('className', filterClass);
+      if (filterStatus) params.append('status', filterStatus);
+      
+      const res = await api.get(`/v1/students/export?${params.toString()}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'students_export.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Excel downloaded successfully');
+    } catch (e) {
+      toast.error('Failed to export Excel');
+    }
+  };
+
+  const handlePrint = () => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+    
+    const rows = filtered.map(s => {
+      const { year: calcY, semester: calcS } = calcFromBatch(s.batch);
+      const displayYear = formatYear(s.year, calcY);
+      
+      let displaySem = s.semester;
+      if (displaySem && !String(displaySem).toLowerCase().startsWith('sem')) {
+        displaySem = `Semester ${displaySem}`;
+      } else if (!displaySem) {
+        displaySem = calcS;
+      }
+      
+      return `
+      <tr>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.enrollmentNumber || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.name || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.gender || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.batch || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${displayYear || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${displaySem || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.className || ''}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${s.status || ''}</td>
+      </tr>
+    `}).join('');
+
+    const html = `
+      <html>
+        <head>
+          <title>ACADRO - Student Records</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 14px; }
+            th { border: 1px solid #ccc; padding: 8px; background: #f3f4f6; text-align: left; }
+            h1 { font-size: 24px; font-weight: bold; margin-bottom: 16px; }
+            .filters { font-size: 14px; margin-bottom: 16px; }
+          </style>
+        </head>
+        <body>
+          <h1>ACADRO - Student Records</h1>
+          <div class="filters">
+            ${searchQuery ? `<span>Search: ${searchQuery} | </span>` : ''}
+            ${filterBatch ? `<span>Batch: ${filterBatch} | </span>` : ''}
+            ${filterClass ? `<span>Class: ${filterClass} | </span>` : ''}
+            ${filterStatus ? `<span>Status: ${filterStatus}</span>` : ''}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Enrollment</th>
+                <th>Name</th>
+                <th>Gender</th>
+                <th>Batch</th>
+                <th>Year</th>
+                <th>Semester</th>
+                <th>Class</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+    
+    doc.open();
+    doc.write(html);
+    doc.close();
+    
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }, 250);
+  };
+
   const handleUpload = async () => {
     if (!uploadFile) return;
     setIsUploading(true);
@@ -196,7 +373,11 @@ export const StudentsModule = () => {
         enrollmentNumber: form.enrollmentNumber,
         name: form.name,
         gender: form.gender,
-        batch: form.batch
+        batch: form.batch,
+        academicYearId: form.academicYearId || null,
+        semesterId: form.semesterId || null,
+        classId: form.classId || null,
+        status: form.status
       });
       
       const newStudent = response.data?.data;
@@ -208,21 +389,32 @@ export const StudentsModule = () => {
       }
       
       setShowAdd(false);
-      setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '2024-2028' });
+      setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '', academicYearId: '', semesterId: '', classId: '', status: 'Active' });
       toast.success('Student added successfully');
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to add student');
     }
   };
 
-  const handleEditStudent = () => {
+  const handleEditStudent = async () => {
     if (!form.enrollmentNumber || !form.name) { toast.error('Fill all fields'); return; }
-    const { year, semester } = calcFromBatch(form.batch);
-    setStudents(students.map(s => s.id === showEdit ? {
-      ...s, ...form, year, semester: semester.replace('Semester ', ''),
-    } : s));
-    setShowEdit(false);
-    toast.success('Student updated');
+    try {
+      await api.put(`/v1/students/${showEdit}`, {
+        enrollmentNumber: form.enrollmentNumber,
+        name: form.name,
+        gender: form.gender,
+        batch: form.batch,
+        academicYearId: form.academicYearId || null,
+        semesterId: form.semesterId || null,
+        classId: form.classId || null,
+        status: form.status
+      });
+      fetchStudents();
+      setShowEdit(false);
+      toast.success('Student updated');
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to update student');
+    }
   };
 
   const handleDelete = async () => {
@@ -238,7 +430,16 @@ export const StudentsModule = () => {
   };
 
   const openEdit = (s: any) => {
-    setForm({ enrollmentNumber: s.enrollmentNumber, name: s.name, gender: s.gender, batch: s.batch });
+    setForm({ 
+      enrollmentNumber: s.enrollmentNumber || '', 
+      name: s.name || '', 
+      gender: s.gender || 'Male', 
+      batch: s.batch || '',
+      academicYearId: s.academicYearId || '',
+      semesterId: s.semesterId || '',
+      classId: s.classId || '',
+      status: s.status || 'Active'
+    });
     setShowEdit(s.id);
   };
 
@@ -250,7 +451,7 @@ export const StudentsModule = () => {
           <Button variant="outline" onClick={() => setSelectedStudent(null)} className="gap-2">
             <ArrowLeft className="w-4 h-4" /> Back to Student List
           </Button>
-          <Button variant="outline" onClick={() => window.print()} className="gap-2 bg-primary/5 text-primary border-primary/20">
+          <Button variant="outline" onClick={handlePrint} className="gap-2 bg-primary/5 text-primary border-primary/20">
             <Printer className="w-4 h-4" /> Print
           </Button>
         </div>
@@ -262,6 +463,7 @@ export const StudentsModule = () => {
   // Main list view
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -344,7 +546,15 @@ export const StudentsModule = () => {
         <CardHeader className="pb-0 pt-5 px-6">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Students</CardTitle>
-            <Badge variant="secondary">{filtered.length} shown</Badge>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2 text-xs">
+                <Printer size={14} /> Print
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 text-xs text-green-600 border-green-500/30 hover:bg-green-50">
+                <FileText size={14} /> Download Excel
+              </Button>
+              <Badge variant="secondary" className="ml-2">{filtered.length} shown</Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">
@@ -368,12 +578,7 @@ export const StudentsModule = () => {
                   <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">No students found</td></tr>
                 ) : filtered.map(s => {
                   const { year: calcY, semester: calcS } = calcFromBatch(s.batch);
-                  let displayYear = s.year;
-                  if (displayYear === '1' || displayYear === '1st') displayYear = '1st Year';
-                  else if (displayYear === '2' || displayYear === '2nd') displayYear = '2nd Year';
-                  else if (displayYear === '3' || displayYear === '3rd') displayYear = '3rd Year';
-                  else if (displayYear === '4' || displayYear === '4th') displayYear = '4th Year';
-                  else if (!displayYear) displayYear = calcY;
+                  const displayYear = formatYear(s.year, calcY);
 
                   let displaySem = s.semester;
                   if (displaySem && !String(displaySem).toLowerCase().startsWith('sem')) {
@@ -458,21 +663,22 @@ export const StudentsModule = () => {
 
       {/* Add Student Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Add Student</DialogTitle>
-            <DialogDescription>Manually add a student. Year and semester auto-populate from batch.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Add Student [RUNTIME CHECK]</DialogTitle>
+            <DialogDescription>Manually add a student with correct academic relations.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Enrollment Number</label>
-              <Input value={form.enrollmentNumber} onChange={e => setForm({...form, enrollmentNumber: e.target.value})} placeholder="e.g. 0827IT23001" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Student Name</label>
-              <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Full name" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase">Personal Information</h4>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Enrollment Number</label>
+                <Input value={form.enrollmentNumber} onChange={e => setForm({...form, enrollmentNumber: e.target.value})} placeholder="e.g. 0827IT23001" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Student Name</label>
+                <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Full name" />
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Gender</label>
                 <select value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
@@ -480,20 +686,43 @@ export const StudentsModule = () => {
                   <option>Male</option><option>Female</option><option>Other</option>
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Batch</label>
-                <select value={form.batch} onChange={e => setForm({...form, batch: e.target.value})}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-                  {batches.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+            </div>
+
+            <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase">Academic Information</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Batch</label>
+                  <Input value={form.batch} onChange={e => setForm({...form, batch: e.target.value})} placeholder="e.g. 2024-2028" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Year</label>
+                  <select value={form.academicYearId} onChange={e => setForm({...form, academicYearId: e.target.value, semesterId: ''})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+                    <option value="">Select Year</option>
+                    {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Semester</label>
+                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.academicYearId}>
+                    <option value="">Select Semester</option>
+                    {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Class & Section</label>
+                  <select value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+                    <option value="">Select Class</option>
+                    {classOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
-            {form.batch && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex gap-4">
-                <div><p className="text-[10px] uppercase text-muted-foreground font-bold">Academic Year</p><p className="text-sm font-semibold text-primary">{calcFromBatch(form.batch).year}</p></div>
-                <div><p className="text-[10px] uppercase text-muted-foreground font-bold">Semester</p><p className="text-sm font-semibold text-primary">{calcFromBatch(form.batch).semester}</p></div>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -504,21 +733,22 @@ export const StudentsModule = () => {
 
       {/* Edit Student Dialog */}
       <Dialog open={!!showEdit} onOpenChange={() => setShowEdit(false)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Edit size={18} className="text-primary" /> Edit Student</DialogTitle>
-            <DialogDescription>Modify student details.</DialogDescription>
+            <DialogDescription>Modify student details and academic mappings safely.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Enrollment Number</label>
-              <Input value={form.enrollmentNumber} onChange={e => setForm({...form, enrollmentNumber: e.target.value})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Student Name</label>
-              <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase">Personal Information</h4>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Enrollment Number</label>
+                <Input value={form.enrollmentNumber} onChange={e => setForm({...form, enrollmentNumber: e.target.value})} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Student Name</label>
+                <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Gender</label>
                 <select value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
@@ -526,20 +756,54 @@ export const StudentsModule = () => {
                   <option>Male</option><option>Female</option><option>Other</option>
                 </select>
               </div>
+            </div>
+
+            <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase">Academic Information</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Batch</label>
+                  <Input value={form.batch} onChange={e => setForm({...form, batch: e.target.value})} placeholder="e.g. 2024-2028" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Year</label>
+                  <select value={form.academicYearId} onChange={e => setForm({...form, academicYearId: e.target.value, semesterId: ''})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+                    <option value="">Select Year</option>
+                    {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Semester</label>
+                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.academicYearId}>
+                    <option value="">Select Semester</option>
+                    {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Class & Section</label>
+                  <select value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+                    <option value="">Select Class</option>
+                    {classOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase">Account Status</h4>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Batch</label>
-                <select value={form.batch} onChange={e => setForm({...form, batch: e.target.value})}
+                <select value={form.status} onChange={e => setForm({...form, status: e.target.value})}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-                  {batches.map(b => <option key={b} value={b}>{b}</option>)}
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
             </div>
-            {form.batch && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex gap-4">
-                <div><p className="text-[10px] uppercase text-muted-foreground font-bold">Academic Year</p><p className="text-sm font-semibold text-primary">{calcFromBatch(form.batch).year}</p></div>
-                <div><p className="text-[10px] uppercase text-muted-foreground font-bold">Semester</p><p className="text-sm font-semibold text-primary">{calcFromBatch(form.batch).semester}</p></div>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
@@ -787,3 +1051,4 @@ export const StudentsModule = () => {
     </div>
   );
 };
+
