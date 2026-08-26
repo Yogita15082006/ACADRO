@@ -523,7 +523,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (acroClass != null && acroClass.getDegreeProgram() != null) {
             return acroClass.getDegreeProgram();
         }
-        throw new IllegalArgumentException("Degree Program is required and cannot be inferred. Please provide a valid Degree in the upload.");
+        return null;
     }
 
     private AcademicYear resolveAcademicYear(String yearStr) {
@@ -714,7 +714,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         log.info("3. First Name:       rawName='{}' -> mapped='{}'", data.studentName, firstName);
         log.info("4. Last Name:        rawName='{}' -> mapped='{}'", data.studentName, lastName);
         log.info("5. Department:       rawClass='{}' -> resolved='{}'", data.acroClass, department.getName());
-        log.info("6. Degree:           rawClass='{}' -> resolved='{}'", data.acroClass, degreeProgram.getName());
+        log.info("6. Degree:           rawClass='{}' -> resolved='{}'", data.acroClass, degreeProgram != null ? degreeProgram.getName() : "null");
         log.info("7. Class:            rawClass='{}' -> resolved='{}'", data.acroClass, acroClass.getName());
         log.info("8. Section:          rawSection='{}' -> resolved='{}'", data.section, acroClass.getSection());
         log.info("9. Semester:         rawSemester='{}' -> resolved='{}'", data.semester, semester.getSemesterNumber());
@@ -1120,7 +1120,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (List.of("mobilenumber", "phone", "mobile", "contact", "phonenumber", "contactnumber").contains(normalized) || normalized.contains("mobile") || normalized.contains("phone") || normalized.contains("contact")) return "mobileNumber";
         if (List.of("status", "isactive", "active", "currentstatus", "studentstatus", "userstatus").contains(normalized) || normalized.contains("status")) return "status";
         if (List.of("department", "dept", "branch", "stream", "discipline").contains(normalized) || normalized.contains("department") || normalized.equals("dept") || normalized.contains("branch")) return "department";
-        if (List.of("degree", "degreeprogram").contains(normalized) || normalized.contains("degree")) return "degree";
+        if (List.of("degree", "degreeprogram", "degreeprogramme", "program", "programme", "course", "branch").contains(normalized) || normalized.contains("degree")) return "degree";
         return null; // Return null if not mapped, so we keep original
     }
 

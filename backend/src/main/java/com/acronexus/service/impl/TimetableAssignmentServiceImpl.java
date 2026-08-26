@@ -126,7 +126,9 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             dto.setFileName(fileStorage.getFileName());
             dto.setUploadedAt(timetable.getUploadedAt().toString());
             dto.setDepartment(timetable.getAcroClass().getDepartment().getName());
+            if (timetable.getAcroClass() != null && timetable.getAcroClass().getDegreeProgram() != null) {
             dto.setDegree(timetable.getAcroClass().getDegreeProgram().getName());
+        }
             dto.setAcademicYear(timetable.getAcademicYear().getYear());
             dto.setClassName(timetable.getAcroClass().getName());
             
