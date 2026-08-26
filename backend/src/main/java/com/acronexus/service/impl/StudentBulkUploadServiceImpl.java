@@ -518,6 +518,8 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             DegreeProgram newDegree = new DegreeProgram();
             newDegree.setName(cleanDegree);
             newDegree.setIsActive(true);
+            newDegree.setType(inferDegreeType(cleanDegree));
+            newDegree.setDurationYears(inferDuration(cleanDegree));
             return degreeProgramRepository.save(newDegree);
         }
         if (acroClass != null && acroClass.getDegreeProgram() != null) {
@@ -1122,6 +1124,25 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (List.of("department", "dept", "branch", "stream", "discipline").contains(normalized) || normalized.contains("department") || normalized.equals("dept") || normalized.contains("branch")) return "department";
         if (List.of("degree", "degreeprogram", "degreeprogramme", "program", "programme", "course", "branch").contains(normalized) || normalized.contains("degree")) return "degree";
         return null; // Return null if not mapped, so we keep original
+    }
+
+    private com.acronexus.entity.DegreeType inferDegreeType(String name) {
+        if (name == null) return com.acronexus.entity.DegreeType.BACHELOR;
+        String lower = name.toLowerCase();
+        if (lower.contains("master") || lower.contains("m.tech") || lower.contains("mba") || lower.contains("mca") || lower.contains("mtech") || lower.contains("pg")) return com.acronexus.entity.DegreeType.MASTER;
+        if (lower.contains("phd") || lower.contains("doctor")) return com.acronexus.entity.DegreeType.PHD;
+        if (lower.contains("diploma")) return com.acronexus.entity.DegreeType.DIPLOMA;
+        return com.acronexus.entity.DegreeType.BACHELOR;
+    }
+
+    private Integer inferDuration(String name) {
+        if (name == null) return 4;
+        String lower = name.toLowerCase();
+        if (lower.contains("b.tech") || lower.contains("btech")) return 4;
+        if (lower.contains("m.tech") || lower.contains("mtech") || lower.contains("mba") || lower.contains("mca")) return 2;
+        if (lower.contains("diploma")) return 3;
+        if (lower.contains("phd")) return 5;
+        return 4;
     }
 
     private record StudentRowData(

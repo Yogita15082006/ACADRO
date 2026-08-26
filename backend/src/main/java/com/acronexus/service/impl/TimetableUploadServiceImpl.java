@@ -56,6 +56,8 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
                 .orElseGet(() -> {
                     Department d = new Department();
                     d.setName(departmentName);
+                    d.setCode(departmentName.toUpperCase().replaceAll("\\s+", "_"));
+                    d.setIsActive(true);
                     return departmentRepository.save(d);
                 });
 
@@ -97,6 +99,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
                                 com.acronexus.entity.DegreeProgram newDp = new com.acronexus.entity.DegreeProgram();
                                 newDp.setName("B.Tech");
                                 newDp.setDurationYears(4);
+                                newDp.setType(com.acronexus.entity.DegreeType.BACHELOR);
                                 newDp.setIsActive(true);
                                 return degreeProgramRepository.save(newDp);
                             });
