@@ -23,6 +23,9 @@ public class DataInitializer implements CommandLineRunner {
     private final com.acronexus.repository.FacultyRepository facultyRepository;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
+    @org.springframework.beans.factory.annotation.Value("${acronexus.data.seed-test-data:false}")
+    private boolean seedTestData;
+
     @Override
     public void run(String... args) throws Exception {
         transactionTemplate.execute(status -> {
@@ -51,8 +54,13 @@ public class DataInitializer implements CommandLineRunner {
                 log.info("Default HOD account updated with password123 and marked as activated.");
             }
             
-            // Seed test data for E2E Timetable AI Match testing
-            seedE2ETestData();
+            // Seed test data for E2E Timetable AI Match testing only if enabled
+            if (seedTestData) {
+                log.info("Test data seeding is ENABLED. Seeding E2E test data...");
+                seedE2ETestData();
+            } else {
+                log.info("Test data seeding is DISABLED.");
+            }
             return null;
         });
     }

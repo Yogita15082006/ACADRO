@@ -32,6 +32,9 @@ public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
+    
+    @org.springframework.beans.factory.annotation.Value("${acronexus.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:5174}")
+    private List<String> allowedOrigins;
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -97,7 +100,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173", "http://localhost:5174")); 
+        configuration.setAllowedOrigins(allowedOrigins); 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

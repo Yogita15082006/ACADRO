@@ -9,6 +9,7 @@ import com.acronexus.repository.FacultyActivityRepository;
 import com.acronexus.service.FacultyActivityService;
 import com.acronexus.service.AttendanceSessionService;
 import com.acronexus.entity.FacultyActivityStatus;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FacultyActivityServiceImpl implements FacultyActivityService {
 
     private final FacultyActivityRepository repository;
@@ -64,27 +66,15 @@ public class FacultyActivityServiceImpl implements FacultyActivityService {
         
         entity = repository.save(entity);
         
-        try {
-            java.nio.file.Files.writeString(
-                java.nio.file.Path.of("C:\\A\\Development\\AcroNexus\\backend\\debug.txt"),
-                "Entity Status: " + entity.getStatus() + "\n" +
-                "ClassSubject: " + (entity.getClassSubject() != null ? entity.getClassSubject().getId() : "null") + "\n",
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-            );
-        } catch(Exception ex) {}
+        log.debug("Entity Status: {}\nClassSubject: {}", 
+                entity.getStatus(), 
+                (entity.getClassSubject() != null ? entity.getClassSubject().getId() : "null"));
 
         if (entity.getStatus() == FacultyActivityStatus.ABSENT || entity.getStatus() == FacultyActivityStatus.CLASS_MISSED || entity.getStatus() == FacultyActivityStatus.HOLIDAY) {
             try {
                 attendanceSessionService.createSystemGeneratedSession(entity);
             } catch (Exception e) {
-                try {
-                    java.nio.file.Files.writeString(
-                        java.nio.file.Path.of("C:\\A\\Development\\AcroNexus\\backend\\debug.txt"),
-                        "Exception: " + e.getMessage() + "\n",
-                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-                    );
-                } catch(Exception ex) {}
-                System.err.println("Failed to create system generated session: " + e.getMessage());
+                log.error("Failed to create system generated session: {}", e.getMessage(), e);
                 e.printStackTrace();
                 throw new RuntimeException("Failed to create AI Attendance Session: " + e.getMessage());
             }

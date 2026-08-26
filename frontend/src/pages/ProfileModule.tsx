@@ -81,7 +81,8 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
   const displayAvatar = (() => {
     if (!avatarPreview) return `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser?.firstName ? `${profileUser.firstName} ${profileUser.lastName || ''}`.trim() : profileUser?.name || 'User')}&background=4F46E5&color=fff&size=128`;
     if (avatarPreview.startsWith('http') || avatarPreview.startsWith('blob:') || avatarPreview.startsWith('data:')) return avatarPreview;
-    return avatarPreview.startsWith('/') ? `http://localhost:8080${avatarPreview}` : `http://localhost:8080/${avatarPreview}`;
+    const apiBase = api.defaults.baseURL?.replace(/\/api$/, '') || '';
+    return avatarPreview.startsWith('/') ? `${apiBase}${avatarPreview}` : `${apiBase}/${avatarPreview}`;
   })();
   
   useEffect(() => {

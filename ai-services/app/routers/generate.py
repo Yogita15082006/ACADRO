@@ -24,7 +24,7 @@ class SyllabusParseRequest(BaseModel):
     fileUrl: str
 
 
-LOG_FILE_PATH = "c:/A/Development/AcroNexus/ai-services/pipeline_timing.log"
+LOG_FILE_PATH = os.environ.get("ACADRO_AI_LOG_PATH", "pipeline_timing.log")
 
 def log_timing_to_disk(report_text: str):
     logger.info(report_text)

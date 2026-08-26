@@ -516,7 +516,42 @@ export const toUtcISOString = (localStr?: string) => {
 export const resolveApiUrl = (url?: string) => {
   if (!url) return '#';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  return `http://localhost:8080${url.startsWith('/') ? '' : '/'}${url}`;
+  const apiBase = api.defaults.baseURL?.replace(/\/api$/, '') || '';
+  return `${apiBase}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+export const handleAuthenticatedDownload = async (url: string, filename: string = 'document', asView = false) => {
+  try {
+    let targetUrl = url;
+    if (url.includes('/api/v1/')) {
+        targetUrl = url.substring(url.indexOf('/api/v1/'));
+    }
+    
+    if (url.startsWith('http') && !url.includes('localhost') && !url.includes('/api/v1/')) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+    }
+
+    const response = await api.get(targetUrl, { responseType: 'blob' });
+    const contentType = response.headers['content-type'];
+    const blob = new Blob([response.data], { type: typeof contentType === 'string' ? contentType : 'application/octet-stream' });
+    const blobUrl = URL.createObjectURL(blob);
+    
+    if (asView) {
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } else {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch (error) {
+    console.error("Failed to access file:", error);
+    alert("Failed to access file. It might be unauthorized or missing.");
+  }
 };
 
 function EditAssignmentModal({ assignment, onClose, onUpdate }: { assignment: any, onClose: () => void, onUpdate: (updated: any) => void }) {
@@ -672,9 +707,9 @@ function AdminAssignmentList({ assignments, searchQuery, setSearchQuery, onViewS
                         size="sm" 
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          const rawUrl = assignment.fileUrl || assignment.attachmentUrl || (assignment.id ? `http://localhost:8080/api/v1/assignments/${assignment.id}/view` : '#');
+                          const rawUrl = assignment.fileUrl || assignment.attachmentUrl || (assignment.id ? `/v1/assignments/${assignment.id}/view` : '#');
                           const docUrl = resolveApiUrl(rawUrl).replace('/download', '/view');
-                          window.open(docUrl, '_blank', 'noopener,noreferrer'); 
+                          handleAuthenticatedDownload(docUrl, assignment.title || 'assignment', true);
                         }} 
                         className="h-9 px-3 bg-indigo-50/50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 font-semibold"
                         title="View original uploaded assignment"
@@ -1289,8 +1324,8 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
   
   // A generic fallback for preview URL if it's pointing to example.com
   const rawFileUrl = resolveApiUrl(submission.fileUrl || assignment.attachmentUrl);
-  const viewUrl = submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/view` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
-  const downloadUrl = submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/download` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
+  const viewUrl = submission.id ? `/api/v1/assignments/submissions/${submission.id}/view` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
+  const downloadUrl = submission.id ? `/api/v1/assignments/submissions/${submission.id}/download` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
 
   const isPreviewable = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'png', 'jpg', 'jpeg', 'zip', 'js', 'py', 'java', 'cpp', 'html', 'css'].includes(fileExtension || '');
 
@@ -1317,9 +1352,9 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
               <button onClick={() => setIsFullscreen(!isFullscreen)} className={`p-2 hover:bg-slate-800 rounded-lg transition-colors ml-2 ${isFullscreen ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`} title="Toggle Full Screen"><Maximize className="w-4 h-4" /></button>
             </div>
           )}
-          <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Print" onClick={() => window.open(viewUrl, '_blank', 'noopener,noreferrer')}><Printer className="w-4 h-4" /></button>
-          <a href={viewUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" title="Open in New Tab"><ExternalLink className="w-4 h-4" /></a>
-          <a href={downloadUrl} download className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-lg transition-colors ml-2" title="Download"><Download className="w-4 h-4" /></a>
+          <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Print" onClick={() => handleAuthenticatedDownload(viewUrl, 'document', true)}><Printer className="w-4 h-4" /></button>
+          <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Download" onClick={() => handleAuthenticatedDownload(viewUrl, 'document', false)}><Download className="w-4 h-4" /></button>
+          <button onClick={() => handleAuthenticatedDownload(viewUrl, 'document', true)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" title="Open in New Tab"><ExternalLink className="w-4 h-4" /></button>
           <div className="w-px h-6 bg-slate-700 mx-1 sm:mx-2"></div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Close Preview"><X className="w-5 h-5" /></button>
         </div>
@@ -1431,7 +1466,7 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
                             <Download className="w-4 h-4" /> Download File
                           </a>
                           <button 
-                            onClick={() => window.open(viewUrl, '_blank', 'noopener,noreferrer')} 
+                            onClick={() => handleAuthenticatedDownload(viewUrl, 'submission', true)} 
                             className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all flex items-center gap-2"
                           >
                             <Printer className="w-4 h-4" /> Print
@@ -1553,7 +1588,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
   const onSubmit = async (data: AssignmentFormValues) => {
     try {
-      const targetId = workspaceContext ? workspaceContext.id : (data.subjectId || '00000000-0000-0000-0000-000000000000');
+      const targetId = workspaceContext ? workspaceContext.subjectId : (data.subjectId || '00000000-0000-0000-0000-000000000000');
       const formData = new FormData();
       if (file) formData.append('file', file);
       formData.append('title', data.title);
@@ -2246,14 +2281,12 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
                   </div>
                   {submission && (
                     <div className="flex items-center">
-                      <a 
-                        href={submission.id ? `http://localhost:8080/api/v1/assignments/submissions/${submission.id}/view` : resolveApiUrl(submission.fileUrl || '#')} 
-                        target="_blank" 
-                        rel="noreferrer" 
+                      <button 
+                        onClick={(e) => { e.preventDefault(); handleAuthenticatedDownload(submission.id ? `/api/v1/assignments/submissions/${submission.id}/view` : (submission.fileUrl || '#'), 'document', true); }} 
                         className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" /> View
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>

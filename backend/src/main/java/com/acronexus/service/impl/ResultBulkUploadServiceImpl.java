@@ -292,8 +292,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                 academicYear = academicYearRepository.findByYear(data.academicYear)
                         .orElseThrow(() -> new IllegalArgumentException("Academic Year not found: " + data.academicYear));
             } else {
-                 academicYear = academicYearRepository.findAll().stream().findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("No Academic Year available."));
+                throw new IllegalArgumentException("Academic Year is required and cannot be inferred. Please provide a valid Academic Year in the upload.");
             }
 
             Semester semester;
@@ -307,8 +306,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                 semester = semesterRepository.findBySemesterNumberAndAcademicYearId(finalSemNumber, academicYear.getId())
                         .orElseThrow(() -> new IllegalArgumentException("Semester not found: " + finalSemNumber + " in year " + data.academicYear));
             } else {
-                semester = semesterRepository.findAll().stream().findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("No Semester available."));
+                throw new IllegalArgumentException("Semester is required and cannot be inferred. Please provide a valid Semester in the upload.");
             }
 
             ExamType type = ExamType.END_TERM;

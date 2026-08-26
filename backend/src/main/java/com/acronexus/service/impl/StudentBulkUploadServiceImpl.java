@@ -504,9 +504,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (acroClass != null && acroClass.getDepartment() != null) {
             return acroClass.getDepartment();
         }
-        List<Department> depts = departmentRepository.findAll();
-        if (!depts.isEmpty()) return depts.get(0);
-        throw new IllegalArgumentException("Department is required and none exists in system.");
+        throw new IllegalArgumentException("Department is required and cannot be inferred. Please provide a valid Department in the upload.");
     }
 
     private DegreeProgram resolveDegreeProgram(AcroClass acroClass, String degreeName, Department dept) {
@@ -525,9 +523,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         if (acroClass != null && acroClass.getDegreeProgram() != null) {
             return acroClass.getDegreeProgram();
         }
-        List<DegreeProgram> degrees = degreeProgramRepository.findAll();
-        if (!degrees.isEmpty()) return degrees.get(0);
-        throw new IllegalArgumentException("Degree Program is required and none exists in system.");
+        throw new IllegalArgumentException("Degree Program is required and cannot be inferred. Please provide a valid Degree in the upload.");
     }
 
     private AcademicYear resolveAcademicYear(String yearStr) {

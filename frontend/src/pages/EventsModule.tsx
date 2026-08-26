@@ -23,7 +23,7 @@ import api from '../services/api';
 const getBannerUrl = (url: string | undefined) => {
   if (!url) return 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80';
   if (url.startsWith('http') || url.startsWith('data:')) return url;
-  const baseURL = api.defaults.baseURL || 'http://localhost:8080/api';
+  const baseURL = api.defaults.baseURL || '';
   return baseURL.replace(/\/api$/, '') + url;
 };
 
@@ -32,7 +32,7 @@ const getBannerUrl = (url: string | undefined) => {
 const getFileUrl = (url: string | undefined) => {
   if (!url) return '#';
   if (url.startsWith('http') || url.startsWith('data:')) return url;
-  const baseURL = api.defaults.baseURL || 'http://localhost:8080/api';
+  const baseURL = api.defaults.baseURL || '';
   const base = baseURL.replace(/\/api$/, '');
   return url.startsWith('/') ? base + url : base + '/' + url;
 };
@@ -113,7 +113,7 @@ export const EventsModule = () => {
       let errorMsg = "";
       
       for (const [className, subjects] of Object.entries(groupedClassSubjects)) {
-        const selectedCount = subjects.filter(cs => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
+        const selectedCount = (subjects as { id: string }[]).filter(cs => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
         if (selectedCount !== requiredLectureCount) {
           isValid = false;
           errorMsg = `Please select exactly ${requiredLectureCount} Subject Card(s) for class ${className}`;
@@ -1812,7 +1812,8 @@ export const EventsModule = () => {
 
                                 return Object.entries(grouped).map(([className, subjects]) => {
                                   const requiredLectureCount = startAttendanceForm.lectureCount || 1;
-                                  const selectedCount = subjects.filter((cs: any) => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
+                                  const subjectsArr = subjects as any[];
+                                  const selectedCount = subjectsArr.filter((cs: any) => startAttendanceForm.classSubjectIds.includes(cs.id)).length;
                                   const isValidCount = selectedCount === requiredLectureCount;
                                   
                                   return (
@@ -1824,7 +1825,7 @@ export const EventsModule = () => {
                                         </span>
                                       </div>
                                       <div className="space-y-2">
-                                        {subjects.map((cs: any) => (
+                                        {subjectsArr.map((cs: any) => (
                                           <label key={cs.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${startAttendanceForm.classSubjectIds.includes(cs.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
                                           <input 
                                             type="checkbox" 

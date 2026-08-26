@@ -240,6 +240,7 @@ public class UserService {
         jdbcTemplate.update("UPDATE class_subjects SET created_by = NULL WHERE created_by = ?", id);
 
         // Delete Faculty-specific related entities first
+        jdbcTemplate.update("DELETE FROM user_fcm_tokens WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM user_notifications WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM address_details WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM family_details WHERE user_id = ?", id);
