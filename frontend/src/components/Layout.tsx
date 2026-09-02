@@ -23,6 +23,7 @@ export const Layout = () => {
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const fetchUnreadCount = async () => {
     try {
@@ -89,8 +90,19 @@ export const Layout = () => {
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
+      {/* Mobile Sidebar Overlay/Backdrop */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 md:hidden animate-in fade-in duration-200"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar - Premium Enterprise */}
-      <aside className="w-[240px] flex-shrink-0 bg-sidebar flex flex-col z-20 transition-all duration-300 border-r border-border print:hidden">
+      <aside className={cn(
+        "fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-sidebar w-[240px] flex-shrink-0 border-r border-border transition-transform duration-300 print:hidden",
+        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
         <div className="flex items-center gap-3 px-5 h-16 border-b border-border flex-shrink-0">
           <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center shadow-sm overflow-hidden shrink-0 border border-border/50">
             <img src={dashboardLogo} alt="ACADRO Logo" className="w-full h-full object-contain" />
@@ -111,6 +123,7 @@ export const Layout = () => {
               key={link.to}
               to={link.to}
               end={link.to === '/admin' || link.to === '/student'}
+              onClick={() => setIsMobileSidebarOpen(false)}
               className={({ isActive }) => cn(
                 "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all duration-150 group",
                 isActive
@@ -175,7 +188,12 @@ export const Layout = () => {
         {/* Sticky Top Header */}
         <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden hover:bg-accent/30 text-muted-foreground hover:text-foreground">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="md:hidden hover:bg-accent/30 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsMobileSidebarOpen(true)}
+            >
               <Menu size={18} />
             </Button>
             <h1 className="text-lg font-semibold text-foreground tracking-tight">{pageTitle}</h1>
