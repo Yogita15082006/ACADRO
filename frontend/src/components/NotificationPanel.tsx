@@ -160,7 +160,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, o
   const modules = ['All', ...Array.from(new Set(Object.values(TYPE_CONFIG).map(c => c.module)))];
 
   return (
-    <div className="absolute top-14 right-4 md:right-6 w-full max-w-md sm:w-[450px] bg-card border border-border shadow-2xl rounded-xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-300 flex flex-col max-h-[85vh]">
+    <div className="fixed sm:absolute top-16 sm:top-14 left-4 right-4 sm:left-auto sm:-right-2 w-auto sm:w-[450px] bg-card border border-border shadow-2xl rounded-xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-300 flex flex-col max-h-[85vh]">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex items-center gap-2">

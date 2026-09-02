@@ -9,7 +9,7 @@ export const RecentNoticesCard = ({ notices, basePath }: { notices: any[], baseP
   return (
     <Card className="border border-border/50 shadow-sm flex flex-col h-full bg-card">
       <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4 pb-4">
-        <div className="flex justify-between items-center w-full">
+        <div className="flex justify-between items-center w-full gap-2 min-w-0">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Bell className="w-4 h-4 text-orange-500" /> Recent Notices
           </CardTitle>
@@ -39,8 +39,8 @@ export const RecentNoticesCard = ({ notices, basePath }: { notices: any[], baseP
                 className="p-4 hover:bg-muted/30 transition-colors group cursor-pointer"
                 onClick={() => navigate(`${basePath}/notice`)}
               >
-                <div className="flex justify-between items-start gap-2 mb-1">
-                  <h4 className="font-semibold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">{notice.title}</h4>
+                <div className="flex justify-between items-start gap-2 mb-1 min-w-0">
+                  <h4 className="font-semibold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors flex-1 min-w-0 break-words">{notice.title}</h4>
                   {notice.priority && (
                     <Badge variant="outline" className={`text-[10px] shrink-0 border-0 ${
                       notice.priority === 'HIGH' ? 'bg-destructive/10 text-destructive' :
@@ -69,7 +69,7 @@ export const UpcomingEventsCard = ({ events, basePath }: { events: any[], basePa
   return (
     <Card className="border border-border/50 shadow-sm flex flex-col h-full bg-card">
       <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4 pb-4">
-        <div className="flex justify-between items-center w-full">
+        <div className="flex justify-between items-center w-full gap-2 min-w-0">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <CalendarIcon className="w-4 h-4 text-purple-500" /> Upcoming Events
           </CardTitle>
@@ -96,7 +96,7 @@ export const UpcomingEventsCard = ({ events, basePath }: { events: any[], basePa
             {events.slice(0, 5).map((event: any, idx: number) => (
               <div 
                 key={idx} 
-                className="p-4 hover:bg-muted/30 transition-colors group cursor-pointer flex gap-4 items-center"
+                className="p-4 hover:bg-muted/30 transition-colors group cursor-pointer flex gap-4 items-center min-w-0"
                 onClick={() => navigate(`${basePath}/events`)}
               >
                 <div className="flex flex-col items-center justify-center bg-primary/10 text-primary rounded-lg p-2 min-w-[50px] shrink-0 border border-primary/20">

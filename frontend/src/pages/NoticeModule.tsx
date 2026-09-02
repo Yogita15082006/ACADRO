@@ -251,9 +251,9 @@ export const NoticeModule = () => {
               notice.priority === 'URGENT' ? 'border-l-rose-500' :
               notice.priority === 'HIGH' ? 'border-l-amber-500' : 'border-l-blue-500'
             )}>
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
+              <div className="flex justify-between items-start mb-2 gap-2 min-w-0">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-accent text-foreground px-2.5 py-1 rounded-full">
                       {notice.category}
                     </span>
@@ -265,7 +265,7 @@ export const NoticeModule = () => {
                       {notice.priority}
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold text-foreground">{notice.title}</h3>
+                  <h3 className="text-xl font-bold text-foreground break-words">{notice.title}</h3>
                 </div>
                 {canCreateNotice && (
                   <Button 
@@ -282,7 +282,7 @@ export const NoticeModule = () => {
                   </Button>
                 )}
               </div>
-              <p className="text-muted-foreground text-sm mt-3 whitespace-pre-wrap">{notice.description}</p>
+              <p className="text-muted-foreground text-sm mt-3 whitespace-pre-wrap break-words">{notice.description}</p>
               
               <div className="mt-6 pt-4 border-t border-border/50 flex flex-wrap gap-4 items-center justify-between text-xs text-muted-foreground">
                 <div className="flex gap-4 flex-wrap">
