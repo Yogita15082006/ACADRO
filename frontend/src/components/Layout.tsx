@@ -101,7 +101,7 @@ export const Layout = () => {
       {/* Sidebar - Premium Enterprise */}
       <aside className={cn(
         "fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-sidebar w-[240px] flex-shrink-0 border-r border-border transition-transform duration-300 print:hidden",
-        isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        isMobileSidebarOpen ? "translate-x-0 shadow-2xl md:shadow-none" : "-translate-x-full md:translate-x-0"
       )}>
         <div className="flex items-center gap-3 px-5 h-16 border-b border-border flex-shrink-0">
           <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center shadow-sm overflow-hidden shrink-0 border border-border/50">
@@ -186,19 +186,19 @@ export const Layout = () => {
 
 
         {/* Sticky Top Header */}
-        <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
-          <div className="flex items-center gap-4">
+        <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
+          <div className="flex items-center gap-2 md:gap-4 overflow-hidden md:overflow-visible">
             <Button 
               variant="ghost" 
               size="icon" 
-              className="md:hidden hover:bg-accent/30 text-muted-foreground hover:text-foreground"
+              className="md:hidden hover:bg-accent/30 text-muted-foreground hover:text-foreground h-9 w-9 shrink-0"
               onClick={() => setIsMobileSidebarOpen(true)}
             >
               <Menu size={18} />
             </Button>
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">{pageTitle}</h1>
+            <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight truncate md:overflow-visible md:whitespace-normal">{pageTitle}</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <div className="hidden md:flex items-center gap-2 text-xs font-medium text-muted-foreground bg-muted/50 px-2.5 py-1.5 rounded-md border border-border">
               <Calendar size={13} />
               <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
@@ -210,7 +210,7 @@ export const Layout = () => {
                 variant="outline"
                 size="icon"
                 className={cn(
-                  "rounded-md w-8 h-8 border-border shadow-sm transition-colors",
+                  "rounded-md w-9 h-9 md:w-8 md:h-8 border-border shadow-sm transition-colors",
                   showNotifications ? "bg-accent text-accent-foreground" : "bg-background hover:bg-accent hover:text-accent-foreground"
                 )}
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -237,13 +237,13 @@ export const Layout = () => {
             </div>
 
             <div
-              className="flex items-center gap-2 cursor-pointer hover:bg-accent/30 p-1.5 pr-3 rounded-full md:rounded-md transition-colors ml-1"
+              className="flex items-center gap-2 cursor-pointer hover:bg-accent/30 p-1 md:p-1.5 md:pr-3 rounded-full md:rounded-md transition-colors shrink-0 md:ml-1"
               onClick={() => navigate(isStaff ? '/admin/profile' : '/student/profile')}
             >
               <img
                 src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || (user?.firstName ? (user.firstName + ' ' + (user.lastName || '')) : 'Student'))}&background=4F46E5&color=fff`}
                 alt="Profile"
-                className="w-8 h-8 rounded-full ring-2 ring-primary/20 object-cover"
+                className="w-9 h-9 md:w-8 md:h-8 rounded-full ring-2 ring-primary/20 object-cover"
               />
               <span className="text-sm font-semibold text-foreground hidden md:block">
                 {user?.name}
