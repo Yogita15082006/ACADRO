@@ -34,3 +34,4 @@ public interface ExamCoordinatorAssignmentRepository extends JpaRepository<ExamC
            "AND e.validUntil >= CURRENT_DATE")
     boolean hasActiveAssignment(@Param("userId") UUID userId);
 }
+

@@ -62,3 +62,4 @@ public interface FacultyActivityRepository extends JpaRepository<FacultyActivity
     @Query("SELECT COUNT(DISTINCT fa.date) FROM FacultyActivity fa WHERE fa.faculty.id = :facultyId AND fa.date <= CURRENT_DATE")
     long countTotalWorkingDaysByFacultyId(@Param("facultyId") UUID facultyId);
 }
+

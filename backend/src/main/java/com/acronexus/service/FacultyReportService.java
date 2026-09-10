@@ -5,4 +5,5 @@ import java.util.UUID;
 
 public interface FacultyReportService {
     FacultyReportDto getFacultyReport(UUID facultyId, UUID requesterId);
+    com.acronexus.dto.FacultyConsolidatedReportDto getConsolidatedFacultyReport(UUID requesterId);
 }

@@ -35,6 +35,7 @@ import { DelegationManagerModal } from '../components/modals/DelegationManagerMo
 import { useMetadata } from '../hooks/useMetadata';
 
 import { FacultyReportViewer } from '../components/modals/FacultyReportViewer';
+import { ConsolidatedReportViewer } from '../components/modals/ConsolidatedReportViewer';
 
 
 
@@ -781,6 +782,8 @@ export const FacultyManagementModule = () => {
   const [showImportSummary, setShowImportSummary] = useState(false);
 
   const [importSummary, setImportSummary] = useState<any>(null);
+
+  const [showConsolidatedReport, setShowConsolidatedReport] = useState(false);
 
   const [showDeleteAll, setShowDeleteAll] = useState(false);
 
@@ -2939,15 +2942,15 @@ export const FacultyManagementModule = () => {
 
 
           {/* Section 2: Faculty & Coordinator Overview */}
-
-          <div className="space-y-4">
-
-            <div>
-
-              <h2 className="text-xl font-bold text-foreground">Faculty & Coordinator Overview</h2>
-
-              <p className="text-sm text-muted-foreground">Summary statistics and interactive profile cards.</p>
-
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center flex-wrap gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Faculty & Coordinator Overview</h2>
+                <p className="text-sm text-muted-foreground">Summary statistics and interactive profile cards.</p>
+              </div>
+              <Button onClick={() => setShowConsolidatedReport(true)} className="gap-2 shrink-0">
+                <FileText size={16} /> View All Reports
+              </Button>
             </div>
 
             
@@ -4839,6 +4842,16 @@ export const FacultyManagementModule = () => {
       </Dialog>
 
 
+
+      {/* Consolidated Report Viewer */}
+      <ConsolidatedReportViewer 
+        open={showConsolidatedReport} 
+        onClose={() => setShowConsolidatedReport(false)}
+        onOpenIndividualReport={(id: string) => {
+          setShowConsolidatedReport(false);
+          setViewingFacultyId(id);
+        }}
+      />
 
       {/* Import Summary Popup */}
 

@@ -55,3 +55,4 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
     @EntityGraph(attributePaths = {"classSubject", "classSubject.acroClass"})
     List<Assignment> findByIsDeletedFalseAndDeadlineBetween(java.time.ZonedDateTime start, java.time.ZonedDateTime end);
 }
+

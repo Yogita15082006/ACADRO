@@ -338,4 +338,118 @@ public class FacultyReportServiceImpl implements FacultyReportService {
         activities.sort(Comparator.comparing(FacultyReportDto.RecentActivity::getDate, Comparator.nullsLast(Comparator.reverseOrder())));
         return activities.stream().limit(10).collect(Collectors.toList());
     }
+
+    @Override
+    public com.acronexus.dto.FacultyConsolidatedReportDto getConsolidatedFacultyReport(UUID requesterId) {
+        List<com.acronexus.dto.UserResponseDto> scopedUsers = userService.getFacultyForHodScope(requesterId);
+        List<UUID> userIds = scopedUsers.stream().map(com.acronexus.dto.UserResponseDto::getId).collect(Collectors.toList());
+
+        if (userIds.isEmpty()) {
+            return com.acronexus.dto.FacultyConsolidatedReportDto.builder()
+                    .generatedAt(java.time.LocalDateTime.now())
+                    .totalFaculty(0)
+                    .rows(new ArrayList<>())
+                    .build();
+        }
+
+        List<Faculty> faculties = facultyRepository.findAllById(userIds);
+        List<AttendanceSession> sessions = attendanceSessionRepository.findAll().stream().filter(a -> a.getFaculty() != null && userIds.contains(a.getFaculty().getId())).collect(Collectors.toList());
+        List<FacultyActivity> activities = facultyActivityRepository.findAll().stream().filter(a -> a.getFaculty() != null && userIds.contains(a.getFaculty().getId())).collect(Collectors.toList());
+        List<ClassSubject> classSubjects = classSubjectRepository.findAll().stream().filter(c -> c.getFaculty() != null && userIds.contains(c.getFaculty().getId()) && c.getIsActive()).collect(Collectors.toList());
+        List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findAll().stream().filter(c -> c.getCoordinator() != null && userIds.contains(c.getCoordinator().getId())).collect(Collectors.toList());
+        List<Event> events = eventRepository.findAll().stream().filter(e -> e.getCreatedBy() != null && userIds.contains(e.getCreatedBy().getId())).collect(Collectors.toList());
+        List<Notice> notices = noticeRepository.findAll().stream().filter(n -> n.getPublishedBy() != null && userIds.contains(n.getPublishedBy().getId())).collect(Collectors.toList());
+        List<Quiz> quizzes = quizRepository.findAll().stream().filter(q -> q.getCreatedBy() != null && userIds.contains(q.getCreatedBy().getId()) && !q.getIsDeleted()).collect(Collectors.toList());
+        List<Assignment> assignments = assignmentRepository.findAll().stream().filter(a -> a.getClassSubject() != null && a.getClassSubject().getFaculty() != null && userIds.contains(a.getClassSubject().getFaculty().getId())).collect(Collectors.toList());
+        List<ExamCoordinatorAssignment> examTasks = examCoordinatorAssignmentRepository.findAll().stream().filter(e -> e.getAssignedUser() != null && userIds.contains(e.getAssignedUser().getId())).collect(Collectors.toList());
+        List<com.acronexus.entity.FacultyManagementDelegation> assignedTasks = facultyManagementDelegationRepository.findAll().stream().filter(t -> t.getAssignedFaculty() != null && userIds.contains(t.getAssignedFaculty().getId())).collect(Collectors.toList());
+
+        Map<UUID, Faculty> facultyMap = faculties.stream().collect(Collectors.toMap(f -> f.getUser().getId(), f -> f));
+        Map<UUID, List<AttendanceSession>> sessionsMap = sessions.stream().collect(Collectors.groupingBy(a -> a.getFaculty().getId()));
+        Map<UUID, List<FacultyActivity>> activitiesMap = activities.stream().collect(Collectors.groupingBy(a -> a.getFaculty().getId()));
+        Map<UUID, List<ClassSubject>> csMap = classSubjects.stream().collect(Collectors.groupingBy(c -> c.getFaculty().getId()));
+        Map<UUID, List<CoordinatorAssignment>> caMap = coordinatorAssignments.stream().collect(Collectors.groupingBy(c -> c.getCoordinator().getId()));
+        Map<UUID, List<Event>> eventsMap = events.stream().collect(Collectors.groupingBy(e -> e.getCreatedBy().getId()));
+        Map<UUID, List<Notice>> noticesMap = notices.stream().collect(Collectors.groupingBy(n -> n.getPublishedBy().getId()));
+        Map<UUID, List<Quiz>> quizzesMap = quizzes.stream().collect(Collectors.groupingBy(q -> q.getCreatedBy().getId()));
+        Map<UUID, List<Assignment>> assignmentsMap = assignments.stream().collect(Collectors.groupingBy(a -> a.getClassSubject().getFaculty().getId()));
+        Map<UUID, List<ExamCoordinatorAssignment>> examTasksMap = examTasks.stream().collect(Collectors.groupingBy(e -> e.getAssignedUser().getId()));
+        Map<UUID, List<com.acronexus.entity.FacultyManagementDelegation>> tasksMap = assignedTasks.stream().collect(Collectors.groupingBy(t -> t.getAssignedFaculty().getId()));
+
+        List<com.acronexus.dto.FacultyReportRowDto> rows = new ArrayList<>();
+
+        for (com.acronexus.dto.UserResponseDto userDto : scopedUsers) {
+            UUID id = userDto.getId();
+            Faculty f = facultyMap.get(id);
+            if (f == null) continue;
+
+            List<AttendanceSession> fSessions = sessionsMap.getOrDefault(id, new ArrayList<>());
+            List<FacultyActivity> fActivities = activitiesMap.getOrDefault(id, new ArrayList<>());
+            
+            Map<UUID, List<AttendanceSession>> subjectSessions = fSessions.stream().collect(Collectors.groupingBy(s -> s.getClassSubject().getId()));
+            long totalScheduled = 0;
+            long totalConducted = 0;
+            long totalMissed = fActivities.stream().filter(a -> a.getStatus() == com.acronexus.entity.FacultyActivityStatus.CLASS_MISSED).count();
+            long totalHoliday = fActivities.stream().filter(a -> a.getStatus() == com.acronexus.entity.FacultyActivityStatus.HOLIDAY).count();
+            
+            for (Map.Entry<UUID, List<AttendanceSession>> entry : subjectSessions.entrySet()) {
+                totalScheduled += entry.getValue().size();
+                totalConducted += entry.getValue().stream().filter(s -> s.getStatus() == com.acronexus.entity.AttendanceSessionStatus.COMPLETED || s.getStatus() == com.acronexus.entity.AttendanceSessionStatus.SAVED || s.getStatus() == com.acronexus.entity.AttendanceSessionStatus.CLOSED).count();
+            }
+            
+            int overallAttendance = totalScheduled > 0 ? Math.round(((float) totalConducted / totalScheduled) * 100) : 0;
+
+            List<ClassSubject> fCs = csMap.getOrDefault(id, new ArrayList<>());
+            String assignedClassesStr = fCs.stream().map(c -> c.getAcroClass().getName()).distinct().collect(Collectors.joining(", "));
+            String assignedSubjectsStr = fCs.stream().map(c -> c.getSubject().getName()).distinct().collect(Collectors.joining(", "));
+            String academicYearsStr = fCs.stream().map(c -> c.getAcroClass().getDegreeProgram() != null ? c.getAcroClass().getDegreeProgram().getName() : "").filter(s -> !s.isEmpty()).distinct().collect(Collectors.joining(", "));
+            String semestersStr = fCs.stream().map(c -> c.getSemester() != null ? String.valueOf(c.getSemester().getSemesterNumber()) : "").filter(s -> !s.isEmpty()).distinct().collect(Collectors.joining(", "));
+
+            String coordStr = caMap.getOrDefault(id, new ArrayList<>()).stream()
+                    .map(c -> (c.getClassName() != null ? c.getClassName() : "") + " " + (c.getBatch() != null ? c.getBatch() : ""))
+                    .filter(s -> !s.trim().isEmpty())
+                    .collect(Collectors.joining(", "));
+
+            String departmentsStr = f.getDepartments() != null ? f.getDepartments().stream().map(com.acronexus.entity.Department::getName).collect(Collectors.joining(", ")) : "";
+
+            rows.add(com.acronexus.dto.FacultyReportRowDto.builder()
+                    .userId(id)
+                    .employeeId(f.getEmployeeId())
+                    .facultyName(userDto.getFirstName() + " " + userDto.getLastName())
+                    .department(userDto.getDepartment() != null ? userDto.getDepartment().getName() : "-")
+                    .additionalDepartments(departmentsStr)
+                    .designation(f.getDesignation() != null ? f.getDesignation() : "-")
+                    .qualification(f.getQualification() != null ? f.getQualification() : "-")
+                    .specialization(f.getExpertiseAreas() != null ? String.join(", ", f.getExpertiseAreas()) : "-")
+                    .experience(f.getExperienceYears() != null ? f.getExperienceYears() + " years" : "-")
+                    .joiningDate(f.getJoiningDate())
+                    .officialEmail(userDto.getEmail())
+                    .phone(userDto.getPhone())
+                    .whatsappNumber(userDto.getPhone()) // whatsappNumber missing in DTO, fallback to phone
+                    .coordinatorResponsibility(coordStr.isEmpty() ? "-" : coordStr)
+                    .assignedClasses(assignedClassesStr.isEmpty() ? "-" : assignedClassesStr)
+                    .academicYears(academicYearsStr.isEmpty() ? "-" : academicYearsStr)
+                    .semesters(semestersStr.isEmpty() ? "-" : semestersStr)
+                    .assignedSubjects(assignedSubjectsStr.isEmpty() ? "-" : assignedSubjectsStr)
+                    .overallAttendance(overallAttendance)
+                    .classesScheduled(totalScheduled)
+                    .classesConducted(totalConducted)
+                    .classesMissed(totalMissed)
+                    .holidaySessions(totalHoliday)
+                    .eventsCreated(eventsMap.getOrDefault(id, new ArrayList<>()).size())
+                    .noticesPublished(noticesMap.getOrDefault(id, new ArrayList<>()).size())
+                    .quizzesCreated(quizzesMap.getOrDefault(id, new ArrayList<>()).size())
+                    .assignmentsCreated(assignmentsMap.getOrDefault(id, new ArrayList<>()).size())
+                    .examinationActivities(examTasksMap.getOrDefault(id, new ArrayList<>()).size())
+                    .examCoordinatorAssignments(examTasksMap.getOrDefault(id, new ArrayList<>()).size())
+                    .facultyManagementAssignedTasks(tasksMap.getOrDefault(id, new ArrayList<>()).size())
+                    .build());
+        }
+
+        return com.acronexus.dto.FacultyConsolidatedReportDto.builder()
+                .generatedAt(java.time.LocalDateTime.now())
+                .totalFaculty(rows.size())
+                .rows(rows)
+                .build();
+    }
 }

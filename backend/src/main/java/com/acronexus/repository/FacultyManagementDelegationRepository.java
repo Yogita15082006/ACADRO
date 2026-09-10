@@ -24,3 +24,4 @@ public interface FacultyManagementDelegationRepository extends JpaRepository<Fac
     @Query("SELECT COUNT(d) > 0 FROM FacultyManagementDelegation d WHERE d.assignedFaculty.id = :facultyId AND d.status = 'ACTIVE' AND d.isActive = true AND (d.validUntil IS NULL OR d.validUntil > CURRENT_TIMESTAMP)")
     boolean existsAnyActiveValidDelegation(@Param("facultyId") UUID facultyId);
 }
+

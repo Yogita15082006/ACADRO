@@ -14,6 +14,8 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
     
     List<Quiz> findByCreatedByIdAndIsDeletedFalse(UUID facultyId);
 
+    List<Quiz> findByCreatedByIdInAndIsDeletedFalse(List<UUID> facultyIds);
+
     List<Quiz> findByClassSubject_IdAndIsDeletedFalseOrderByStartTimeDesc(UUID classSubjectId);
 
     @Query("SELECT q FROM Quiz q " +
@@ -48,3 +50,4 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"classSubject", "classSubject.acroClass"})
     List<Quiz> findByIsDeletedFalseAndEndTimeBetween(java.time.Instant start, java.time.Instant end);
 }
+

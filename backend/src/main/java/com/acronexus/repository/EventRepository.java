@@ -50,3 +50,4 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     @EntityGraph(attributePaths = {"department", "targetClass", "posterFile", "createdBy", "targetAssignments"})
     List<Event> findByCreatedBy_Id(UUID createdById);
 }
+

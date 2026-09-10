@@ -50,3 +50,4 @@ public interface NoticeRepository extends JpaRepository<Notice, UUID>, JpaSpecif
     @EntityGraph(attributePaths = {"file", "publishedBy", "targetAssignments"})
     List<Notice> findByPublishedBy_Id(UUID publishedById);
 }
+

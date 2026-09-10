@@ -25,4 +25,11 @@ public class FacultyReportController {
             @AuthenticationPrincipal UserDetailsImpl currentUser) {
         return ResponseEntity.ok(facultyReportService.getFacultyReport(facultyId, currentUser.getId()));
     }
+
+    @GetMapping("/consolidated")
+    @PreAuthorize("hasRole('HOD')")
+    public ResponseEntity<com.acronexus.dto.FacultyConsolidatedReportDto> getConsolidatedFacultyReport(
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        return ResponseEntity.ok(facultyReportService.getConsolidatedFacultyReport(currentUser.getId()));
+    }
 }
