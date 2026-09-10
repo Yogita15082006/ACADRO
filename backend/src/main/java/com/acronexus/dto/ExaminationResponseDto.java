@@ -29,8 +29,7 @@ public class ExaminationResponseDto {
     private String description;
     private java.util.List<ExaminationTimetableDto> timetables = new java.util.ArrayList<>();
     
-    
-    
+    private UUID coordinatorAssignmentId;
     
     private Instant createdAt;
     private UUID createdBy;

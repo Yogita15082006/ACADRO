@@ -39,5 +39,7 @@ public class ExaminationRequestDto {
 
     private String description;
 
+    private UUID coordinatorAssignmentId;
+
     private UUID timetableFileId;
 }

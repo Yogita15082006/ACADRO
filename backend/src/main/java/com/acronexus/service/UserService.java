@@ -91,7 +91,25 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<UserResponseDto> getAllUsers() {
         List<User> users = userRepository.findAllByIsDeletedFalse();
+        return mapToUserResponseDtos(users);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponseDto> getFacultyForHodScope(UUID userId) {
+        List<com.acronexus.entity.Department> managedDepts = departmentRepository.findByHodId(userId);
+        if (managedDepts.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
         
+        List<UUID> deptIds = managedDepts.stream()
+                .map(com.acronexus.entity.Department::getId)
+                .collect(Collectors.toList());
+
+        List<User> scopedUsers = userRepository.findActiveFacultyUsersByDepartmentIds(deptIds);
+        return mapToUserResponseDtos(scopedUsers);
+    }
+
+    private List<UserResponseDto> mapToUserResponseDtos(List<User> users) {
         // Batch-load all faculty records to avoid N+1 queries
         Map<UUID, Faculty> facultyMap = facultyRepository.findAll().stream()
                 .collect(Collectors.toMap(Faculty::getId, Function.identity()));

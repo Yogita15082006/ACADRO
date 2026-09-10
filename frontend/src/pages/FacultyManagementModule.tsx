@@ -639,11 +639,9 @@ export const FacultyManagementModule = () => {
   
   const fetchFaculty = async () => {
     try {
-      const res = await api.get('/users');
-      // filter only faculty/coordinators
+      const res = await api.get('/users/faculty/hod-scope');
       const users = res.data?.data || res.data || [];
-      const faculties = Array.isArray(users) ? users.filter((u: any) => ['FACULTY', 'COORDINATOR', 'HOD', 'ADMIN'].includes(u.role)) : [];
-      setLocalFaculty(faculties);
+      setLocalFaculty(users);
       
       api.get('/v1/metadata/classes').then(cRes => setAvailableClasses(cRes.data?.data || [])).catch(err => console.error(err));
     } catch (err) {

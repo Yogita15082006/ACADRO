@@ -42,6 +42,10 @@ public class ExaminationMapper {
         dto.setDescription(entity.getDescription());
         dto.setCreatedAt(entity.getCreatedAt());
 
+        if (entity.getCoordinatorAssignment() != null) {
+            dto.setCoordinatorAssignmentId(entity.getCoordinatorAssignment().getId());
+        }
+
         if (entity.getCreatedBy() != null) {
             dto.setCreatedBy(entity.getCreatedBy().getId());
             dto.setCreatedByName(entity.getCreatedBy().getFirstName() + " " + (entity.getCreatedBy().getLastName() != null ? entity.getCreatedBy().getLastName() : ""));

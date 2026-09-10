@@ -42,6 +42,22 @@ const setPersistentData = (key: string, value: any) => {
 export const ExaminationModule = () => {
   const { role, user } = useAuth();
   
+  // Capabilities State
+  const [examCapabilities, setExamCapabilities] = useState<{
+    canCreateExamination: boolean;
+    canAssignExamCoordinator: boolean;
+    activeCoordinatorAssignments: any[];
+  } | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [departmentAssignments, setDepartmentAssignments] = useState<any[]>([]);
+  const [eligibleFaculty, setEligibleFaculty] = useState<any[]>([]);
+  
+  // Assign Coordinator Form States
+  const [assignFacultyId, setAssignFacultyId] = useState('');
+  const [assignExamPurpose, setAssignExamPurpose] = useState('');
+  const [assignValidUntil, setAssignValidUntil] = useState('');
+  const [isAssigningCoordinator, setIsAssigningCoordinator] = useState(false);
+
   // Real States
   const [exams, setExams] = useState<any[]>([]);
     const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -72,13 +88,32 @@ export const ExaminationModule = () => {
     const fetchData = async () => {
     setIsLoadingData(true);
     try {
-      const [examsRes, batchesRes] = await Promise.all([
+      const fetchPromises: any[] = [
         api.get('/examinations'),
         api.get('/v1/metadata/batches')
-      ]);
+      ];
+
+      if (['hod', 'coordinator', 'faculty'].includes(role)) {
+        fetchPromises.push(api.get('/exam-coordinator-assignments/capabilities'));
+      }
+
+      if (role === 'hod') {
+        fetchPromises.push(api.get('/exam-coordinator-assignments'));
+        fetchPromises.push(api.get('/exam-coordinator-assignments/eligible-faculty'));
+      }
+
+      const results = await Promise.all(fetchPromises);
+      const examsRes = results[0];
+      const batchesRes = results[1];
+      const capsRes = results.length > 2 && ['hod', 'coordinator', 'faculty'].includes(role) ? results[2] : null;
+      const deptAssignmentsRes = role === 'hod' ? results[results.length - 2] : null;
+      const facultyRes = role === 'hod' ? results[results.length - 1] : null;
       
       if (examsRes.data.success) setExams(examsRes.data.data);
       if (batchesRes.data.success) setBatches(batchesRes.data.data);
+      if (capsRes && capsRes.data.success) setExamCapabilities(capsRes.data.data);
+      if (deptAssignmentsRes && deptAssignmentsRes.data.success) setDepartmentAssignments(deptAssignmentsRes.data.data);
+      if (facultyRes && facultyRes.data.success) setEligibleFaculty(facultyRes.data.data);
     } catch (error) {
       console.error("Error fetching examination initial data:", error);
       toast.error("Failed to load examination data");
@@ -87,7 +122,7 @@ export const ExaminationModule = () => {
     }
   };
     fetchData();
-  }, []);
+  }, [role]);
 
 
   // Publish Notice State
@@ -120,8 +155,8 @@ export const ExaminationModule = () => {
   const [createStartDate, setCreateStartDate] = useState('');
   const [createEndDate, setCreateEndDate] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-
-  // Cascading logic
+  const [createTimetableFile, setCreateTimetableFile] = useState<File | null>(null);
+  const [createCoordinatorAssignmentId, setCreateCoordinatorAssignmentId] = useState('');
   useEffect(() => {
     if (createBatch) {
       api.get(`/academic-years?batch=${createBatch}`)
@@ -161,7 +196,7 @@ export const ExaminationModule = () => {
     }
   }, [createBatch, createYear, createSemester]);
 
-  const [createTimetableFile, setCreateTimetableFile] = useState<File | null>(null);
+  
   
   // Results Management (Admin)
   const [selectedClass, setSelectedClass] = useState('');
@@ -652,6 +687,7 @@ export const ExaminationModule = () => {
       setCreateEndDate(exam.endDate);
       setCreateDescription(exam.description || '');
       setCreateTimetableFile(null);
+      setCreateCoordinatorAssignmentId(exam.coordinatorAssignmentId || '');
     } else {
       setEditingExamId(null);
       setCreateExamName('');
@@ -665,6 +701,12 @@ export const ExaminationModule = () => {
       setCreateEndDate('');
       setCreateDescription('');
       setCreateTimetableFile(null);
+      setCreateCoordinatorAssignmentId('');
+      
+      // Auto-select if non-hod and exactly 1 active assignment
+      if (role !== 'hod' && examCapabilities?.activeCoordinatorAssignments?.length === 1) {
+          setCreateCoordinatorAssignmentId(examCapabilities.activeCoordinatorAssignments[0].id);
+      }
     }
     setIsCreatingExam(true);
   };
@@ -675,11 +717,15 @@ export const ExaminationModule = () => {
       return;
     }
 
+    if (role !== 'hod' && !createCoordinatorAssignmentId) {
+      toast.error("Please select the coordinator assignment you are fulfilling.");
+      return;
+    }
+
     if (new Date(createEndDate) < new Date(createStartDate)) {
       toast.error("End Date cannot be before Start Date.");
       return;
     }
-    
     // Prepare DTO
     const requestDto = {
       name: createExamName,
@@ -692,7 +738,8 @@ export const ExaminationModule = () => {
       description: createDescription,
       startDate: createStartDate,
       endDate: createEndDate,
-      timetableFileId: null 
+      timetableFileId: null,
+      coordinatorAssignmentId: createCoordinatorAssignmentId || null
     };
 
     try {
@@ -733,6 +780,46 @@ export const ExaminationModule = () => {
     }
   };
   
+  const handleAssignCoordinator = async () => {
+    if (!assignFacultyId || !assignExamPurpose || !assignValidUntil) {
+      toast.error("Please fill all required fields.");
+      return;
+    }
+    
+    setIsAssigningCoordinator(true);
+    try {
+      const payload = {
+        assignedUserId: assignFacultyId,
+        examPurpose: assignExamPurpose,
+        validUntil: assignValidUntil
+      };
+      const res = await api.post('/exam-coordinator-assignments', payload);
+      if (res.data.success) {
+        toast.success("Exam coordinator assigned successfully");
+        setDepartmentAssignments([res.data.data, ...departmentAssignments]);
+        setAssignFacultyId('');
+        setAssignExamPurpose('');
+        setAssignValidUntil('');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to assign exam coordinator");
+    } finally {
+      setIsAssigningCoordinator(false);
+    }
+  };
+
+  const handleRevokeCoordinator = async (id: string) => {
+    try {
+      const res = await api.patch(`/exam-coordinator-assignments/${id}/revoke`);
+      if (res.data.success) {
+        toast.success("Assignment revoked successfully");
+        setDepartmentAssignments(departmentAssignments.map(a => a.id === id ? { ...a, isActive: false } : a));
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to revoke assignment");
+    }
+  };
+
   const handleDeleteExam = (id: string) => {
     setExamToDelete(id);
   };
@@ -1024,13 +1111,18 @@ export const ExaminationModule = () => {
           <h2 className="text-2xl font-black tracking-tight text-foreground">Examination Module</h2>
           <p className="text-muted-foreground mt-1 text-sm font-medium">Manage and view official examinations</p>
         </div>
-        {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {examCapabilities?.canAssignExamCoordinator && (
+            <Button onClick={() => setShowAssignModal(true)} variant="outline" className="gap-2">
+              <Plus size={16} /> Assign Exam Coordinator
+            </Button>
+          )}
+          {examCapabilities?.canCreateExamination && (
             <Button onClick={() => openCreateForm()} className="bg-primary text-primary-foreground gap-2">
               <Plus size={16} /> Create New Examination
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1096,6 +1188,17 @@ export const ExaminationModule = () => {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-sm p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {role !== 'hod' && examCapabilities?.activeCoordinatorAssignments && examCapabilities.activeCoordinatorAssignments.length > 0 && (
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">Fulfilling Assignment *</label>
+              <select className="w-full p-2 border border-border rounded-lg bg-background" value={createCoordinatorAssignmentId} onChange={e => setCreateCoordinatorAssignmentId(e.target.value)}>
+                <option value="">Select active assignment...</option>
+                {examCapabilities.activeCoordinatorAssignments.map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.examPurpose} (Valid until {new Date(a.validUntil).toLocaleDateString()})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Examination Name *</label>
             <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Mid Semester Examination" value={createExamName} onChange={e => setCreateExamName(e.target.value)} />
@@ -4002,8 +4105,90 @@ export const ExaminationModule = () => {
               </div>
         </motion.div>
       );
-    };
+    };  const renderAssignCoordinatorModal = () => {
+    if (!showAssignModal) return null;
 
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <div className="bg-card border border-border shadow-xl rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+            <div>
+              <h3 className="text-lg font-bold">Assign Exam Coordinator</h3>
+              <p className="text-sm text-muted-foreground mt-1">Delegate examination creation permissions to faculty</p>
+            </div>
+            <button onClick={() => setShowAssignModal(false)} className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="p-6 overflow-y-auto space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Select Faculty *</label>
+                <select className="w-full p-2 border border-border rounded-lg bg-background" value={assignFacultyId} onChange={e => setAssignFacultyId(e.target.value)}>
+                  <option value="">Select faculty member...</option>
+                  {eligibleFaculty.map(f => (
+                    <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exam Purpose *</label>
+                <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Mid Term Exam 2024" value={assignExamPurpose} onChange={e => setAssignExamPurpose(e.target.value)} />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Valid Until *</label>
+                <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} />
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <Button onClick={handleAssignCoordinator} disabled={isAssigningCoordinator || !assignFacultyId || !assignExamPurpose || !assignValidUntil} className="bg-primary text-primary-foreground gap-2">
+                {isAssigningCoordinator ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                Assign Coordinator
+              </Button>
+            </div>
+            
+            <div className="mt-8">
+              <h4 className="text-md font-bold mb-4">Current Department Assignments</h4>
+              {departmentAssignments.length === 0 ? (
+                <div className="text-center p-8 bg-muted/20 border border-border rounded-xl">
+                  <p className="text-muted-foreground">No assignments found for your department.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {departmentAssignments.map(assignment => (
+                    <div key={assignment.id} className={`flex items-center justify-between p-4 border rounded-xl ${assignment.isActive ? 'bg-card border-border' : 'bg-muted/30 border-muted opacity-70'}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{assignment.assignedUserName}</span>
+                          {!assignment.isActive && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">Revoked</span>}
+                          {assignment.isActive && new Date(assignment.validUntil) < new Date() && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Expired</span>}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Purpose: {assignment.examPurpose} &bull; Valid until {new Date(assignment.validUntil).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Assigned by {assignment.assignedByName} on {new Date(assignment.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {assignment.isActive && (
+                        <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRevokeCoordinator(assignment.id)}>
+                          Revoke
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
 
   return (
@@ -4020,7 +4205,7 @@ export const ExaminationModule = () => {
       {renderDiscardAttendanceModal()}
       {renderUnmarkedAttendanceModal()}
       {renderDeleteSeatingModal()}
-
+      {renderAssignCoordinatorModal()}
     </div>
   );
 };
