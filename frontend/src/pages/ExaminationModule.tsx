@@ -10,7 +10,7 @@ import {
   Users, AlertTriangle, ChevronRight, CalendarDays, DownloadCloud, 
   FileSpreadsheet, Save, X, FileIcon,
   RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock, List,
-  Loader2, CheckSquare, Check
+  Loader2, CheckSquare, Check, Download
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -174,6 +174,11 @@ export const ExaminationModule = () => {
   const [resultUploadMethod, setResultUploadMethod] = useState<'upload' | 'manual' | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'reading' | 'extracting' | 'completed' | 'error'>('idle');
+  const [resultTargetClassId, setResultTargetClassId] = useState<string>('');
+  const [presentStudentsForSection, setPresentStudentsForSection] = useState<any[] | null>(null);
+  const [isPresentStudentsLoading, setIsPresentStudentsLoading] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [presentStudentsError, setPresentStudentsError] = useState<string | null>(null);
   const [, setIsUploading] = useState(false);
   const [uploadedMarks, setUploadedMarks] = useState<any[]>([]);
   const [resultSearch, setResultSearch] = useState('');
@@ -278,6 +283,63 @@ export const ExaminationModule = () => {
     }
   };
   
+  const fetchPresentStudents = async (classId: string) => {
+    if (!classId || !selectedExam) return;
+    setIsPresentStudentsLoading(true);
+    setPresentStudentsError(null);
+    try {
+      const res = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students?classId=${classId}`);
+      setPresentStudentsForSection(res.data.data);
+    } catch (err: any) {
+      setPresentStudentsError(err.response?.data?.message || "Failed to load present students");
+      setPresentStudentsForSection(null);
+    } finally {
+      setIsPresentStudentsLoading(false);
+    }
+  };
+
+  const handleResultSectionChange = (classId: string) => {
+    setResultTargetClassId(classId);
+    if (classId) {
+       fetchPresentStudents(classId);
+    } else {
+       setPresentStudentsForSection(null);
+       setPresentStudentsError(null);
+    }
+  };
+
+  const targetSections = selectedExam?.classIds?.map((id: string, index: number) => ({
+    id,
+    name: selectedExam.classNames[index]
+  })) || [];
+
+  const handleDownloadPresentStudentsExcel = async () => {
+    if (!selectedExam || !resultTargetClassId) return;
+    setIsExporting(true);
+    try {
+        const response = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students/export?classId=${resultTargetClassId}`, {
+            responseType: 'blob'
+        });
+        const sectionName = targetSections.find((s: any) => s.id === resultTargetClassId)?.name || 'Section';
+        const safeExamName = selectedExam.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        const safeSectionName = sectionName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${safeExamName}_${safeSectionName}_Present_Students.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.success("Excel downloaded successfully");
+    } catch (err: any) {
+        toast.error("Failed to download Excel");
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
   const [isPublishing, setIsPublishing] = useState(false);
 
   const handlePublishAll = async () => {
@@ -1776,6 +1838,77 @@ export const ExaminationModule = () => {
               {examClasses.map((c: string) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+        </div>
+
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm flex flex-col gap-4 mt-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+             <div>
+                <h4 className="font-bold">Present Students</h4>
+                <p className="text-sm text-muted-foreground">Download present students list for marks preparation.</p>
+             </div>
+             <div className="flex gap-2 items-center">
+                 <select 
+                     className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
+                     value={resultTargetClassId} 
+                     onChange={e => handleResultSectionChange(e.target.value)}
+                 >
+                     <option value="">-- Select Section --</option>
+                     {targetSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                 </select>
+                 <Button disabled={!resultTargetClassId || isExporting} onClick={handleDownloadPresentStudentsExcel}>
+                    {isExporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <Download size={16} className="mr-2"/>}
+                    Download Excel
+                 </Button>
+             </div>
+          </div>
+          
+          {isPresentStudentsLoading && (
+              <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 size={32} className="animate-spin text-primary" />
+                  <p>Loading present students...</p>
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && presentStudentsError && (
+              <div className="p-4 bg-rose-50 text-rose-600 rounded-lg border border-rose-200">
+                  {presentStudentsError}
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && resultTargetClassId && presentStudentsForSection && presentStudentsForSection.length === 0 && (
+              <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
+                  <p>No present students found. Examination attendance may not have been recorded for this section yet.</p>
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && presentStudentsForSection && presentStudentsForSection.length > 0 && (
+             <div className="overflow-x-auto rounded-lg border border-border mt-2">
+                 <table className="w-full text-sm text-left">
+                     <thead className="text-xs uppercase bg-muted/50 border-b border-border">
+                         <tr>
+                             <th className="px-4 py-3 font-semibold">S.No.</th>
+                             <th className="px-4 py-3 font-semibold">Enrollment No</th>
+                             <th className="px-4 py-3 font-semibold">Student Name</th>
+                             <th className="px-4 py-3 font-semibold">Section</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-border">
+                         {presentStudentsForSection.map((student: any, idx: number) => (
+                             <tr key={student.enrollmentNo} className="hover:bg-accent/20">
+                                 <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                                 <td className="px-4 py-3 font-medium">{student.enrollmentNo}</td>
+                                 <td className="px-4 py-3">{student.studentName}</td>
+                                 <td className="px-4 py-3">
+                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                         {student.section}
+                                     </span>
+                                 </td>
+                             </tr>
+                         ))}
+                     </tbody>
+                 </table>
+             </div>
+          )}
         </div>
 
         {resultViewMode === 'saved' && (

@@ -34,6 +34,9 @@ public class ExamResultServiceImpl implements ExamResultService {
     private final UserRepository userRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
     private final com.acronexus.repository.ExamAiFeedbackRepository aiFeedbackRepository;
+    private final com.acronexus.repository.ExaminationAttendanceRepository examinationAttendanceRepository;
+    private final com.acronexus.repository.ExaminationRepository examinationRepository;
+    private final com.acronexus.repository.StudentEnrollmentRepository studentEnrollmentRepository;
 
     @Override
     @Transactional
@@ -181,5 +184,71 @@ public class ExamResultServiceImpl implements ExamResultService {
         }
         
         return count;
+    }
+
+    @Override
+    public List<com.acronexus.dto.PresentStudentDto> getPresentStudents(UUID examinationId, UUID classId) {
+        com.acronexus.entity.Examination examination = examinationRepository.findById(examinationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Examination not found"));
+                
+        boolean validTarget = examination.getClasses().stream().anyMatch(c -> c.getId().equals(classId));
+        if (!validTarget) {
+            throw new IllegalArgumentException("Class ID " + classId + " is not a target for this examination");
+        }
+        
+        List<com.acronexus.entity.ExaminationAttendance> attendances = 
+            examinationAttendanceRepository.findPresentStudentsByExamAndClassOrdered(examinationId, classId);
+            
+        return attendances.stream().map(a -> {
+            com.acronexus.entity.Student s = a.getStudent();
+            com.acronexus.entity.StudentEnrollment enr = studentEnrollmentRepository.findFirstByStudentIdAndIsActiveTrueOrderByCreatedAtDesc(s.getId()).orElse(null);
+            
+            String sectionDisplay = "";
+            if (enr != null && enr.getAcroClass() != null) {
+                com.acronexus.entity.AcroClass ac = enr.getAcroClass();
+                sectionDisplay = (ac.getSection() != null && !ac.getSection().isEmpty()) ? ac.getSection() : ac.getName();
+            }
+            
+            return new com.acronexus.dto.PresentStudentDto(
+                s.getEnrollmentNo(), 
+                s.getUser().getFirstName() + " " + (s.getUser().getLastName() != null ? s.getUser().getLastName() : ""), 
+                sectionDisplay
+            );
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public byte[] exportPresentStudentsExcel(UUID examinationId, UUID classId) {
+        List<com.acronexus.dto.PresentStudentDto> students = getPresentStudents(examinationId, classId);
+        
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+             
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Present Students");
+            
+            // Header
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("S.No.");
+            headerRow.createCell(1).setCellValue("Enrollment No");
+            headerRow.createCell(2).setCellValue("Student Name");
+            headerRow.createCell(3).setCellValue("Section");
+            headerRow.createCell(4).setCellValue("Marks");
+            
+            // Data
+            int rowIdx = 1;
+            for (com.acronexus.dto.PresentStudentDto s : students) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(rowIdx - 1);
+                row.createCell(1).setCellValue(s.getEnrollmentNo());
+                row.createCell(2).setCellValue(s.getStudentName());
+                row.createCell(3).setCellValue(s.getSection());
+                row.createCell(4).setCellValue(""); // Empty Marks
+            }
+            
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to generate Excel file", e);
+        }
     }
 }

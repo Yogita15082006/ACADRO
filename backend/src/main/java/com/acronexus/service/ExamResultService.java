@@ -14,4 +14,6 @@ public interface ExamResultService {
     void delete(UUID id);
     void deleteResultsForClass(UUID examinationId, String className);
     int publishResults(UUID examinationId, String className, UUID studentId);
+    List<com.acronexus.dto.PresentStudentDto> getPresentStudents(UUID examinationId, UUID classId);
+    byte[] exportPresentStudentsExcel(UUID examinationId, UUID classId);
 }

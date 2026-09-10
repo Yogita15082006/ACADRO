@@ -67,12 +67,36 @@ public class ExamResultController {
     }
     
     @DeleteMapping("/class")
-    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<ApiResponse<Void>> deleteResultsForClass(
             @RequestParam UUID examinationId,
-            @RequestParam(required = false) String className) {
+            @RequestParam String className) {
         service.deleteResultsForClass(examinationId, className);
-        return ResponseEntity.ok(ApiResponse.success("Class ExamResults deleted successfully", null));
+        return ResponseEntity.ok(ApiResponse.success("ExamResults for class deleted successfully", null));
+    }
+
+    @GetMapping("/examinations/{examinationId}/present-students")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.PresentStudentDto>>> getPresentStudents(
+            @PathVariable UUID examinationId,
+            @RequestParam UUID classId) {
+        List<com.acronexus.dto.PresentStudentDto> students = service.getPresentStudents(examinationId, classId);
+        return ResponseEntity.ok(ApiResponse.success("Present students fetched successfully", students));
+    }
+
+    @GetMapping("/examinations/{examinationId}/present-students/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<byte[]> exportPresentStudentsExcel(
+            @PathVariable UUID examinationId,
+            @RequestParam UUID classId) {
+        byte[] excelData = service.exportPresentStudentsExcel(examinationId, classId);
+        
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", "Present_Students.xlsx");
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+        
+        return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
     }
     
     @PostMapping("/publish")
