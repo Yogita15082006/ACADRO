@@ -46,4 +46,7 @@ public interface NoticeRepository extends JpaRepository<Notice, UUID>, JpaSpecif
            "WHERE n.isDeleted = false AND n.isActive = true " +
            "  AND (ta IS NULL OR ta.acroClass.department.id = :departmentId)")
     long countByTargetDepartmentIdAndIsDeletedFalseAndIsActiveTrue(@Param("departmentId") UUID departmentId);
+
+    @EntityGraph(attributePaths = {"file", "publishedBy", "targetAssignments"})
+    List<Notice> findByPublishedBy_Id(UUID publishedById);
 }

@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface EventNoticeRepository extends JpaRepository<EventNotice, UUID> {
     List<EventNotice> findByEventIdOrderByCreatedAtDesc(UUID eventId);
+    List<EventNotice> findByEvent_CreatedBy_Id(UUID createdById);
 }

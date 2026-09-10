@@ -46,4 +46,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     @EntityGraph(attributePaths = {"targetClass", "targetAssignments"})
     List<Event> findByIsActiveTrueAndEventDateBetween(Instant start, Instant end);
+
+    @EntityGraph(attributePaths = {"department", "targetClass", "posterFile", "createdBy", "targetAssignments"})
+    List<Event> findByCreatedBy_Id(UUID createdById);
 }
