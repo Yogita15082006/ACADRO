@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mockData } from '../data/mockData';
 import { Card, CardContent } from '../components/ui/card';
@@ -14,6 +14,7 @@ import { Label } from '../components/ui/label';
 
 import { ChevronLeft } from 'lucide-react';
 import { AcademicResourceDialog } from '../components/modals/AcademicResourceDialog';
+import { DelegationManagerModal } from '../components/modals/DelegationManagerModal';
 import { useMetadata } from '../hooks/useMetadata';
 
 type Tab = 'faculty-coordinators' | 'syllabus' | 'scheme' | 'timetable';
@@ -366,8 +367,13 @@ const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => 
 
 export const FacultyManagementModule = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const auth = useAuth();
+  const delegatedTask = location.state?.delegatedTask;
+  
   const { departmentsList } = useMetadata();
-  const [activeTab, setActiveTab] = useState<Tab>('faculty-coordinators');
+  const [activeTab, setActiveTab] = useState<Tab>(delegatedTask ? 'syllabus' : 'faculty-coordinators');
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
   const [previewFaculty, setPreviewFaculty] = useState<any>(null);
   const [impersonateToken, setImpersonateToken] = useState<string | null>(null);
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -1309,12 +1315,52 @@ export const FacultyManagementModule = () => {
         <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
           <Users className="text-primary" size={24} /> Faculty Management
         </h1>
-        <p className="text-muted-foreground text-sm mt-1">Unified hub for faculty, syllabus, scheme, timetable, and AI assignments.</p>
+        <div className="flex items-center gap-4 mt-2">
+          <p className="text-muted-foreground text-sm">Unified hub for faculty, syllabus, scheme, timetable, and AI assignments.</p>
+          {(auth?.role?.toLowerCase() === 'hod' || auth?.role?.toLowerCase() === 'admin') && !delegatedTask && (
+            <Button variant="outline" size="sm" onClick={() => setShowDelegationModal(true)} className="gap-2 border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+              <Sparkles className="w-4 h-4" /> Assign Coordinator for Assignment
+            </Button>
+          )}
+        </div>
       </div>
+
+      {delegatedTask && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+          <div>
+            <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+              Assigned Task Active
+            </h3>
+            <p className="text-sm text-indigo-700 mt-1">
+              You are completing an assigned task for <span className="font-bold">{delegatedTask.department?.name}</span>.
+            </p>
+          </div>
+          <Button 
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={async () => {
+              try {
+                await api.patch(`/v1/faculty-delegations/${delegatedTask.id}/complete`);
+                toast.success('Task marked as complete');
+                window.location.href = '/admin';
+              } catch (e: any) {
+                toast.error(e.response?.data?.message || 'Failed to complete task');
+              }
+            }}
+          >
+            <CheckCircle className="w-4 h-4 mr-2" /> Complete Task
+          </Button>
+        </div>
+      )}
+
+      <DelegationManagerModal 
+        open={showDelegationModal} 
+        onOpenChange={setShowDelegationModal} 
+      />
 
       {/* Tab Bar */}
       <div className="flex gap-1 overflow-x-auto bg-muted/30 p-1 rounded-xl border border-border/50">
-        {tabs.map(t => (
+        {(delegatedTask ? tabs.filter(t => t.key !== 'faculty-coordinators') : tabs).map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
               activeTab === t.key

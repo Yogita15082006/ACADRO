@@ -4,6 +4,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { HodDashboardView } from '../components/dashboard/HodDashboardView';
 import { CoordinatorDashboardView } from '../components/dashboard/CoordinatorDashboardView';
 import { FacultyDashboardView } from '../components/dashboard/FacultyDashboardView';
+import { DelegatedTasksOverview } from '../components/dashboard/DelegatedTasksOverview';
 import { getAssetUrl } from '@/lib/utils';
 
 export const AdminDashboard = ({ previewUser }: { previewUser?: any }) => {
@@ -61,6 +62,8 @@ export const AdminDashboard = ({ previewUser }: { previewUser?: any }) => {
           />
         </div>
       </div>
+
+      {(role === 'faculty' || role === 'coordinator' || role === 'both') && <DelegatedTasksOverview />}
 
       {role === 'hod' && <HodDashboardView user={user} />}
       {role === 'coordinator' && <CoordinatorDashboardView user={user} />}

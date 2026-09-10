@@ -8,6 +8,7 @@ import com.acronexus.entity.*;
 import com.acronexus.repository.*;
 import com.acronexus.service.AcademicResourceService;
 import com.acronexus.service.AiService;
+import com.acronexus.service.FacultyManagementDelegationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +43,7 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     private final com.acronexus.repository.ClassSubjectRepository classSubjectRepository;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
+    private final FacultyManagementDelegationService delegationService;
 
     private static final String UPLOAD_DIR = "uploads/academic_resources/";
 
@@ -50,6 +52,10 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     public ApiResponse<AcademicResourceDto> uploadScheme(MultipartFile file, String academicYear, String batch, String className, String semester, String schemeName, String department, String degree, String description, String eligibility, String benefits, UUID uploadedBy) {
         validatePdf(file);
         User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (!delegationService.canManageFacultySetup(uploadedBy, department)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
 
         Map<String, Object> metadataMap = new HashMap<>();
         metadataMap.put("academicYear", academicYear);
@@ -211,6 +217,10 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
         validatePdf(file);
         User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
 
+        if (!delegationService.canManageFacultySetup(uploadedBy, department)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
+
         Map<String, Object> metadataMap = new HashMap<>();
         metadataMap.put("academicYear", academicYear);
         if (batch != null && !batch.isEmpty()) metadataMap.put("batch", batch);
@@ -308,6 +318,10 @@ public class AcademicResourceServiceImpl implements AcademicResourceService {
     public ApiResponse<AcademicResourceDto> uploadTimetable(MultipartFile file, String academicYear, String batch, String className, String department, String semester, UUID uploadedBy) {
         validateTimetableFile(file);
         User user = userRepository.findById(uploadedBy).orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (!delegationService.canManageFacultySetup(uploadedBy, department)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
 
         Map<String, Object> metadataMap = new HashMap<>();
         metadataMap.put("academicYear", academicYear);

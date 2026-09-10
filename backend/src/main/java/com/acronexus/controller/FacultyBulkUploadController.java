@@ -54,7 +54,7 @@ public class FacultyBulkUploadController {
     }
 
     @PostMapping(value = "/confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(
             summary = "Confirm Faculty Upload",
             description = "Saves the AI-validated faculty records to the database.",
@@ -77,7 +77,7 @@ public class FacultyBulkUploadController {
     }
 
     @PostMapping(value = "/validate-ai", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(
             summary = "Validate Faculty List via AI (Dry Run)",
             description = "Validates the uploaded faculty list using Groq AI and returns mapping suggestions and errors without saving to the DB.",

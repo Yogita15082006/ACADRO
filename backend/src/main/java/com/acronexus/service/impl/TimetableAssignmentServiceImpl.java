@@ -7,6 +7,7 @@ import com.acronexus.service.AiService;
 import com.acronexus.service.TimetableAssignmentService;
 import com.acronexus.dto.ai.AiGenericRequest;
 import com.acronexus.dto.ai.AiGenericResponse;
+import com.acronexus.service.FacultyManagementDelegationService;
 import com.acronexus.util.NameNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final LectureMaterialRepository lectureMaterialRepository;
     private final SubjectAnnouncementRepository subjectAnnouncementRepository;
+    private final FacultyManagementDelegationService delegationService;
     private final StudentAttendanceRepository studentAttendanceRepository;
     private final StudentAttendanceHistoryRepository studentAttendanceHistoryRepository;
     private final AttendanceSessionRepository attendanceSessionRepository;
@@ -56,6 +58,10 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     public TimetableReviewReportDto performAiMatch(UUID timetableId, UUID requestedBy) {
         Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
                 .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("Timetable not found"));
+
+        if (!delegationService.canManageFacultySetup(requestedBy, timetable.getAcroClass().getDepartment().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
                 
         FileStorage fileStorage = timetable.getFile();
         if (fileStorage == null || fileStorage.getDocumentUrl() == null) {
@@ -277,6 +283,10 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     public void confirmAssignments(UUID timetableId, TimetableReviewReportDto reviewDto, UUID requestedBy) {
         Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
                 .orElseThrow(() -> new RuntimeException("Timetable not found"));
+
+        if (!delegationService.canManageFacultySetup(requestedBy, timetable.getAcroClass().getDepartment().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
 
         User creator = userRepository.findById(requestedBy).orElse(null);
 

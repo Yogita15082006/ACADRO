@@ -21,5 +21,6 @@ public class Department extends BaseAuditableEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hod_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private User hod;
 }

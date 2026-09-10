@@ -8,6 +8,7 @@ import com.acronexus.repository.*;
 import com.acronexus.dto.AiFacultyValidationResultDto;
 import com.acronexus.service.AiService;
 import com.acronexus.service.FacultyBulkUploadService;
+import com.acronexus.service.FacultyManagementDelegationService;
 import com.acronexus.util.BulkUploadUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,7 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     private final AcademicYearRepository academicYearRepository;
     private final AcroClassRepository acroClassRepository;
     private final com.acronexus.service.AcademicIdentityResolver academicIdentityResolver;
+    private final FacultyManagementDelegationService delegationService;
 
     @Override
     public BulkUploadResponseDto uploadFacultyList(MultipartFile file, UUID uploadedByUserId) {
@@ -165,6 +167,10 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     private void processRow(int rowNumber, FacultyRowData data, User uploadedBy, UploadStats stats) {
         if (data.employeeId.isEmpty() || data.collegeEmail.isEmpty()) {
             throw new IllegalArgumentException("Employee ID and College Email are strictly required.");
+        }
+        
+        if (!delegationService.canManageFacultySetup(uploadedBy.getId(), data.department)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage faculty for department: " + data.department);
         }
         
         if (data.facultyName.isEmpty()) {
