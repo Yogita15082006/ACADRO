@@ -59,7 +59,33 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         Faculty faculty = facultyRepository.findById(id).orElse(null);
-        return userMapper.toDto(user, faculty);
+        UserResponseDto dto = userMapper.toDto(user, faculty);
+        
+        if (user.getRole() == UserRole.FACULTY || user.getRole() == UserRole.COORDINATOR || user.getRole() == UserRole.HOD) {
+            List<com.acronexus.dto.CoordinatorAssignmentSummaryDto> coordAssignments = coordinatorAssignmentRepository.findByCoordinatorId(id).stream()
+                .filter(ca -> ca.getIsActive() != null && ca.getIsActive())
+                .map(ca -> {
+                    com.acronexus.dto.CoordinatorAssignmentSummaryDto summary = new com.acronexus.dto.CoordinatorAssignmentSummaryDto();
+                    summary.setId(ca.getId());
+                    summary.setBatch(ca.getBatch());
+                    summary.setAcademicYear(ca.getAcademicYear());
+                    summary.setClassName(ca.getClassName());
+                    return summary;
+                })
+                .collect(Collectors.toList());
+            dto.setCoordinatorAssignments(coordAssignments);
+            
+            List<UserResponseDto.DepartmentInfo> hodDepts = departmentRepository.findByHodId(id).stream()
+                .map(d -> {
+                    UserResponseDto.DepartmentInfo info = new UserResponseDto.DepartmentInfo();
+                    info.setId(d.getId());
+                    info.setName(d.getName());
+                    return info;
+                })
+                .collect(Collectors.toList());
+            dto.setHodDepartments(hodDepts);
+        }
+        return dto;
     }
 
     @Transactional(readOnly = true)
@@ -91,6 +117,34 @@ public class UserService {
                     ca -> ca.getCoordinator().getId(),
                     Collectors.mapping(CoordinatorAssignment::getClassName, Collectors.toList())
                 ));
+                
+        // Map Coordinator Assignments to DTO
+        Map<UUID, List<com.acronexus.dto.CoordinatorAssignmentSummaryDto>> coordAssignmentsMap = coordinatorAssignmentRepository.findAll().stream()
+                .filter(ca -> ca.getIsActive() != null && ca.getIsActive() && ca.getCoordinator() != null)
+                .collect(Collectors.groupingBy(
+                    ca -> ca.getCoordinator().getId(),
+                    Collectors.mapping(ca -> {
+                        com.acronexus.dto.CoordinatorAssignmentSummaryDto dto = new com.acronexus.dto.CoordinatorAssignmentSummaryDto();
+                        dto.setId(ca.getId());
+                        dto.setBatch(ca.getBatch());
+                        dto.setAcademicYear(ca.getAcademicYear());
+                        dto.setClassName(ca.getClassName());
+                        return dto;
+                    }, Collectors.toList())
+                ));
+                
+        // Map HOD Departments
+        Map<UUID, List<UserResponseDto.DepartmentInfo>> hodDeptsMap = departmentRepository.findAll().stream()
+                .filter(d -> d.getHod() != null)
+                .collect(Collectors.groupingBy(
+                    d -> d.getHod().getId(),
+                    Collectors.mapping(d -> {
+                        UserResponseDto.DepartmentInfo info = new UserResponseDto.DepartmentInfo();
+                        info.setId(d.getId());
+                        info.setName(d.getName());
+                        return info;
+                    }, Collectors.toList())
+                ));
         
         return users.stream()
                 .map(user -> {
@@ -106,6 +160,10 @@ public class UserService {
                         // Deduplicate subjects and classes
                         dto.setSubjects(dto.getSubjects().stream().distinct().collect(Collectors.toList()));
                         dto.setClasses(dto.getClasses().stream().distinct().collect(Collectors.toList()));
+                        
+                        // Explicit scopes
+                        dto.setCoordinatorAssignments(coordAssignmentsMap.getOrDefault(user.getId(), List.of()));
+                        dto.setHodDepartments(hodDeptsMap.getOrDefault(user.getId(), List.of()));
                     }
                     return dto;
                 })

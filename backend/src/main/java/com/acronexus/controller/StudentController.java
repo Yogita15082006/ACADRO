@@ -49,16 +49,16 @@ public class StudentController {
     }
 
     @GetMapping("/options/semesters")
-    public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getSemesterOptions(@RequestParam UUID academicYearId) {
-        return ResponseEntity.ok(ApiResponse.success("Semesters retrieved", studentService.getSemesterOptions(academicYearId)));
+    public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getSemesterOptions(@RequestParam(required = false) Integer studyYear) {
+        return ResponseEntity.ok(ApiResponse.success("Semesters retrieved", studentService.getSemesterOptions(studyYear)));
     }
 
     @GetMapping("/options/classes")
     public ResponseEntity<ApiResponse<List<com.acronexus.dto.OptionDto>>> getClassOptions(
             @RequestParam(required = false) String batch,
-            @RequestParam(required = false) UUID academicYearId,
+            @RequestParam(required = false) Integer studyYear,
             @RequestParam(required = false) UUID semesterId) {
-        return ResponseEntity.ok(ApiResponse.success("Classes retrieved", studentService.getClassOptions(batch, academicYearId, semesterId)));
+        return ResponseEntity.ok(ApiResponse.success("Classes retrieved", studentService.getClassOptions(batch, studyYear, semesterId)));
     }
 
     @GetMapping("/export")

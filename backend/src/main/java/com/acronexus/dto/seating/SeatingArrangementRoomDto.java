@@ -14,5 +14,7 @@ public class SeatingArrangementRoomDto {
     private List<String> classes;
     private List<UUID> invigilatorIds;
     private List<String> invigilatorNames;
+    private String startTime;
+    private String endTime;
     private List<SeatingArrangementStudentDto> students;
 }

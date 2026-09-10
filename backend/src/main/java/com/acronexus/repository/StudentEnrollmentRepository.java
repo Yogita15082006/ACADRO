@@ -11,6 +11,55 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
     Optional<StudentEnrollment> findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(
             java.util.UUID studentId, java.util.UUID academicYearId, java.util.UUID semesterId);
 
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT e.academicYear
+        FROM StudentEnrollment e
+        WHERE e.academicYear IS NOT NULL
+          AND e.isActive = true
+          AND (:batch IS NULL OR e.student.batchYear = :batch)
+        ORDER BY e.academicYear.year
+    """)
+    java.util.List<com.acronexus.entity.AcademicYear> findDistinctAcademicYears(@org.springframework.data.repository.query.Param("batch") String batch);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT e.studyYear
+        FROM StudentEnrollment e
+        WHERE e.studyYear IS NOT NULL
+          AND e.isActive = true
+        ORDER BY e.studyYear
+    """)
+    java.util.List<Integer> findDistinctStudyYears();
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT e.semester
+        FROM StudentEnrollment e
+        WHERE e.studyYear = :studyYear
+          AND e.semester IS NOT NULL
+          AND e.isActive = true
+        ORDER BY e.semester.semesterNumber
+    """)
+    java.util.List<com.acronexus.entity.Semester> findDistinctSemestersByStudyYear(
+        @org.springframework.data.repository.query.Param("studyYear") Integer studyYear
+    );
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT e.acroClass 
+        FROM StudentEnrollment e 
+        WHERE e.isActive = true
+          AND (:batch IS NULL OR e.student.batchYear = :batch)
+          AND (:studyYear IS NULL OR e.studyYear = :studyYear)
+          AND (:semesterId IS NULL OR e.semester.id = :semesterId)
+          AND e.acroClass IS NOT NULL
+          AND e.acroClass.isActive = true 
+          AND e.acroClass.isDeleted = false
+        ORDER BY e.acroClass.name
+    """)
+    java.util.List<com.acronexus.entity.AcroClass> findDistinctClassesByScope(
+        @org.springframework.data.repository.query.Param("batch") String batch, 
+        @org.springframework.data.repository.query.Param("studyYear") Integer studyYear, 
+        @org.springframework.data.repository.query.Param("semesterId") java.util.UUID semesterId
+    );
+
     boolean existsByStudentIdAndAcroClassIdAndIsActiveTrue(java.util.UUID studentId, java.util.UUID classId);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT e.student.id) FROM StudentEnrollment e WHERE e.isActive = true AND e.acroClass.department.id = :departmentId")

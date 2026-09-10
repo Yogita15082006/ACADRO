@@ -25,14 +25,7 @@ public class AcademicYearController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<AcademicYear>>> getAllAcademicYears(@RequestParam(required = false) String batch) {
-        List<AcademicYear> allYears = academicYearRepository.findAll();
-        if (batch != null && !batch.isEmpty()) {
-            List<String> validYearNames = studentEnrollmentRepository.findDistinctAcademicYearsByBatch(batch);
-            List<AcademicYear> filtered = allYears.stream()
-                    .filter(y -> validYearNames.contains(y.getYear()))
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(ApiResponse.success("Academic years retrieved successfully", filtered));
-        }
-        return ResponseEntity.ok(ApiResponse.success("Academic years retrieved successfully", allYears));
+        List<AcademicYear> activeYears = studentEnrollmentRepository.findDistinctAcademicYears(batch);
+        return ResponseEntity.ok(ApiResponse.success("Academic years retrieved successfully", activeYears));
     }
 }

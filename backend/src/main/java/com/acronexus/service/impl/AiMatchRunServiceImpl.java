@@ -126,12 +126,21 @@ public class AiMatchRunServiceImpl implements AiMatchRunService {
         }
         
         try {
-            AcademicYear activeYear = academicYearRepository.findAll().stream().findFirst().orElse(null);
-            Semester activeSemester = semesterRepository.findAll().stream().findFirst().orElse(null);
-
-            if (activeYear == null || activeSemester == null) {
-                throw new IllegalStateException("Active Academic Year or Semester not found");
+            java.util.List<AcademicYear> activeYears = academicYearRepository.findByIsActiveTrue();
+            if (activeYears.size() != 1) {
+                throw new IllegalArgumentException("Academic configuration is incomplete. Please ensure exactly 1 active Academic Year is configured before running AI Match.");
             }
+            AcademicYear activeYear = activeYears.get(0);
+            
+            java.util.List<Semester> activeSemesters = semesterRepository.findByIsActiveTrue();
+            java.util.List<Semester> relevantSemesters = activeSemesters.stream()
+                .filter(s -> s.getAcademicYear() != null && s.getAcademicYear().getId().equals(activeYear.getId()))
+                .toList();
+
+            if (relevantSemesters.size() != 1) {
+                throw new IllegalArgumentException("Academic configuration is incomplete. Please ensure exactly 1 active Semester is configured for Academic Year " + activeYear.getYear() + " before running AI Match.");
+            }
+            Semester activeSemester = relevantSemesters.get(0);
 
             java.util.Set<String> notifiedUsers = new java.util.HashSet<>();
 

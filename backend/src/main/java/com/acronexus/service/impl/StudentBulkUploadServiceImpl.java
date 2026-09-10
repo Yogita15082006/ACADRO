@@ -47,6 +47,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
     private final PasswordEncoder passwordEncoder;
     private final TransactionTemplate transactionTemplate;
     private final AiService aiService;
+    private final com.acronexus.service.AcademicIdentityResolver academicIdentityResolver;
 
     @Override
     public BulkUploadResponseDto uploadStudentList(MultipartFile file, UUID uploadedByUserId) {
@@ -447,178 +448,74 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         return false;
     }
 
-    private AcroClass resolveAcroClass(String className, String sectionName, String deptName, String degreeName) {
-        String cleanClass = className != null ? className.trim() : "";
-        String cleanSec = sectionName != null ? sectionName.trim() : "";
-
-        if (cleanClass.isEmpty() && cleanSec.isEmpty()) {
-            cleanClass = "General";
-            cleanSec = "";
-        } else if (cleanClass.isEmpty() && !cleanSec.isEmpty()) {
-            cleanClass = cleanSec;
-            cleanSec = "";
-        }
-
-        // 1. Exact search by name and section
-        Optional<AcroClass> opt = acroClassRepository.findByNameIgnoreCaseAndSectionIgnoreCase(cleanClass, cleanSec);
-        if (opt.isPresent()) return opt.get();
-
-        // 2. Search by combination if someone uploaded "DS" and "1" but it exists as "DS-1"
-        List<AcroClass> all = acroClassRepository.findAll();
-        for (AcroClass c : all) {
-            String combinedHyphen = (c.getName() + (c.getSection() != null && !c.getSection().isEmpty() ? "-" + c.getSection() : "")).toLowerCase();
-            String targetCombined = (cleanClass + (!cleanSec.isEmpty() ? "-" + cleanSec : "")).toLowerCase();
-            if (combinedHyphen.equalsIgnoreCase(targetCombined)) {
-                return c;
-            }
-        }
-
-        // 3. Create dynamically with exactly the requested name
-        log.info("AcroClass not found. Creating dynamically: Name={}, Sec={}", cleanClass, cleanSec);
-        Department dept = resolveDepartment(null, deptName);
-        DegreeProgram degree = resolveDegreeProgram(null, degreeName, dept);
-
-        AcroClass newClass = new AcroClass();
-        newClass.setName(cleanClass);
-        newClass.setSection(cleanSec);
-        newClass.setDepartment(dept);
-        newClass.setDegreeProgram(degree);
-        newClass.setIsActive(true);
-        return acroClassRepository.save(newClass);
-    }
-
-    private Department resolveDepartment(AcroClass acroClass, String deptName) {
-        if (deptName != null && !deptName.trim().isEmpty()) {
-            String cleanDept = deptName.trim();
-            for (Department d : departmentRepository.findAll()) {
-                if (d.getName().equalsIgnoreCase(cleanDept) || d.getCode().equalsIgnoreCase(cleanDept)) {
-                    return d;
-                }
-            }
-            Department newDept = new Department();
-            newDept.setName(cleanDept);
-            newDept.setCode(cleanDept.length() > 5 ? cleanDept.substring(0, 5).toUpperCase() : cleanDept.toUpperCase());
-            newDept.setIsActive(true);
-            return departmentRepository.save(newDept);
-        }
-        if (acroClass != null && acroClass.getDepartment() != null) {
+    private Department getDepartmentSafe(AcroClass acroClass, String deptName) {
+        Department dept = academicIdentityResolver.resolveDepartment(deptName);
+        if (dept == null && acroClass != null && acroClass.getDepartment() != null) {
             return acroClass.getDepartment();
         }
-        throw new IllegalArgumentException("Department is required and cannot be inferred. Please provide a valid Department in the upload.");
+        if (dept == null) {
+            throw new IllegalArgumentException("Department is required and cannot be inferred.");
+        }
+        return dept;
     }
 
-    private DegreeProgram resolveDegreeProgram(AcroClass acroClass, String degreeName, Department dept) {
-        if (degreeName != null && !degreeName.trim().isEmpty()) {
-            String cleanDegree = degreeName.trim();
-            for (DegreeProgram dp : degreeProgramRepository.findAll()) {
-                if (dp.getName().equalsIgnoreCase(cleanDegree)) {
-                    return dp;
-                }
-            }
-            DegreeProgram newDegree = new DegreeProgram();
-            newDegree.setName(cleanDegree);
-            newDegree.setIsActive(true);
-            newDegree.setType(inferDegreeType(cleanDegree));
-            newDegree.setDurationYears(inferDuration(cleanDegree));
-            return degreeProgramRepository.save(newDegree);
-        }
-        if (acroClass != null && acroClass.getDegreeProgram() != null) {
+    private DegreeProgram getDegreeProgramSafe(AcroClass acroClass, String degreeName) {
+        DegreeProgram dp = academicIdentityResolver.resolveDegreeProgram(degreeName);
+        if (dp == null && acroClass != null && acroClass.getDegreeProgram() != null) {
             return acroClass.getDegreeProgram();
         }
-        return null;
-    }
-
-    private AcademicYear resolveAcademicYear(String yearStr) {
-        String cleanYear = yearStr != null ? yearStr.trim() : "";
-        if ("1".equals(cleanYear) || "1st".equalsIgnoreCase(cleanYear)) cleanYear = "1st Year";
-        else if ("2".equals(cleanYear) || "2nd".equalsIgnoreCase(cleanYear)) cleanYear = "2nd Year";
-        else if ("3".equals(cleanYear) || "3rd".equalsIgnoreCase(cleanYear)) cleanYear = "3rd Year";
-        else if ("4".equals(cleanYear) || "4th".equalsIgnoreCase(cleanYear)) cleanYear = "4th Year";
-
-        if (!cleanYear.isEmpty()) {
-            Optional<AcademicYear> opt = academicYearRepository.findByYear(cleanYear);
-            if (opt.isPresent()) return opt.get();
-        }
-
-        List<AcademicYear> all = academicYearRepository.findAll();
-        if (!cleanYear.isEmpty()) {
-            for (AcademicYear ay : all) {
-                if (ay.getYear().equalsIgnoreCase(cleanYear)) {
-                    return ay;
-                }
-            }
-        }
-
-        java.time.LocalDate now = java.time.LocalDate.now();
-        int startYear = now.getMonthValue() >= 7 ? now.getYear() : (now.getYear() - 1);
-        int endYear = startYear + 1;
-        if (!cleanYear.isEmpty()) {
-            String[] parts = cleanYear.split("[-/ ]");
-            try {
-                if (parts.length > 0 && parts[0].matches("\\d{4}")) startYear = Integer.parseInt(parts[0]);
-                if (parts.length > 1 && parts[1].matches("\\d{4}")) endYear = Integer.parseInt(parts[1]);
-                else endYear = startYear + 1;
-            } catch (Exception e) {
-                log.warn("Failed to parse start/end years from '{}'", cleanYear);
-            }
-        }
-
-        String finalYearStr = !cleanYear.isEmpty() ? cleanYear : (startYear + "-" + endYear);
-        
-        // Check again with finalYearStr just in case
-        Optional<AcademicYear> finalOpt = academicYearRepository.findByYear(finalYearStr);
-        if (finalOpt.isPresent()) return finalOpt.get();
-        
-        for (AcademicYear ay : all) {
-            if (ay.getYear().equalsIgnoreCase(finalYearStr)) {
-                return ay;
-            }
-        }
-
-        AcademicYear ay = new AcademicYear();
-        ay.setYear(finalYearStr);
-        ay.setStartDate(java.time.LocalDate.of(startYear, 7, 1));
-        ay.setEndDate(java.time.LocalDate.of(endYear, 6, 30));
-        ay.setIsActive(true);
-        ay = academicYearRepository.save(ay);
-        log.info("Dynamically created AcademicYear in PostgreSQL: year='{}', startDate={}, endDate={}", finalYearStr, ay.getStartDate(), ay.getEndDate());
-        return ay;
+        return dp;
     }
 
     private Semester resolveSemester(String semStr, UUID academicYearId) {
-        int semNum = 1;
-        if (semStr != null && !semStr.trim().isEmpty()) {
-            try {
-                String digits = semStr.replaceAll("[^0-9.]", "");
-                if (!digits.isEmpty()) {
-                    semNum = (int) Double.parseDouble(digits);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse semester number '{}'", semStr);
-            }
+        if (semStr == null || semStr.trim().isEmpty()) {
+            return null;
         }
+        int semNum = 0;
+        try {
+            String digits = semStr.replaceAll("[^0-9.]", "");
+            if (!digits.isEmpty()) {
+                semNum = (int) Double.parseDouble(digits);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        
+        if (semNum <= 0) return null;
 
+        // 1. Try to find Semester bound strictly to the requested Academic Session
         Optional<Semester> opt = semesterRepository.findBySemesterNumberAndAcademicYearId(semNum, academicYearId);
         if (opt.isPresent()) return opt.get();
 
         List<Semester> all = semesterRepository.findAll();
+        
+        // 2. Try to find ANY global Semester with this number bound to the requested session
         for (Semester s : all) {
             if (s.getSemesterNumber() == semNum && (s.getAcademicYear() != null && s.getAcademicYear().getId().equals(academicYearId))) {
                 return s;
             }
         }
+        
+        // 3. Try to find ANY global Semester with this number that is NOT bound to any session (ideal global fallback)
+        for (Semester s : all) {
+            if (s.getSemesterNumber() == semNum && s.getAcademicYear() == null) {
+                return s;
+            }
+        }
+        
+        // 4. Try to find ANY global Semester with this number to prevent crashes and avoid unnecessary duplicates
+        for (Semester s : all) {
+            if (s.getSemesterNumber() == semNum) {
+                return s;
+            }
+        }
 
-        // Dynamically create Semester for this academic year in PostgreSQL
-        AcademicYear ay = academicYearRepository.findById(academicYearId).orElse(null);
-        Semester s = new Semester();
-        s.setSemesterNumber(semNum);
-        s.setAcademicYear(ay);
-        s.setStartDate(ay != null && ay.getStartDate() != null ? ay.getStartDate() : java.time.LocalDate.now());
-        s.setEndDate(ay != null && ay.getEndDate() != null ? ay.getEndDate() : java.time.LocalDate.now().plusYears(1));
-        s.setIsActive(true);
-        s = semesterRepository.save(s);
-        log.info("Dynamically created Semester {} in PostgreSQL for AcademicYear ID {}", semNum, academicYearId);
-        return s;
+        // 5. Auto-create missing semester globally (not strictly bound to one session so it can be reused safely)
+        Semester newSem = new Semester();
+        newSem.setSemesterNumber(semNum);
+        newSem.setIsActive(true);
+        newSem.setAcademicYear(null);
+        return semesterRepository.save(newSem);
     }
 
     private String[] calculateYearAndSemFromBatch(String batch) {
@@ -696,18 +593,50 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         String academicYearInput = data.academicYear != null && !data.academicYear.trim().isEmpty() ? data.academicYear.trim() : "";
         String semesterInput = data.semester != null && !data.semester.trim().isEmpty() ? data.semester.trim() : (existingStudent != null ? existingStudent.getCurrentSemester() : "");
 
-        AcroClass acroClass = resolveAcroClass(classInput, sectionInput, data.department, data.degree);
-        Department department = resolveDepartment(acroClass, data.department);
-        DegreeProgram degreeProgram = resolveDegreeProgram(acroClass, data.degree, department);
+        Department department = academicIdentityResolver.resolveDepartment(data.department);
+        DegreeProgram degreeProgram = academicIdentityResolver.resolveDegreeProgram(data.degree);
         
-        if (academicYearInput.isEmpty() || semesterInput.isEmpty()) {
-            String[] calc = calculateYearAndSemFromBatch(batchYearInput);
-            if (academicYearInput.isEmpty()) academicYearInput = calc[0];
-            if (semesterInput.isEmpty()) semesterInput = calc[1];
+        // Use explicit inputs without guessing sections
+        AcroClass acroClass = null;
+        if (classInput != null && !classInput.isEmpty()) {
+            acroClass = academicIdentityResolver.resolveClass(classInput, sectionInput, department, degreeProgram);
+        }
+        if (acroClass == null) {
+            throw new IllegalArgumentException("Class (Course) is strictly required.");
         }
 
-        AcademicYear academicYear = resolveAcademicYear(academicYearInput);
-        Semester semester = resolveSemester(semesterInput, academicYear.getId());
+        department = getDepartmentSafe(acroClass, data.department);
+        degreeProgram = getDegreeProgramSafe(acroClass, data.degree);
+        
+        Integer studyYear = null;
+        if (academicYearInput != null && !academicYearInput.trim().isEmpty()) {
+            String rawYearStr = academicYearInput.trim();
+            if (rawYearStr.matches("^[1-8]$")) {
+                try {
+                    studyYear = Integer.parseInt(rawYearStr);
+                } catch (Exception ignored) {}
+            }
+        }
+        
+        String rawAcademicYear = data.academicYear != null ? data.academicYear.trim() : "";
+        if (rawAcademicYear.isEmpty()) {
+            throw new IllegalArgumentException("Year is required for student enrollment.");
+        }
+        
+        AcademicYear activeSession = academicYearRepository.findByYear(rawAcademicYear)
+                .orElseGet(() -> {
+                    AcademicYear newSession = new AcademicYear();
+                    newSession.setYear(rawAcademicYear);
+                    newSession.setStartDate(java.time.LocalDate.now());
+                    newSession.setEndDate(java.time.LocalDate.now().plusYears(1));
+                    newSession.setIsActive(true);
+                    return academicYearRepository.save(newSession);
+                });
+        
+        Semester semester = resolveSemester(semesterInput, activeSession.getId());
+        if (semester == null) {
+            throw new IllegalArgumentException("Semester is required for student enrollment.");
+        }
 
         // TRACE LOG FOR ALL 13 FIELDS BEFORE AND AFTER MAPPING
         log.info("=== [MAPPING TRACE ROW {}] ===", rowNumber);
@@ -720,7 +649,7 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
         log.info("7. Class:            rawClass='{}' -> resolved='{}'", data.acroClass, acroClass.getName());
         log.info("8. Section:          rawSection='{}' -> resolved='{}'", data.section, acroClass.getSection());
         log.info("9. Semester:         rawSemester='{}' -> resolved='{}'", data.semester, semester.getSemesterNumber());
-        log.info("10. Academic Year:   rawYear='{}' -> resolved='{}'", data.academicYear, academicYear.getYear());
+        log.info("10. Academic Session:rawYear='{}' -> resolved='{}'", data.academicYear, activeSession.getYear());
         log.info("11. Batch Year:      rawBatch='{}' -> mapped='{}'", data.batchYear, data.batchYear);
         log.info("12. Phone:           rawPhone='{}' -> mapped='{}'", data.mobileNumber, data.mobileNumber);
         log.info("13. Gender:          rawGender='{}' -> mapped='{}'", data.gender, data.gender);
@@ -843,11 +772,12 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
 
         // Student Enrollment Entity
         StudentEnrollment enrollment = studentEnrollmentRepository
-                    .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(
-                            student.getId(), academicYear.getId(), semester.getId())
-                .orElse(new StudentEnrollment());
-                
-        if (enrollment.getId() == null) {
+                .findFirstByStudentIdAndAcademicYearIdAndSemesterIdOrderByIdDesc(
+                        student.getId(), activeSession.getId(), semester.getId())
+                .orElse(null);
+        
+        if (enrollment == null) {
+            enrollment = new StudentEnrollment();
             enrollment.setCreatedBy(uploadedBy);
             enrollment.setEffectiveFrom(java.time.LocalDate.now());
             enrollment.setIsActive(true); // CRITICAL: Must be active to show up on UI!
@@ -858,7 +788,8 @@ public class StudentBulkUploadServiceImpl implements StudentBulkUploadService {
             }
         }
         enrollment.setStudent(student);
-        enrollment.setAcademicYear(academicYear);
+        enrollment.setStudyYear(studyYear);
+        enrollment.setAcademicYear(activeSession);
         enrollment.setSemester(semester);
         enrollment.setAcroClass(acroClass);
         studentEnrollmentRepository.save(enrollment);

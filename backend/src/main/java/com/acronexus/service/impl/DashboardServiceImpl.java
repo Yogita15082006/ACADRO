@@ -443,53 +443,13 @@ public class DashboardServiceImpl implements DashboardService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        UUID departmentId = user.getDepartment().getId();
-        if (departmentId == null) {
-            throw new RuntimeException("HOD is not assigned to any department");
-        }
-
-        long studentCount = userRepository.countByDepartmentIdAndRoleAndIsDeletedFalse(departmentId, UserRole.STUDENT);
-        long facultyCount = userRepository.countByDepartmentIdAndRoleAndIsDeletedFalse(departmentId, UserRole.FACULTY);
-        long attendanceCount = studentAttendanceRepository.countByDepartmentId(departmentId);
-        long assignmentCount = assignmentRepository.countByDepartmentId(departmentId);
-        long quizCount = quizRepository.countByDepartmentId(departmentId);
-        long examinationCount = examinationRepository.countByDepartmentIdAndIsDeletedFalse(departmentId);
-        long noticeCount = noticeRepository.countByTargetDepartmentIdAndIsDeletedFalseAndIsActiveTrue(departmentId);
-        long notificationCount = userNotificationRepository.countByDepartmentId(departmentId);
-        long classCount = acroClassRepository.countByDepartmentId(departmentId);
-        String deptName = user.getDepartment().getName();
-
-        Object attendanceResult = studentAttendanceRepository.getDepartmentOverallAttendance(departmentId);
-        Double attendancePercentage = null;
-        if (attendanceResult != null) {
-            long totalClasses = 0;
-            long presentClasses = 0;
-            if (attendanceResult instanceof Object[] row) {
-                totalClasses = row.length > 0 && row[0] != null ? ((Number) row[0]).longValue() : 0;
-                presentClasses = row.length > 1 && row[1] != null ? ((Number) row[1]).longValue() : 0;
-            } else if (attendanceResult instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Object[] row) {
-                totalClasses = row.length > 0 && row[0] != null ? ((Number) row[0]).longValue() : 0;
-                presentClasses = row.length > 1 && row[1] != null ? ((Number) row[1]).longValue() : 0;
-            }
-            if (totalClasses > 0) {
-                attendancePercentage = Math.round(((double) presentClasses / totalClasses) * 10000.0) / 100.0;
-            } else {
-                attendancePercentage = 0.0;
-            }
-        }
-
-        Faculty faculty = facultyRepository.findById(userId).orElse(null);
-        List<com.acronexus.entity.Department> targetDepts = new ArrayList<>();
-        if (faculty != null && faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
-            targetDepts = faculty.getDepartments();
-        } else if (user.getDepartment() != null) {
-            targetDepts.add(user.getDepartment());
-        }
+        List<com.acronexus.entity.Department> targetDepts = departmentRepository.findByHodId(userId);
 
         if (targetDepts.isEmpty()) {
             throw new RuntimeException("HOD is not assigned to any department");
         }
 
+        Double attendancePercentage = 0.0;
         List<HodDashboardResponse.DepartmentStats> breakdowns = new ArrayList<>();
         
         long totalStudentCount = 0;

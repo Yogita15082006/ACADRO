@@ -50,6 +50,7 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     private final SemesterRepository semesterRepository;
     private final AcademicYearRepository academicYearRepository;
     private final AcroClassRepository acroClassRepository;
+    private final com.acronexus.service.AcademicIdentityResolver academicIdentityResolver;
 
     @Override
     public BulkUploadResponseDto uploadFacultyList(MultipartFile file, UUID uploadedByUserId) {
@@ -182,7 +183,10 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
         String firstName = nameParts[0];
         String lastName = nameParts.length > 1 ? nameParts[1] : "";
 
-        Department department = resolveDepartment(data.department);
+        Department department = academicIdentityResolver.resolveDepartment(data.department);
+        if (department == null) {
+            throw new IllegalArgumentException("Department is strictly required.");
+        }
 
         UserRole userRole = UserRole.FACULTY; // default
         String inputRole = data.role.trim().toUpperCase();
@@ -308,20 +312,7 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     }
     
     private Department resolveDepartment(String deptName) {
-        if (deptName != null && !deptName.trim().isEmpty()) {
-            String cleanDept = deptName.trim();
-            for (Department d : departmentRepository.findAll()) {
-                if (d.getName().equalsIgnoreCase(cleanDept) || d.getCode().equalsIgnoreCase(cleanDept)) {
-                    return d;
-                }
-            }
-            Department newDept = new Department();
-            newDept.setName(cleanDept);
-            newDept.setCode(cleanDept.length() > 5 ? cleanDept.substring(0, 5).toUpperCase() : cleanDept.toUpperCase());
-            newDept.setIsActive(true);
-            return departmentRepository.save(newDept);
-        }
-        throw new IllegalArgumentException("Department is required.");
+        return academicIdentityResolver.resolveDepartment(deptName);
     }
 
     @Override

@@ -86,4 +86,16 @@ public class MetadataController {
     public ResponseEntity<ApiResponse<List<String>>> getDesignations() {
         return ResponseEntity.ok(ApiResponse.success("Designations retrieved successfully", metadataService.getDesignations()));
     }
+    
+    @GetMapping("/active-study-years")
+    public ResponseEntity<ApiResponse<List<String>>> getActiveStudyYears(@org.springframework.web.bind.annotation.RequestParam(required = false) String batch) {
+        return ResponseEntity.ok(ApiResponse.success("Active study years retrieved successfully", metadataService.getActiveStudyYears(batch)));
+    }
+    
+    @GetMapping("/active-classes")
+    public ResponseEntity<ApiResponse<List<String>>> getActiveClasses(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String batch,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String studyYear) {
+        return ResponseEntity.ok(ApiResponse.success("Active classes retrieved successfully", metadataService.getActiveClasses(batch, studyYear)));
+    }
 }

@@ -37,6 +37,10 @@ public class UserResponseDto {
     private java.util.List<String> classes;
     private java.util.List<String> subjects;
     
+    // Explicit responsibilities
+    private java.util.List<CoordinatorAssignmentSummaryDto> coordinatorAssignments;
+    private java.util.List<DepartmentInfo> hodDepartments;
+    
 
     @Data
     public static class DepartmentInfo {

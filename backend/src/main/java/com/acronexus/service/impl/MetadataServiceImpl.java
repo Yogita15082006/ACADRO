@@ -244,4 +244,41 @@ public class MetadataServiceImpl implements MetadataService {
                 .sorted()
                 .collect(Collectors.toList());
     }
+    
+    @Override
+    public List<String> getActiveStudyYears(String batch) {
+        if (batch == null || batch.isEmpty()) {
+            return studentEnrollmentRepository.findDistinctStudyYears().stream()
+                .map(y -> y + (y == 1 ? "st Year" : y == 2 ? "nd Year" : y == 3 ? "rd Year" : "th Year"))
+                .collect(Collectors.toList());
+        }
+        
+        return studentEnrollmentRepository.findAll().stream()
+            .filter(e -> e.getIsActive() != null && e.getIsActive() && e.getStudyYear() != null && batch.equals(e.getStudent().getBatchYear()))
+            .map(e -> e.getStudyYear())
+            .distinct()
+            .sorted()
+            .map(y -> y + (y == 1 ? "st Year" : y == 2 ? "nd Year" : y == 3 ? "rd Year" : "th Year"))
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> getActiveClasses(String batch, String studyYear) {
+        Integer yearInt = null;
+        if (studyYear != null && !studyYear.isEmpty()) {
+            try {
+                yearInt = Integer.parseInt(studyYear.substring(0, 1));
+            } catch (Exception e) {}
+        }
+        
+        return studentEnrollmentRepository.findDistinctClassesByScope(
+                (batch != null && !batch.isEmpty()) ? batch : null,
+                yearInt,
+                null // semesterId not used for this scope
+            ).stream()
+            .map(com.acronexus.entity.AcroClass::getName)
+            .distinct()
+            .sorted()
+            .collect(Collectors.toList());
+    }
 }

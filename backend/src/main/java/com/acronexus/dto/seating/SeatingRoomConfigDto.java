@@ -8,4 +8,6 @@ public class SeatingRoomConfigDto {
     private Integer benches;
     private Integer maxPerBench;
     private java.util.List<java.util.UUID> invigilatorIds;
+    private String startTime;
+    private String endTime;
 }

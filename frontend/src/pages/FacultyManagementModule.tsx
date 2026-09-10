@@ -9,7 +9,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search, Brain, Shield, Sparkles, Plus, FileUp, Loader2, Edit2, UserPlus, GraduationCap, Eye, AlertTriangle, RefreshCcw, Trash2, Download, File } from 'lucide-react';
+import { Users, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search, Brain, Shield, Sparkles, Plus, FileUp, Loader2, Edit2, UserPlus, GraduationCap, Eye, AlertTriangle, RefreshCcw, Trash2, Download, File, Star } from 'lucide-react';
 import { Label } from '../components/ui/label';
 
 import { ChevronLeft } from 'lucide-react';
@@ -29,7 +29,6 @@ const tabs: { key: Tab; label: string; icon: any }[] = [
 const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
   const [batches, setBatches] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
-  const [semesters, setSemesters] = useState<string[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
 
   useEffect(() => {
@@ -38,27 +37,19 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
 
   useEffect(() => {
     if (row.batch) {
-      api.get(`/v1/metadata/academic-years?batch=${row.batch}`).then(res => setYears(res.data.data || []));
+      api.get(`/v1/metadata/active-study-years?batch=${row.batch}`).then(res => setYears(res.data.data || []));
     } else {
-      setYears([]); setSemesters([]); setClasses([]);
+      setYears([]); setClasses([]);
     }
   }, [row.batch]);
 
   useEffect(() => {
-    if (row.year) {
-      api.get(`/v1/metadata/semesters?year=${row.year}`).then(res => setSemesters(res.data.data || []));
-    } else {
-      setSemesters([]); setClasses([]);
-    }
-  }, [row.year]);
-
-  useEffect(() => {
-    if (row.batch && row.semester) {
-      api.get(`/v1/metadata/classes?batch=${row.batch}&semester=${row.semester}`).then(res => setClasses(res.data.data || []));
+    if (row.batch && row.academicYear) {
+      api.get(`/v1/metadata/active-classes?batch=${row.batch}&studyYear=${row.academicYear}`).then(res => setClasses(res.data.data || []));
     } else {
       setClasses([]);
     }
-  }, [row.batch, row.semester]);
+  }, [row.batch, row.academicYear]);
 
   return (
     <div className="flex gap-2 items-end mb-3 bg-muted/30 p-3 rounded-lg border border-border">
@@ -70,22 +61,15 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
         </select>
       </div>
       <div className="flex-1 space-y-1">
-        <label className="text-xs font-semibold text-muted-foreground">Year</label>
-        <select value={row.year} onChange={e => updateRow(index, 'year', e.target.value)} disabled={!row.batch} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+        <label className="text-xs font-semibold text-muted-foreground">Academic Year</label>
+        <select value={row.academicYear} onChange={e => updateRow(index, 'academicYear', e.target.value)} disabled={!row.batch} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
           <option value="">Select</option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
       <div className="flex-1 space-y-1">
-        <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-        <select value={row.semester} onChange={e => updateRow(index, 'semester', e.target.value)} disabled={!row.year} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
-          <option value="">Select</option>
-          {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-      <div className="flex-1 space-y-1">
-        <label className="text-xs font-semibold text-muted-foreground">Class</label>
-        <select value={row.className} onChange={e => updateRow(index, 'className', e.target.value)} disabled={!row.semester} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+        <label className="text-xs font-semibold text-muted-foreground">Class / Section</label>
+        <select value={row.className} onChange={e => updateRow(index, 'className', e.target.value)} disabled={!row.academicYear} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
           <option value="">Select</option>
           {classes.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -100,22 +84,21 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
 };
 
 const MakeCoordinatorDialog = ({ open, faculty, onClose, onSave }: any) => {
-  const [assignments, setAssignments] = useState<any[]>([{ id: Date.now(), batch: '', year: '', semester: '', className: '' }]);
+  const [assignments, setAssignments] = useState<any[]>([{ id: Date.now(), batch: '', academicYear: '', className: '' }]);
 
   useEffect(() => {
     if (open) {
-      setAssignments([{ id: Date.now(), batch: '', year: '', semester: '', className: '' }]);
+      setAssignments([{ id: Date.now(), batch: '', academicYear: '', className: '' }]);
     }
   }, [open]);
 
-  const addRow = () => setAssignments([...assignments, { id: Date.now(), batch: '', year: '', semester: '', className: '' }]);
+  const addRow = () => setAssignments([...assignments, { id: Date.now(), batch: '', academicYear: '', className: '' }]);
   const updateRow = (index: number, field: string, value: string) => {
     const newAssignments = [...assignments];
     newAssignments[index][field] = value;
     // Reset downstream fields
-    if (field === 'batch') { newAssignments[index].year = ''; newAssignments[index].semester = ''; newAssignments[index].className = ''; }
-    if (field === 'year') { newAssignments[index].semester = ''; newAssignments[index].className = ''; }
-    if (field === 'semester') { newAssignments[index].className = ''; }
+    if (field === 'batch') { newAssignments[index].academicYear = ''; newAssignments[index].className = ''; }
+    if (field === 'academicYear') { newAssignments[index].className = ''; }
     setAssignments(newAssignments);
   };
   const removeRow = (index: number) => setAssignments(assignments.filter((_, i) => i !== index));
@@ -166,39 +149,107 @@ const MakeCoordinatorDialog = ({ open, faculty, onClose, onSave }: any) => {
 const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => {
   const [name, setName] = useState(faculty.name || '');
   const [email, setEmail] = useState(faculty.email || '');
-  const [role, setRole] = useState(faculty.role?.toLowerCase() || 'faculty');
-  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [isCoordinator, setIsCoordinator] = useState(false);
+  const [coordAssignments, setCoordAssignments] = useState<any[]>([]);
+  const [isHod, setIsHod] = useState(false);
+  const [baseDept, setBaseDept] = useState<string>('');
+  const [hodDepts, setHodDepts] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (faculty) {
       setName(faculty.name || '');
       setEmail(faculty.email || '');
-      setRole(faculty.role?.toLowerCase() || 'faculty');
-      if (faculty.departments && Array.isArray(faculty.departments)) {
-        setSelectedDepts(faculty.departments.map((d: any) => typeof d === 'string' ? d : d.name));
-      } else if (faculty.department?.name) {
-        setSelectedDepts([faculty.department.name]);
-      } else {
-        setSelectedDepts([]);
+      
+      // We know faculty.role contains the highest privilege
+      const roleUpper = faculty.role?.toUpperCase() || 'FACULTY';
+      
+      // Initialize HOD
+      setIsHod(roleUpper === 'HOD' || (faculty.hodDepartments && faculty.hodDepartments.length > 0));
+      
+      // Initialize Coordinator
+      const hasCoord = roleUpper === 'COORDINATOR' || (faculty.coordinatorAssignments && faculty.coordinatorAssignments.length > 0);
+      setIsCoordinator(hasCoord);
+      if (hasCoord && faculty.coordinatorAssignments && faculty.coordinatorAssignments.length > 0) {
+          setCoordAssignments(faculty.coordinatorAssignments.map((a: any) => ({
+              id: a.id || Date.now() + Math.random(),
+              batch: a.batch || '',
+              academicYear: a.academicYear || '',
+              className: a.className || ''
+          })));
+      } else if (hasCoord) {
+          setCoordAssignments([{ id: Date.now(), batch: '', academicYear: '', className: '' }]);
+      }
+
+      // Initialize base department
+      if (faculty.department?.name) {
+        setBaseDept(faculty.department.name);
+      } else if (faculty.departments && faculty.departments.length > 0) {
+        setBaseDept(typeof faculty.departments[0] === 'string' ? faculty.departments[0] : faculty.departments[0].name);
+      }
+
+      // Fetch actual HOD assignments
+      if (faculty.id) {
+        setIsLoading(true);
+        api.get(`/v1/hod-assignments/${faculty.id}`)
+          .then(res => {
+            if (res.data?.data) {
+              setHodDepts(res.data.data);
+              if (res.data.data.length > 0) {
+                setIsHod(true);
+              }
+            }
+          })
+          .catch(err => console.error("Failed to fetch HOD assignments", err))
+          .finally(() => setIsLoading(false));
       }
     }
   }, [faculty]);
 
-  const toggleDept = (deptName: string) => {
-    if (selectedDepts.includes(deptName)) {
-      setSelectedDepts(selectedDepts.filter(d => d !== deptName));
+  const toggleHodDept = (deptName: string) => {
+    if (hodDepts.includes(deptName)) {
+      setHodDepts(hodDepts.filter(d => d !== deptName));
     } else {
-      setSelectedDepts([...selectedDepts, deptName]);
+      setHodDepts([...hodDepts, deptName]);
     }
   };
 
+  const handleCoordinatorToggle = (checked: boolean) => {
+      setIsCoordinator(checked);
+      if (checked && coordAssignments.length === 0) {
+          setCoordAssignments([{ id: Date.now(), batch: '', academicYear: '', className: '' }]);
+      }
+  };
+
+  const addCoordRow = () => setCoordAssignments([...coordAssignments, { id: Date.now(), batch: '', academicYear: '', className: '' }]);
+  const updateCoordRow = (index: number, field: string, value: string) => {
+    const newAssignments = [...coordAssignments];
+    newAssignments[index][field] = value;
+    if (field === 'batch') { newAssignments[index].academicYear = ''; newAssignments[index].className = ''; }
+    if (field === 'academicYear') { newAssignments[index].className = ''; }
+    setCoordAssignments(newAssignments);
+  };
+  const removeCoordRow = (index: number) => setCoordAssignments(coordAssignments.filter((_, i) => i !== index));
+
   const handleSubmit = (e: any) => {
     e.preventDefault();
+    if (isCoordinator) {
+        // Validate
+        const invalid = coordAssignments.some(a => !a.batch || !a.academicYear || !a.className);
+        if (invalid) {
+            toast.error("Please complete the Coordinator assignment details.");
+            return;
+        }
+    }
+    
     onSave({
       name,
       email,
-      role,
-      departments: selectedDepts,
+      isCoordinator,
+      coordAssignments: isCoordinator ? coordAssignments : [],
+      isHod,
+      baseDept,
+      hodDepts: isHod ? hodDepts : [],
     });
   };
 
@@ -214,64 +265,104 @@ const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => 
         </div>
       </div>
       <div className="space-y-4">
-        <div className="space-y-1">
-          <Label>Role</Label>
-          <select value={role} onChange={e => setRole(e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
-            <option value="faculty">Faculty</option>
-            <option value="coordinator">Coordinator</option>
-            <option value="both">Both</option>
-            <option value="hod">HOD</option>
-          </select>
-        </div>
         <div className="space-y-2">
-          <Label>Departments <span className="text-muted-foreground font-normal text-xs">(Select multiple)</span></Label>
-          <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-border p-2 rounded-md">
-            {departmentsList.map((d: string) => (
-              <label key={d} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted p-1 rounded">
+          <Label>Responsibilities</Label>
+          <div className="flex items-center gap-6 p-2 rounded-md border border-input bg-background/50">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={true} disabled className="rounded border-gray-300 text-primary" />
+              <span className="text-sm font-medium">Faculty (Base)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
                 <input 
                   type="checkbox" 
-                  checked={selectedDepts.includes(d)} 
-                  onChange={() => toggleDept(d)} 
-                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  checked={isCoordinator} 
+                  onChange={(e) => handleCoordinatorToggle(e.target.checked)} 
+                  className="rounded border-gray-300 text-primary focus:ring-primary" 
                 />
-                {d}
+                <span className="text-sm font-medium">Coordinator</span>
               </label>
-            ))}
-            {departmentsList.length === 0 && <p className="text-muted-foreground text-xs col-span-2">No departments found.</p>}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={isHod} 
+                onChange={(e) => setIsHod(e.target.checked)} 
+                className="rounded border-gray-300 text-primary focus:ring-primary" 
+              />
+              <span className="text-sm font-medium">HOD</span>
+            </label>
           </div>
         </div>
-      </div>
-      {((faculty.classes && faculty.classes.length > 0) || (faculty.subjects && faculty.subjects.length > 0)) && (
-        <div className="space-y-3 pt-2">
-          {faculty.classes && faculty.classes.length > 0 && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Assigned Classes</Label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(faculty.classes || []).map((c: string) => (
-                  <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {faculty.subjects && faculty.subjects.length > 0 && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Assigned Subjects</Label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(faculty.subjects || []).map((s: string) => (
-                  <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
+
+        <div className="space-y-2">
+          <Label>Base Department Membership</Label>
+          <select 
+            value={baseDept} 
+            onChange={e => setBaseDept(e.target.value)} 
+            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            required
+          >
+            <option value="">Select Base Department</option>
+            {departmentsList.map((d: string) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </div>
-      )}
-      <DialogFooter className="pt-4">
+
+        {isCoordinator && (
+          <div className="space-y-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-primary flex items-center gap-2">
+                <Shield size={14} /> Coordinator Assignments
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={addCoordRow} className="h-7 text-xs px-2 gap-1"><Plus size={12}/> Add</Button>
+            </div>
+            
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {coordAssignments.map((row, i) => (
+                <AssignmentRow key={row.id} row={row} index={i} updateRow={updateCoordRow} removeRow={removeCoordRow} />
+              ))}
+              {coordAssignments.length === 0 && (
+                  <p className="text-muted-foreground text-xs italic">No assignments.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isHod && (
+          <div className="space-y-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+            <Label className="text-primary flex items-center gap-2">
+              <Star size={14} /> HOD Managed Departments
+            </Label>
+            {isLoading ? (
+              <p className="text-xs text-muted-foreground">Loading HOD assignments...</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-border bg-background p-2 rounded-md">
+                {departmentsList.map((d: string) => (
+                  <label key={d} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted p-1 rounded">
+                    <input 
+                      type="checkbox" 
+                      checked={hodDepts.includes(d)} 
+                      onChange={() => toggleHodDept(d)} 
+                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    {d}
+                  </label>
+                ))}
+                {departmentsList.length === 0 && <p className="text-muted-foreground text-xs col-span-2">No departments found.</p>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <DialogFooter className="mt-4 pt-2 border-t border-border/50">
         <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button type="submit">Save Changes</Button>
+        <Button type="submit" disabled={isLoading}>Save Changes</Button>
       </DialogFooter>
     </form>
   );
 };
+
 
 export const FacultyManagementModule = () => {
   const navigate = useNavigate();
@@ -692,7 +783,7 @@ export const FacultyManagementModule = () => {
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('academicYear', _data.year || '2023-2024');
+      if (_data.year) formData.append('academicYear', _data.year);
       if (_data.batch) formData.append('batch', _data.batch);
       if (_data.className) formData.append('className', _data.className);
       if (_data.department) formData.append('department', _data.department);
@@ -1014,17 +1105,42 @@ export const FacultyManagementModule = () => {
   const handleEditFacultySave = async (updatedData: any) => {
     if (!viewFacultyDialog) return;
     try {
+      // 1. Determine base role (to fall back on if nothing else is selected)
+      let calculatedRole = 'FACULTY';
+      if (updatedData.isHod) calculatedRole = 'HOD';
+      else if (updatedData.isCoordinator) calculatedRole = 'COORDINATOR';
+
+      // 2. Update HOD assignments if needed
+      if (updatedData.hodDepts) {
+        await api.put(`/v1/hod-assignments/${viewFacultyDialog.id}`, updatedData.hodDepts);
+      }
+      
+      // 3. Update Coordinator assignments
+      if (updatedData.isCoordinator && updatedData.coordAssignments) {
+        await api.post(`/v1/coordinator-assignments`, {
+            facultyId: viewFacultyDialog.id,
+            assignments: updatedData.coordAssignments
+        });
+      } else {
+        // Remove coordinator assignments if unmarked
+        try {
+            await api.delete(`/v1/coordinator-assignments/${viewFacultyDialog.id}`);
+        } catch (ignored) {}
+      }
+      
+      // 4. Update core user details and base department (Role recalculation last)
       await api.put(`/v1/users/${viewFacultyDialog.id}`, {
         firstName: updatedData.name.split(' ')[0] || updatedData.name,
         lastName: updatedData.name.split(' ').slice(1).join(' '),
-        role: updatedData.role.toUpperCase(),
-        departments: updatedData.departments,
+        role: calculatedRole,
+        departments: updatedData.baseDept ? [updatedData.baseDept] : [],
       });
+
       toast.success('Faculty details updated successfully.');
       setViewFacultyDialog(null);
       fetchFaculty();
-    } catch (e) {
-      toast.error('Failed to update faculty details.');
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to update faculty details.');
     }
   };
 
@@ -1270,8 +1386,12 @@ export const FacultyManagementModule = () => {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{f.email}</td>
                         <td className="px-4 py-3">
-                          <Badge variant={f.role === 'HOD' ? 'default' : f.role === 'COORDINATOR' ? 'secondary' : 'outline'} className="text-xs capitalize">{f.role}</Badge>
-                        </td>
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant="outline" className="text-xs">Faculty</Badge>
+                              {f.coordinatorAssignments && f.coordinatorAssignments.length > 0 && <Badge variant="secondary" className="text-xs">Coordinator</Badge>}
+                              {f.hodDepartments && f.hodDepartments.length > 0 && <Badge variant="default" className="text-xs">HOD</Badge>}
+                            </div>
+                          </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {f.departments && f.departments.length > 0 
                             ? f.departments.map((d: any) => typeof d === 'string' ? d : d.name).join(', ') 
@@ -1328,7 +1448,7 @@ export const FacultyManagementModule = () => {
                     <Shield size={20} />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{localFaculty.filter(f => f.role === 'COORDINATOR').length}</p>
+                    <p className="text-2xl font-bold">{localFaculty.filter(f => (f.coordinatorAssignments || []).length > 0).length}</p>
                     <p className="text-xs text-muted-foreground font-medium">Coordinators</p>
                   </div>
                 </CardContent>
@@ -1360,35 +1480,55 @@ export const FacultyManagementModule = () => {
             {/* Profile Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredFaculty.map(f => {
-                const hasClasses = f.classes && f.classes.length > 0;
-                const hasSubjects = f.subjects && f.subjects.length > 0;
-                let displayRole = f.role;
-                if (f.role !== 'HOD' && f.role !== 'ADMIN') {
-                  if (f.role === 'COORDINATOR' || f.role === 'both') {
-                     if (hasSubjects) displayRole = 'Faculty + Coordinator';
-                     else displayRole = 'Coordinator';
-                  } else {
-                     displayRole = 'Faculty';
-                  }
-                }
+                  const hasClasses = f.classes && f.classes.length > 0;
+                  const hasSubjects = f.subjects && f.subjects.length > 0;
+                  const isHOD = f.hodDepartments && f.hodDepartments.length > 0;
+                  const isCoordinator = f.coordinatorAssignments && f.coordinatorAssignments.length > 0;
 
-                return (
-                <Card key={f.id} className="bg-card border-border shadow-sm hover:shadow-md transition-shadow">
-                  <CardContent className="p-5 flex flex-col h-full relative group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/5">
-                          {f.name ? f.name.split(' ').map((n: string) => n[0]).join('') : 'U'}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{f.name}</h3>
-                          <Badge variant={displayRole === 'HOD' || displayRole === 'ADMIN' ? 'default' : displayRole.includes('Coordinator') ? 'secondary' : 'outline'} className="text-[10px] mt-1 capitalize">{displayRole}</Badge>
+                  return (
+                  <Card key={f.id} className="bg-card border-border shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-5 flex flex-col h-full relative group">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/5">
+                            {f.name ? f.name.split(' ').map((n: string) => n[0]).join('') : 'U'}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">{f.name}</h3>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="outline" className="text-[10px] capitalize">Faculty</Badge>
+                                {isCoordinator && <Badge variant="secondary" className="text-[10px] capitalize">Coordinator</Badge>}
+                                {isHOD && <Badge variant="default" className="text-[10px] capitalize">HOD</Badge>}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="space-y-3 flex-1">
-                      <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+                      
+                      <div className="space-y-3 flex-1">
+                        {/* Responsibility Scopes */}
+                        {(isHOD || isCoordinator) && (
+                            <div className="bg-primary/5 rounded-lg p-3 space-y-2 border border-primary/10">
+                                {isHOD && (
+                                    <div className="text-xs">
+                                        <span className="font-bold text-foreground">HOD</span> — {f.hodDepartments.map((d: any) => d.name).join(' • ')}
+                                    </div>
+                                )}
+                                {isCoordinator && (
+                                    <div className="text-xs space-y-1">
+                                        <span className="font-bold text-foreground">Coordinator</span>
+                                        {f.coordinatorAssignments.map((ca: any, idx: number) => (
+                                            <div key={idx} className="text-muted-foreground ml-1 flex items-center gap-1">
+                                                <div className="w-1 h-1 rounded-full bg-primary/40"></div>
+                                                {ca.batch} • {ca.academicYear} • {ca.className}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Subject & Class Scopes */}
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
                         <div className="flex flex-col gap-1.5">
                           <span className="text-xs text-muted-foreground flex items-center gap-1"><BookOpen size={12} /> Assigned Subjects</span>
                           {hasSubjects ? (

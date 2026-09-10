@@ -149,38 +149,37 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<com.acronexus.dto.OptionDto> getAcademicYearOptions() {
-        return academicYearRepository.findAll().stream()
-                .map(y -> new com.acronexus.dto.OptionDto(y.getId(), y.getYear()))
+        return enrollmentRepository.findDistinctStudyYears().stream()
+                .map(y -> {
+                    String label = y == 1 ? "1st Year" :
+                                   y == 2 ? "2nd Year" :
+                                   y == 3 ? "3rd Year" :
+                                   y + "th Year";
+                    return new com.acronexus.dto.OptionDto(y.toString(), label);
+                })
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<com.acronexus.dto.OptionDto> getSemesterOptions(UUID academicYearId) {
-        return semesterRepository.findAll().stream()
-                .filter(s -> s.getAcademicYear() != null && s.getAcademicYear().getId().equals(academicYearId))
-                .map(s -> new com.acronexus.dto.OptionDto(s.getId(), "Semester " + s.getSemesterNumber()))
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<com.acronexus.dto.OptionDto> getClassOptions(String batch, UUID academicYearId, UUID semesterId) {
-        List<com.acronexus.entity.AcroClass> classes = new java.util.ArrayList<>();
-        
-        if (batch != null && !batch.isEmpty() && academicYearId != null && semesterId != null) {
-            com.acronexus.entity.AcademicYear year = academicYearRepository.findById(academicYearId).orElse(null);
-            com.acronexus.entity.Semester sem = semesterRepository.findById(semesterId).orElse(null);
-            if (year != null && sem != null) {
-                classes = enrollmentRepository.findClasses(batch, java.util.List.of(year.getYear()), String.valueOf(sem.getSemesterNumber()));
-            }
+    public List<com.acronexus.dto.OptionDto> getSemesterOptions(Integer studyYear) {
+        if (studyYear == null) {
+            return java.util.Collections.emptyList();
         }
+        return enrollmentRepository.findDistinctSemestersByStudyYear(studyYear).stream()
+                .map(s -> new com.acronexus.dto.OptionDto(s.getId().toString(), "Semester " + s.getSemesterNumber()))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.acronexus.dto.OptionDto> getClassOptions(String batch, Integer studyYear, UUID semesterId) {
+        String cleanBatch = (batch != null && !batch.trim().isEmpty()) ? batch.trim() : null;
+        List<com.acronexus.entity.AcroClass> classes = enrollmentRepository.findDistinctClassesByScope(cleanBatch, studyYear, semesterId);
 
         java.util.Map<String, com.acronexus.dto.OptionDto> uniqueOptions = new java.util.LinkedHashMap<>();
         for (com.acronexus.entity.AcroClass c : classes) {
-            if (c.getIsActive() != null && c.getIsActive() && c.getIsDeleted() != null && !c.getIsDeleted()) {
-                String label = (c.getSection() != null && !c.getSection().trim().isEmpty()) ? c.getSection().trim() : c.getName();
-                if (label != null && !uniqueOptions.containsKey(label)) {
-                    uniqueOptions.put(label, new com.acronexus.dto.OptionDto(c.getId(), label));
-                }
+            String label = (c.getSection() != null && !c.getSection().trim().isEmpty()) ? c.getSection().trim() : c.getName();
+            if (label != null && !uniqueOptions.containsKey(label)) {
+                uniqueOptions.put(label, new com.acronexus.dto.OptionDto(c.getId().toString(), label));
             }
         }
         return new java.util.ArrayList<>(uniqueOptions.values());
@@ -563,15 +562,24 @@ public class StudentService {
         student.setBatchYear(request.getBatch());
         Student savedStudent = studentRepository.save(student);
 
-        if (request.getClassId() != null || request.getAcademicYearId() != null || request.getSemesterId() != null) {
+        if (request.getClassId() != null || request.getAcademicYearId() != null || request.getSemesterId() != null || request.getStudyYear() != null) {
             StudentEnrollment enrollment = new StudentEnrollment();
             enrollment.setStudent(savedStudent);
             enrollment.setIsActive(true);
             if (request.getClassId() != null) {
                 acroClassRepository.findById(request.getClassId()).ifPresent(enrollment::setAcroClass);
             }
+            if (request.getStudyYear() != null) {
+                enrollment.setStudyYear(request.getStudyYear());
+            }
             if (request.getAcademicYearId() != null) {
                 academicYearRepository.findById(request.getAcademicYearId()).ifPresent(enrollment::setAcademicYear);
+            } else {
+                // If not provided, fallback to currently active session
+                academicYearRepository.findAll().stream()
+                        .filter(ay -> Boolean.TRUE.equals(ay.getIsActive()))
+                        .findFirst()
+                        .ifPresent(enrollment::setAcademicYear);
             }
             if (request.getSemesterId() != null) {
                 semesterRepository.findById(request.getSemesterId()).ifPresent(enrollment::setSemester);
@@ -606,7 +614,7 @@ public class StudentService {
         
         Student savedStudent = studentRepository.save(student);
 
-        if (request.getClassId() != null || request.getAcademicYearId() != null || request.getSemesterId() != null) {
+        if (request.getClassId() != null || request.getAcademicYearId() != null || request.getSemesterId() != null || request.getStudyYear() != null) {
             java.util.Optional<StudentEnrollment> activeEnrollmentOpt = enrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(id);
             StudentEnrollment enrollment = activeEnrollmentOpt.orElseGet(() -> {
                 StudentEnrollment newEnrollment = new StudentEnrollment();
@@ -618,8 +626,16 @@ public class StudentService {
             if (request.getClassId() != null) {
                 acroClassRepository.findById(request.getClassId()).ifPresent(enrollment::setAcroClass);
             }
+            if (request.getStudyYear() != null) {
+                enrollment.setStudyYear(request.getStudyYear());
+            }
             if (request.getAcademicYearId() != null) {
                 academicYearRepository.findById(request.getAcademicYearId()).ifPresent(enrollment::setAcademicYear);
+            } else if (enrollment.getAcademicYear() == null) {
+                academicYearRepository.findAll().stream()
+                        .filter(ay -> Boolean.TRUE.equals(ay.getIsActive()))
+                        .findFirst()
+                        .ifPresent(enrollment::setAcademicYear);
             }
             if (request.getSemesterId() != null) {
                 semesterRepository.findById(request.getSemesterId()).ifPresent(enrollment::setSemester);
@@ -781,7 +797,10 @@ public class StudentService {
                         dto.setBranch(deptName);
                     }
                 }
-                if (enrollment.getAcademicYear() != null) {
+                if (enrollment.getStudyYear() != null) {
+                    dto.setStudyYear(enrollment.getStudyYear());
+                    dto.setYear(enrollment.getStudyYear() + (enrollment.getStudyYear() == 1 ? "st" : enrollment.getStudyYear() == 2 ? "nd" : enrollment.getStudyYear() == 3 ? "rd" : "th") + " Year");
+                } else if (enrollment.getAcademicYear() != null) {
                     dto.setYear(enrollment.getAcademicYear().getYear());
                 }
                 if (enrollment.getSemester() != null) {

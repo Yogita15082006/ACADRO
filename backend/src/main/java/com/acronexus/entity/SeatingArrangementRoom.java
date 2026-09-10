@@ -33,6 +33,12 @@ public class SeatingArrangementRoom extends BaseEntity {
 
     private String classes;
 
+    @Column(name = "start_time")
+    private String startTime;
+
+    @Column(name = "end_time")
+    private String endTime;
+
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SeatingArrangementStudent> students = new ArrayList<>();
 

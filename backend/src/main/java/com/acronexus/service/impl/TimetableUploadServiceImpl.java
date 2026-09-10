@@ -53,59 +53,36 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
         Department department = departmentRepository.findAll().stream()
                 .filter(d -> d.getName().equalsIgnoreCase(departmentName))
                 .findFirst()
-                .orElseGet(() -> {
-                    Department d = new Department();
-                    d.setName(departmentName);
-                    d.setCode(departmentName.toUpperCase().replaceAll("\\s+", "_"));
-                    d.setIsActive(true);
-                    return departmentRepository.save(d);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("Department '" + departmentName + "' does not exist. Please configure it first."));
 
         AcademicYear academicYear = academicYearRepository.findByYear(academicYearStr)
-                .orElseGet(() -> {
-                    AcademicYear a = new AcademicYear();
-                    a.setYear(academicYearStr);
-                    a.setStartDate(java.time.LocalDate.now());
-                    a.setEndDate(java.time.LocalDate.now().plusYears(1));
-                    a.setIsActive(true);
-                    return academicYearRepository.save(a);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("Academic Year '" + academicYearStr + "' does not exist. Please configure it first."));
 
         int semNum = 1;
         try { semNum = Integer.parseInt(semesterName.replace("Semester ", "").trim()); } catch (Exception ignored) {}
         final int fSemNum = semNum;
         Semester semester = semesterRepository.findBySemesterNumberAndAcademicYearId(semNum, academicYear.getId())
-                .orElseGet(() -> {
-                    Semester s = new Semester();
-                    s.setSemesterNumber(fSemNum);
-                    s.setAcademicYear(academicYear);
-                    s.setStartDate(java.time.LocalDate.now());
-                    s.setEndDate(java.time.LocalDate.now().plusMonths(6));
-                    s.setIsActive(true);
-                    return semesterRepository.save(s);
-                });
+                .orElseGet(() -> semesterRepository.findAll().stream()
+                        .filter(s -> s.getSemesterNumber() == fSemNum && (s.getAcademicYear() != null && s.getAcademicYear().getId().equals(academicYear.getId())))
+                        .findFirst()
+                        .orElseGet(() -> semesterRepository.findAll().stream()
+                                .filter(s -> s.getSemesterNumber() == fSemNum && s.getAcademicYear() == null)
+                                .findFirst()
+                                .orElseGet(() -> semesterRepository.findAll().stream()
+                                        .filter(s -> s.getSemesterNumber() == fSemNum)
+                                        .findFirst()
+                                        .orElseGet(() -> {
+                                            Semester newSem = new Semester();
+                                            newSem.setSemesterNumber(fSemNum);
+                                            newSem.setIsActive(true);
+                                            newSem.setAcademicYear(null);
+                                            return semesterRepository.save(newSem);
+                                        }))));
 
         AcroClass acroClass = acroClassRepository.findAll().stream()
                 .filter(c -> c.getName().equalsIgnoreCase(className) && c.getDepartment() != null && c.getDepartment().getName().equalsIgnoreCase(departmentName))
                 .findFirst()
-                .orElseGet(() -> {
-                    AcroClass c = new AcroClass();
-                    c.setName(className);
-                    c.setDepartment(department);
-                    
-                    com.acronexus.entity.DegreeProgram dp = degreeProgramRepository.findAll().stream()
-                            .findFirst()
-                            .orElseGet(() -> {
-                                com.acronexus.entity.DegreeProgram newDp = new com.acronexus.entity.DegreeProgram();
-                                newDp.setName("B.Tech");
-                                newDp.setDurationYears(4);
-                                newDp.setType(com.acronexus.entity.DegreeType.BACHELOR);
-                                newDp.setIsActive(true);
-                                return degreeProgramRepository.save(newDp);
-                            });
-                    c.setDegreeProgram(dp);
-                    return acroClassRepository.save(c);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("Class '" + className + "' does not exist for Department '" + departmentName + "'. Please configure it first."));
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File cannot be empty");

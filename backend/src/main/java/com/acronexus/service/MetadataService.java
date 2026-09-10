@@ -24,4 +24,7 @@ public interface MetadataService {
     List<String> getDesignations();
     List<String> getQualifications();
     List<String> getRoles();
+    
+    List<String> getActiveStudyYears(String batch);
+    List<String> getActiveClasses(String batch, String studyYear);
 }

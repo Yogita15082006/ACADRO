@@ -257,7 +257,7 @@ export const AcademicResourcesModule: React.FC = () => {
     if (type === 'syllabus') {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('academicYear', data.year || '2023-2024');
+      if (data.year) formData.append('academicYear', data.year);
       if (data.batch) formData.append('batch', data.batch);
       if (data.className) formData.append('className', data.className);
       if (data.department) formData.append('department', data.department);
@@ -377,7 +377,7 @@ export const AcademicResourcesModule: React.FC = () => {
         await api.delete('/v1/academic-resources/' + res.id);
         const formData = new FormData();
         formData.append('file', replaceFile);
-        formData.append('academicYear', res.metadata?.academicYear || res.academicYear || '2023-2024');
+        if (res.metadata?.academicYear || res.academicYear) formData.append('academicYear', res.metadata?.academicYear || res.academicYear);
         if (res.metadata?.batch || res.batch) formData.append('batch', res.metadata?.batch || res.batch);
         if (res.metadata?.className || res.className) formData.append('className', res.metadata?.className || res.className);
         if (res.metadata?.department || res.department) formData.append('department', res.metadata?.department || res.department);

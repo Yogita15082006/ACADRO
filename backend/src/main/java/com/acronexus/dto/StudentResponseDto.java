@@ -44,6 +44,7 @@ public class StudentResponseDto {
     // Additional fields for full profile export and edit pre-filling
     private UUID classId;
     private UUID academicYearId;
+    private Integer studyYear;
     private UUID semesterId;
 
     private java.math.BigDecimal sgpaSem1;

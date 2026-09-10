@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface AcademicYearRepository extends JpaRepository<AcademicYear, java.util.UUID> {
     Optional<AcademicYear> findByYear(String year);
+    java.util.List<AcademicYear> findByIsActiveTrue();
 }

@@ -21,5 +21,7 @@ public class StudentRequestDto {
     
     private java.util.UUID academicYearId;
     
+    private Integer studyYear;
+    
     private java.util.UUID semesterId;
 }

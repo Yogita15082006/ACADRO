@@ -13,4 +13,5 @@ public class SeatingArrangementStudentDto {
     private String row;
     private String bench;
     private Integer seat;
+    private UUID studentId;
 }
