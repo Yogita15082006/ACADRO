@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
-import { Plus, Calendar, Clock, Users, ArrowLeft, XCircle, ClipboardCheck, History, Pause, Play, Square, Copy, Eye, Activity, Save, Trash2, FileText, CheckCircle2, UserPlus, AlertTriangle } from 'lucide-react';
+import { Plus, Calendar, Clock, Users, ArrowLeft, XCircle, ClipboardCheck, History, Pause, Play, Square, Copy, Eye, Activity, Save, Trash2, FileText, CheckCircle2, UserPlus, AlertTriangle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { attendanceService } from '../services/attendanceService';
 import { toast } from 'react-hot-toast';
@@ -21,6 +21,9 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
   const [liveResponsesSessionId, setLiveResponsesSessionId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'main' | 'history' | 'detail'>('main');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isAutomateModalOpen, setIsAutomateModalOpen] = useState(false);
+  const [automateText, setAutomateText] = useState('');
+  const [isAutomateFlow, setIsAutomateFlow] = useState(false);
   const [isLiveResponsesOpen, setIsLiveResponsesOpen] = useState(false);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
@@ -183,32 +186,84 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
   };
 
   const handleConfirmReview = async () => {
-    if (!selectedDetailSessionId || !reviewData) return;
+    if (!reviewData) return;
     setIsBulkLoading(true);
     try {
       const approveIds = reviewData.matched.map((r: any) => r.id);
       const rejectIds = reviewData.unmatched.map((r: any) => r.id);
       
-      await attendanceService.bulkApplyReview(selectedDetailSessionId, {
-        approveIds,
-        rejectIds,
-        approvalSource: reviewSource,
-        remarks: `Processed via ${reviewSource}`
-      });
-      
-      toast.success('Bulk attendance applied successfully');
-      
-      const records = await attendanceService.getLiveResponses(selectedDetailSessionId);
-      setSelectedSessionRecords(records);
-      setIsReviewModalOpen(false);
-      setReviewData(null);
-      
-      // Global Refresh
-      await fetchSessions();
-
+      if (isAutomateFlow && user?.id) {
+        const payload = {
+          classSubjectId: workspaceContext.id,
+          type: 'FACULTY_AUTOMATED',
+          lectureNumber: newSession.topic.replace('Lecture ', '').split(':')[0] || '1',
+          topic: newSession.topic,
+          date: newSession.date,
+          startTime: newSession.time,
+          endTime: newSession.time,
+          duration: newSession.duration,
+          code: newSession.code,
+          requireVerification: !!newSession.verificationQuestion,
+          verificationQuestion: newSession.verificationQuestion,
+          expectedAnswer: newSession.correctAnswer,
+          uniqueCodeCount: newSession.uniqueCodeCount,
+          approveIds: approveIds
+        };
+        
+        await attendanceService.createAutomateSession(user.id, payload);
+        toast.success('Automated session created successfully');
+        
+        setIsAutomateFlow(false);
+        setAutomateText('');
+        setNewSession({
+          topic: '',
+          date: new Date().toISOString().split('T')[0],
+          time: '10:00',
+          duration: '60',
+          code: Math.floor(100000 + Math.random() * 900000).toString(),
+          verificationQuestion: '',
+          correctAnswer: '',
+          uniqueCodeCount: 0
+        });
+        
+        setIsReviewModalOpen(false);
+        setReviewData(null);
+        await fetchSessions();
+      } else if (selectedDetailSessionId) {
+        await attendanceService.bulkApplyReview(selectedDetailSessionId, {
+          approveIds,
+          rejectIds,
+          approvalSource: reviewSource,
+          remarks: `Processed via ${reviewSource}`
+        });
+        
+        toast.success('Bulk attendance applied successfully');
+        
+        const records = await attendanceService.getLiveResponses(selectedDetailSessionId);
+        setSelectedSessionRecords(records);
+        setIsReviewModalOpen(false);
+        setReviewData(null);
+        await fetchSessions();
+      }
     } catch (err: any) {
       console.error(err);
-      toast.error('Failed to apply bulk review');
+      toast.error('Failed to apply bulk review or create session');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleAutomatePreview = async () => {
+    if (!newSession.topic || !automateText) return;
+    setIsBulkLoading(true);
+    try {
+      const data = await attendanceService.previewBulkText(workspaceContext.id, automateText);
+      setReviewData(data);
+      setIsAutomateFlow(true);
+      setIsAutomateModalOpen(false);
+      setIsReviewModalOpen(true);
+    } catch (err: any) {
+      toast.error('Failed to preview automate text');
     } finally {
       setIsBulkLoading(false);
     }
@@ -323,6 +378,9 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
                 <div className="flex items-center gap-3">
                     <Button variant="outline" onClick={() => setViewMode('history')} className="shadow-sm">
                         <History className="w-4 h-4 mr-2" /> Attendance History
+                    </Button>
+                    <Button onClick={() => setIsAutomateModalOpen(true)} className="shadow-sm" variant="secondary">
+                        <Zap className="w-4 h-4 mr-2" /> Automate
                     </Button>
                     <Button onClick={() => setIsCreateModalOpen(true)} className="shadow-sm">
                         <Plus className="w-4 h-4 mr-2" /> Create Session
@@ -820,6 +878,52 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
       {viewMode === 'history' && renderHistory()}
       {viewMode === 'detail' && renderDetail()}
 
+      {/* Automate Session Modal */}
+      <Dialog open={isAutomateModalOpen} onOpenChange={(open) => { setIsAutomateModalOpen(open); if(!open) setAutomateText(''); }}>
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Automate Attendance Session</DialogTitle>
+            <DialogDescription>Create a session and paste enrollment numbers to mark them present.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="automateTopic">Topic</Label>
+              <Input id="automateTopic" value={newSession.topic} onChange={(e) => setNewSession({ ...newSession, topic: e.target.value })} placeholder="e.g. Lecture 1: Introduction" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="automateDate">Date</Label>
+                <Input id="automateDate" type="date" value={newSession.date} onChange={(e) => setNewSession({ ...newSession, date: e.target.value })} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="automateTime">Start Time</Label>
+                <Input id="automateTime" type="time" value={newSession.time} onChange={(e) => setNewSession({ ...newSession, time: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="automateDuration">Duration (Mins)</Label>
+              <Input id="automateDuration" type="number" value={newSession.duration} onChange={(e) => setNewSession({ ...newSession, duration: e.target.value })} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="automateText">Paste Enrollment Numbers</Label>
+              <textarea
+                id="automateText"
+                className="w-full min-h-[120px] p-3 text-sm rounded-md border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-none"
+                value={automateText}
+                onChange={(e) => setAutomateText(e.target.value)}
+                placeholder="Paste text here..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setIsAutomateModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleAutomatePreview} disabled={!newSession.topic || !automateText || isBulkLoading} className="shadow-sm">
+              {isBulkLoading ? 'Processing...' : 'Review'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create Session Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent className="sm:max-w-[550px]">
@@ -1137,7 +1241,7 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
+      <Dialog open={isReviewModalOpen} onOpenChange={(open) => { setIsReviewModalOpen(open); if(!open) { setIsAutomateFlow(false); setReviewData(null); } }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           <div className="bg-muted/30 px-6 py-4 border-b border-border/50 shrink-0">
             <DialogTitle className="text-xl flex items-center gap-2">
@@ -1211,7 +1315,7 @@ const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
           </div>
 
           <div className="p-4 border-t border-border/50 bg-muted/20 shrink-0 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsReviewModalOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setIsReviewModalOpen(false); setIsAutomateFlow(false); setReviewData(null); }}>Cancel</Button>
             <Button onClick={handleConfirmReview} disabled={isBulkLoading}>
               {isBulkLoading ? 'Applying...' : 'Confirm & Apply'}
             </Button>
@@ -1232,6 +1336,7 @@ const StudentAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
   const [viewMode, setViewMode] = useState<'main'|'history'>('main');
   const [submitted, setSubmitted] = useState(false);
   const [submittedStatus, setSubmittedStatus] = useState<string>(''); // To track PRESENT, PENDING, etc.
+  const [submittedTime, setSubmittedTime] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [uniqueCode, setUniqueCode] = useState('');
   const [answer, setAnswer] = useState('');
@@ -1280,6 +1385,7 @@ const StudentAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
           if (alreadyMarked) {
             setSubmitted(true);
             setSubmittedStatus(alreadyMarked.status);
+            setSubmittedTime(alreadyMarked.markedTime);
           }
         }
       }
@@ -1317,6 +1423,7 @@ const StudentAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
       });
       setSubmitted(true);
       setSubmittedStatus(activeSession?.isSystemGenerated ? 'PENDING' : 'PRESENT');
+      setSubmittedTime(new Date().toISOString());
       toast.success(activeSession?.isSystemGenerated ? 'Request sent successfully' : 'Attendance marked successfully');
       fetchHistoryData();
     } catch (err: any) {
@@ -1485,7 +1592,7 @@ const StudentAttendancePanel = ({ workspaceContext }: { workspaceContext: any })
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground font-medium">Submission Time:</span>
-                    <span className="font-mono font-semibold">{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>
+                    <span className="font-mono font-semibold">{submittedTime ? new Date(submittedTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'}) : '--:--'}</span>
                   </div>
                 </div>
               </div>

@@ -101,7 +101,7 @@ public class ClassSubjectController {
             if (enrollment != null) {
                 if (enrollment.getAcroClass() != null) {
                     studentClassId = enrollment.getAcroClass().getId();
-                    studentClassName = enrollment.getAcroClass().getName();
+                    studentClassName = enrollment.getAcroClass().getFunctionalClassName();
                 }
                 if (enrollment.getSemester() != null) {
                     studentSemNum = enrollment.getSemester().getSemesterNumber();
@@ -131,8 +131,8 @@ public class ClassSubjectController {
                         boolean matchClass = false;
                         if (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) {
                             matchClass = true;
-                        } else if (finalClassName != null && cs.getAcroClass().getName() != null) {
-                            String csName = cs.getAcroClass().getName().trim().toLowerCase();
+                        } else if (finalClassName != null && cs.getAcroClass().getFunctionalClassName() != null) {
+                            String csName = cs.getAcroClass().getFunctionalClassName().trim().toLowerCase();
                             String stName = finalClassName.trim().toLowerCase();
                             
                             if (csName.equals(stName)) {
@@ -156,8 +156,8 @@ public class ClassSubjectController {
             for (CoordinatorAssignment ca : coords) {
                 if (Boolean.TRUE.equals(ca.getIsActive())) {
                     List<ClassSubject> classSubjects = classSubjectRepository.findAll().stream()
-                        .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()) && cs.getAcroClass() != null && cs.getAcroClass().getName() != null &&
-                                      cs.getAcroClass().getName().trim().equalsIgnoreCase(ca.getClassName() != null ? ca.getClassName().trim() : ""))
+                        .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()) && cs.getAcroClass() != null && cs.getAcroClass().getFunctionalClassName() != null &&
+                                      cs.getAcroClass().getFunctionalClassName().trim().equalsIgnoreCase(ca.getClassName() != null ? ca.getClassName().trim() : ""))
                         .filter(cs -> {
                             if (ca.getAcademicYear() != null && cs.getAcademicYear() != null) {
                                 if (!ca.getAcademicYear().equalsIgnoreCase(cs.getAcademicYear().getYear())) return false;
@@ -180,11 +180,7 @@ public class ClassSubjectController {
             dto.setId(cs.getId());
             if (cs.getAcroClass() != null) {
                 dto.setClassId(cs.getAcroClass().getId());
-                if (cs.getAcroClass().getSection() != null && !cs.getAcroClass().getSection().trim().isEmpty()) {
-                    dto.setClassName(cs.getAcroClass().getSection().trim());
-                } else {
-                    dto.setClassName(cs.getAcroClass().getName());
-                }
+                dto.setClassName(cs.getAcroClass().getFunctionalClassName());
             }
             if (cs.getAcademicYear() != null) dto.setYear(String.valueOf(cs.getAcademicYear().getYear()));
             if (cs.getSemester() != null) dto.setSemester(String.valueOf(cs.getSemester().getSemesterNumber()));
@@ -204,21 +200,17 @@ public class ClassSubjectController {
                     dto.setDepartment(cs.getAcroClass().getDepartment().getName());
                 }
                 // For class section, use section if explicitly tracked, else fallback to className
-                if (cs.getAcroClass().getSection() != null && !cs.getAcroClass().getSection().trim().isEmpty()) {
-                    dto.setClassSection(cs.getAcroClass().getSection().trim());
-                } else {
-                    dto.setClassSection(cs.getAcroClass().getName());
-                }
+                dto.setClassSection(cs.getAcroClass().getFunctionalClassName());
             }
             
             // Map Coordinator name (first active one for the class/semester/year)
             if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-                coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+                coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
                     .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                   java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                     .findFirst()
                     .ifPresent(ca -> {
-                        log.info("Mapping subject {} (class {}) to coordinator {}, batch {}", cs.getSubject().getName(), cs.getAcroClass().getName(), ca.getCoordinator() != null ? ca.getCoordinator().getFirstName() : "null", ca.getBatch());
+                        log.info("Mapping subject {} (class {}) to coordinator {}, batch {}", cs.getSubject().getName(), cs.getAcroClass().getFunctionalClassName(), ca.getCoordinator() != null ? ca.getCoordinator().getFirstName() : "null", ca.getBatch());
                         dto.setBatch(ca.getBatch());
                         if (ca.getCoordinator() != null) {
                             dto.setCoordinatorName(ca.getCoordinator().getFirstName() + " " + ca.getCoordinator().getLastName());

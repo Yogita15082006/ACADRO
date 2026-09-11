@@ -193,12 +193,7 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
             }
         }
         if (v.getAcroClass() != null) {
-            String sec = v.getAcroClass().getSection();
-            if (sec != null && !sec.trim().isEmpty()) {
-                dto.setClassName(sec.trim());
-            } else {
-                dto.setClassName(v.getAcroClass().getName());
-            }
+            dto.setClassName(v.getAcroClass().getFunctionalClassName());
             if (v.getAcroClass().getDepartment() != null) {
                 dto.setDepartment(v.getAcroClass().getDepartment().getName());
             }

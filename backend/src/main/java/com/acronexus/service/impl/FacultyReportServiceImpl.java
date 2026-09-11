@@ -149,7 +149,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
                 .map(a -> FacultyReportDto.TeachingExceptionRecord.builder()
                         .date(a.getDate())
                         .subjectName(a.getClassSubject() != null ? a.getClassSubject().getSubject().getName() : "-")
-                        .className(a.getClassSubject() != null ? a.getClassSubject().getAcroClass().getName() : "-")
+                        .className(a.getClassSubject() != null ? a.getClassSubject().getAcroClass().getFunctionalClassName() : "-")
                         .status(a.getStatus().name())
                         .remark(a.getReason() != null ? a.getReason() : "-")
                         .build())
@@ -162,7 +162,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
                         .classSubjectId(cs.getId())
                         .subjectName(cs.getSubject().getName())
                         .subjectCode(cs.getSubject().getCode())
-                        .className(cs.getAcroClass().getName())
+                        .className(cs.getAcroClass().getFunctionalClassName())
                         .batchYear(cs.getAcroClass().getDegreeProgram() != null ? cs.getAcroClass().getDegreeProgram().getName() : "")
                         .semester(cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : "")
                         .build())
@@ -175,7 +175,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
                     String targetClasses = "";
                     if (e.getTargetAssignments() != null && !e.getTargetAssignments().isEmpty()) {
                         targetClasses = e.getTargetAssignments().stream()
-                                .map(ta -> ta.getAcroClass() != null ? ta.getAcroClass().getName() : ta.getBatchYear())
+                                .map(ta -> ta.getAcroClass() != null ? ta.getAcroClass().getFunctionalClassName() : ta.getBatchYear())
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.joining(", "));
                     }
@@ -227,7 +227,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
                         .quizId(q.getId())
                         .title(q.getTitle())
                         .subjectName(q.getClassSubject() != null ? q.getClassSubject().getSubject().getName() : "")
-                        .className(q.getClassSubject() != null ? q.getClassSubject().getAcroClass().getName() : "")
+                        .className(q.getClassSubject() != null ? q.getClassSubject().getAcroClass().getFunctionalClassName() : "")
                         .startTime(q.getStartTime() != null ? q.getStartTime().atZone(ZoneId.systemDefault()).toLocalDateTime() : null)
                         .build())
                 .collect(Collectors.toList());
@@ -242,7 +242,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
                             .assignmentId(a.getId())
                             .title(a.getTitle())
                             .subjectName(a.getClassSubject().getSubject().getName())
-                            .className(a.getClassSubject().getAcroClass().getName())
+                            .className(a.getClassSubject().getAcroClass().getFunctionalClassName())
                             .dueDate(a.getDeadline() != null ? a.getDeadline().toLocalDateTime() : null)
                             .submissionCount(submissions)
                             .build();
@@ -400,7 +400,7 @@ public class FacultyReportServiceImpl implements FacultyReportService {
             int overallAttendance = totalScheduled > 0 ? Math.round(((float) totalConducted / totalScheduled) * 100) : 0;
 
             List<ClassSubject> fCs = csMap.getOrDefault(id, new ArrayList<>());
-            String assignedClassesStr = fCs.stream().map(c -> c.getAcroClass().getName()).distinct().collect(Collectors.joining(", "));
+            String assignedClassesStr = fCs.stream().map(c -> c.getAcroClass().getFunctionalClassName()).distinct().collect(Collectors.joining(", "));
             String assignedSubjectsStr = fCs.stream().map(c -> c.getSubject().getName()).distinct().collect(Collectors.joining(", "));
             String academicYearsStr = fCs.stream().map(c -> c.getAcroClass().getDegreeProgram() != null ? c.getAcroClass().getDegreeProgram().getName() : "").filter(s -> !s.isEmpty()).distinct().collect(Collectors.joining(", "));
             String semestersStr = fCs.stream().map(c -> c.getSemester() != null ? String.valueOf(c.getSemester().getSemesterNumber()) : "").filter(s -> !s.isEmpty()).distinct().collect(Collectors.joining(", "));

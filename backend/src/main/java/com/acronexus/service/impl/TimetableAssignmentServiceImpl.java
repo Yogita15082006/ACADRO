@@ -136,11 +136,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             dto.setDegree(timetable.getAcroClass().getDegreeProgram().getName());
         }
             dto.setAcademicYear(timetable.getAcademicYear().getYear());
-            if (timetable.getAcroClass() != null && timetable.getAcroClass().getSection() != null && !timetable.getAcroClass().getSection().trim().isEmpty()) {
-                dto.setClassName(timetable.getAcroClass().getSection().trim());
-            } else {
-                dto.setClassName(timetable.getAcroClass().getName());
-            }
+            dto.setClassName(timetable.getAcroClass().getFunctionalClassName());
             
             if (timetable.getBatch() != null && !timetable.getBatch().isBlank()) {
                 dto.setBatch(timetable.getBatch());
@@ -182,11 +178,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                     
                     ParsedSubjectAssignmentDto sa = new ParsedSubjectAssignmentDto();
                     sa.setClassId(timetable.getAcroClass().getId().toString());
-                    if (timetable.getAcroClass().getSection() != null && !timetable.getAcroClass().getSection().trim().isEmpty()) {
-                        sa.setClassName(timetable.getAcroClass().getSection().trim());
-                    } else {
-                        sa.setClassName(timetable.getAcroClass().getName());
-                    }
+                        sa.setClassName(timetable.getAcroClass().getFunctionalClassName());
                     
                     sa.setOriginalFacultyName(extractedFaculty);
                     sa.setOriginalSubjectName(extractedSubject);
@@ -227,11 +219,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                 String matchedCoordId = fuzzyMatchFaculty(extractedCoord, faculties);
                 
                 ParsedCoordinatorAssignmentDto ca = new ParsedCoordinatorAssignmentDto();
-                if (timetable.getAcroClass().getSection() != null && !timetable.getAcroClass().getSection().trim().isEmpty()) {
-                    ca.setClassName(timetable.getAcroClass().getSection().trim());
-                } else {
-                    ca.setClassName(timetable.getAcroClass().getName());
-                }
+                    ca.setClassName(timetable.getAcroClass().getFunctionalClassName());
                 ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
                 ca.setAcademicYear(timetable.getAcademicYear().getYear());
                 ca.setBatch(dto.getBatch());

@@ -98,7 +98,28 @@ public class ProfileServiceImpl implements ProfileService {
                     dto.setClassName(a.getClassName());
                     return dto;
                 }).collect(Collectors.toList());
-            builder.coordinatorAssignments(dtos);
+
+            // Deduplicate cases where we have both a parent class (e.g. CSE(DS)) and a section (e.g. DS)
+            java.util.List<ProfileDto.CoordinatorAssignmentDto> deduplicatedDtos = new java.util.ArrayList<>();
+            for (ProfileDto.CoordinatorAssignmentDto dto : dtos) {
+                boolean isDuplicateParent = false;
+                for (ProfileDto.CoordinatorAssignmentDto other : dtos) {
+                    if (dto != other &&
+                        java.util.Objects.equals(dto.getBatch(), other.getBatch()) &&
+                        java.util.Objects.equals(dto.getSemester(), other.getSemester()) &&
+                        java.util.Objects.equals(dto.getAcademicYear(), other.getAcademicYear()) &&
+                        dto.getClassName() != null && other.getClassName() != null &&
+                        dto.getClassName().length() > other.getClassName().length() &&
+                        dto.getClassName().contains(other.getClassName())) {
+                        isDuplicateParent = true;
+                        break;
+                    }
+                }
+                if (!isDuplicateParent) {
+                    deduplicatedDtos.add(dto);
+                }
+            }
+            builder.coordinatorAssignments(deduplicatedDtos);
         }
 
         // Family Details

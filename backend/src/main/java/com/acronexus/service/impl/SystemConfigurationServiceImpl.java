@@ -82,10 +82,10 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
                 }
                 
                 log.info("Promoting students for class: {} to semester: {}", 
-                        targetTimetable.getAcroClass().getName(), targetTimetable.getSemester().getSemesterNumber());
+                        targetTimetable.getAcroClass().getFunctionalClassName(), targetTimetable.getSemester().getSemesterNumber());
                 
                 List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository
-                        .findByClassNameAndIsActiveTrue(targetTimetable.getAcroClass().getName());
+                        .findByClassNameAndIsActiveTrue(targetTimetable.getAcroClass().getFunctionalClassName());
                 
                 List<StudentEnrollment> activeEnrollments = studentEnrollmentRepository
                         .findByAcroClassIdAndIsActiveTrue(targetTimetable.getAcroClass().getId());

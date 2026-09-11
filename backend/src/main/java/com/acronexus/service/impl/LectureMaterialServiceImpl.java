@@ -307,7 +307,7 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
             lm.setFileName(originalFilename);
 
             if (classSubject.getAcroClass() != null) {
-                lm.setClassName(classSubject.getAcroClass().getName());
+                lm.setClassName(classSubject.getAcroClass().getFunctionalClassName());
                 if (classSubject.getAcroClass().getDepartment() != null) {
                     lm.setDepartment(classSubject.getAcroClass().getDepartment().getName());
                 }
@@ -321,7 +321,7 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
 
             String resolvedBatch = "N/A";
             if (classSubject.getAcroClass() != null && classSubject.getSemester() != null && classSubject.getAcademicYear() != null) {
-                resolvedBatch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName())
+                resolvedBatch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getFunctionalClassName())
                         .stream()
                         .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + classSubject.getSemester().getSemesterNumber()) &&
                                       java.util.Objects.equals(ca.getAcademicYear(), classSubject.getAcademicYear().getYear()))

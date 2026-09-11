@@ -31,14 +31,14 @@ public class TimetableMapper {
                 dto.setClassName(sec.trim());
                 dto.setTitle(entity.getAcroClass().getName() + " (" + sec.trim() + ") Timetable V" + entity.getVersionNumber());
             } else {
-                dto.setClassName(entity.getAcroClass().getName());
+                dto.setClassName(entity.getAcroClass().getFunctionalClassName());
                 dto.setTitle(entity.getAcroClass().getName() + " Timetable V" + entity.getVersionNumber());
             }
             
             if (entity.getBatch() != null && !entity.getBatch().isBlank()) {
                 dto.setBatch(entity.getBatch());
             } else {
-                dto.setBatch(entity.getAcroClass().getName());
+                dto.setBatch(entity.getAcroClass().getFunctionalClassName());
             }
             
             if (entity.getAcroClass().getDepartment() != null) {

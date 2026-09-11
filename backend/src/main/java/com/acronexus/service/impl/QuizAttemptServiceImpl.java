@@ -251,7 +251,13 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
     @Transactional(readOnly = true)
     public List<QuizAttemptDto.Response> getStudentResults() {
         Student student = getCurrentStudent();
-        List<QuizAttempt> studentAttempts = attemptRepository.findByStudent_User_Id(student.getUser().getId());
+        return getStudentResultsByUserId(student.getUser().getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<QuizAttemptDto.Response> getStudentResultsByUserId(UUID userId) {
+        List<QuizAttempt> studentAttempts = attemptRepository.findByStudent_User_Id(userId);
         List<QuizAttemptDto.Response> results = new java.util.ArrayList<>();
         for (QuizAttempt a : studentAttempts) {
             if (a.getCompletedAt() == null) continue;
@@ -309,15 +315,7 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
                 (quiz.getCreatedBy() != null ? (quiz.getCreatedBy().getFirstName() + " " + quiz.getCreatedBy().getLastName()).trim() : "Faculty");
         String className = "Assigned Section";
         if (cs != null && cs.getAcroClass() != null) {
-            String baseName = (cs.getAcroClass().getName() != null && !cs.getAcroClass().getName().equalsIgnoreCase("null")) ? cs.getAcroClass().getName().trim() : "";
-            String sec = (cs.getAcroClass().getSection() != null && !cs.getAcroClass().getSection().equalsIgnoreCase("null") && !cs.getAcroClass().getSection().trim().isEmpty()) ? cs.getAcroClass().getSection().trim() : "";
-            if (!baseName.isEmpty() && !sec.isEmpty()) {
-                className = baseName + " - " + sec;
-            } else if (!baseName.isEmpty()) {
-                className = baseName;
-            } else if (!sec.isEmpty()) {
-                className = sec;
-            }
+            className = cs.getAcroClass().getFunctionalClassName();
         }
 
         // 2. Fetch Questions and parse answers

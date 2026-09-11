@@ -105,7 +105,7 @@ public class ClassSubjectService {
                         allActiveSubjects.stream().filter(cs -> {
                             if (cs.getAcroClass() == null) return false;
                             boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
-                                                 (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                                                 (finalClassName != null && cs.getAcroClass().getFunctionalClassName() != null && cs.getAcroClass().getFunctionalClassName().trim().equalsIgnoreCase(finalClassName.trim()));
                             boolean matchSem = true;
                             if (finalSemNum != null && cs.getSemester() != null) {
                                 matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
@@ -119,13 +119,13 @@ public class ClassSubjectService {
                     }
                 } else if (t.getAcroClass() != null) {
                     UUID finalClassId = t.getAcroClass().getId();
-                    String finalClassName = t.getAcroClass().getName();
+                    String finalClassName = t.getAcroClass().getFunctionalClassName();
                     Integer finalSemNum = targetSemNum;
 
                     allActiveSubjects.stream().filter(cs -> {
                         if (cs.getAcroClass() == null) return false;
                         boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
-                                             (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                                             (finalClassName != null && cs.getAcroClass().getFunctionalClassName() != null && cs.getAcroClass().getFunctionalClassName().trim().equalsIgnoreCase(finalClassName.trim()));
                         boolean matchSem = true;
                         if (finalSemNum != null && cs.getSemester() != null) {
                             matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
@@ -271,10 +271,10 @@ public class ClassSubjectService {
                 dto.setClassSection(classSubject.getAcroClass().getSection().trim());
                 dto.setClassName(classSubject.getAcroClass().getSection().trim());
             } else {
-                dto.setClassName(classSubject.getAcroClass().getName());
+                dto.setClassName(classSubject.getAcroClass().getFunctionalClassName());
             }
             
-            List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName());
+            List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getFunctionalClassName());
             if (!coordinatorAssignments.isEmpty()) {
                 CoordinatorAssignment ca = coordinatorAssignments.get(0);
                 if (ca.getCoordinator() != null) {
@@ -334,12 +334,12 @@ public class ClassSubjectService {
         }
         String year = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear() : null;
         String semester = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : null;
-        String className = cs.getAcroClass() != null ? cs.getAcroClass().getName() : null;
+        String className = cs.getAcroClass() != null ? cs.getAcroClass().getFunctionalClassName() : null;
 
         // Fetch batch if available from coordinator assignments
         String batch = null;
         if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-            batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+            batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
                     .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                   java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                     .map(CoordinatorAssignment::getBatch)
@@ -374,11 +374,11 @@ public class ClassSubjectService {
                 ? cs.getAcroClass().getDepartment().getName() : null;
             String yr = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear() : null;
             String sem = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : null;
-            String cls = cs.getAcroClass() != null ? cs.getAcroClass().getName() : null;
+            String cls = cs.getAcroClass() != null ? cs.getAcroClass().getFunctionalClassName() : null;
 
             String batch = null;
             if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-                batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+                batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
                         .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                       java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                         .map(CoordinatorAssignment::getBatch)
@@ -634,8 +634,8 @@ public class ClassSubjectService {
             List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(userId);
             for (CoordinatorAssignment ca : assignments) {
                 if (Boolean.TRUE.equals(ca.getIsActive())) {
-                    boolean matchClass = ca.getClassName() != null && classSubject.getAcroClass().getName() != null &&
-                            ca.getClassName().trim().equalsIgnoreCase(classSubject.getAcroClass().getName().trim());
+                    boolean matchClass = ca.getClassName() != null && classSubject.getAcroClass().getFunctionalClassName() != null &&
+                            ca.getClassName().trim().equalsIgnoreCase(classSubject.getAcroClass().getFunctionalClassName().trim());
                     
                     boolean matchSem = true;
                     if (ca.getSemester() != null) {

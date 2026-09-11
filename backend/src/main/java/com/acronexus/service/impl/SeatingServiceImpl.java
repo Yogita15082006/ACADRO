@@ -444,8 +444,7 @@ public class SeatingServiceImpl implements SeatingService {
                 StudentEnrollment e = studentEnrollmentRepository.findFirstByStudentIdAndIsActiveTrueOrderByCreatedAtDesc(
                         studentRepository.findByEnrollmentNo(sDto.getEnrollment()).get().getId()).orElse(null);
                 if (e != null) {
-                    String cname = (e.getAcroClass().getSection() != null && !e.getAcroClass().getSection().isEmpty()) ? e.getAcroClass().getSection().trim() : e.getAcroClass().getName().trim();
-                    sDto.setClassName(cname);
+                    sDto.setClassName(e.getAcroClass().getFunctionalClassName());
                 }
             }
             

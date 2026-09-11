@@ -18,4 +18,16 @@ public class AcroClass extends BaseEntity {
     private String section;
     private Boolean isActive = true;
     private Boolean isDeleted = false;
+
+    /**
+     * Returns the ACADRO functional Class value, which is the Section.
+     * Fallback to parent name if section is missing to avoid NPEs, but functional logic
+     * expects Section to be fully populated for proper scoped isolation.
+     */
+    public String getFunctionalClassName() {
+        if (this.section != null && !this.section.trim().isEmpty()) {
+            return this.section.trim();
+        }
+        return this.name;
+    }
 }

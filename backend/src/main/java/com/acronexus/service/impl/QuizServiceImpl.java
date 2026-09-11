@@ -191,13 +191,8 @@ public class QuizServiceImpl implements QuizService {
             actualQType = "MCQ";
         }
 
-        String baseClassName = (quiz.getClassSubject().getAcroClass().getName() != null && !quiz.getClassSubject().getAcroClass().getName().equalsIgnoreCase("null")) ? quiz.getClassSubject().getAcroClass().getName().trim() : "";
-        String sectionName = (quiz.getClassSubject().getAcroClass().getSection() != null && !quiz.getClassSubject().getAcroClass().getSection().equalsIgnoreCase("null") && !quiz.getClassSubject().getAcroClass().getSection().trim().isEmpty()) ? quiz.getClassSubject().getAcroClass().getSection().trim() : "";
-        String resolvedClassName = baseClassName;
-        if (!sectionName.isEmpty()) {
-            resolvedClassName = baseClassName.isEmpty() ? sectionName : baseClassName + " - " + sectionName;
-        }
-        if (resolvedClassName.isEmpty()) {
+        String resolvedClassName = quiz.getClassSubject().getAcroClass().getFunctionalClassName();
+        if (resolvedClassName == null || resolvedClassName.trim().isEmpty()) {
             resolvedClassName = "Assigned Class";
         }
 

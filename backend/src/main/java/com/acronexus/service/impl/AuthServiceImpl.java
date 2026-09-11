@@ -20,6 +20,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final com.acronexus.repository.FacultyRepository facultyRepository;
+    private final com.acronexus.repository.StudentEnrollmentRepository studentEnrollmentRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -99,9 +100,24 @@ public class AuthServiceImpl implements AuthService {
                 builder.rollNo(student.getRollNo());
                 builder.batchYear(student.getBatchYear());
                 builder.admissionYear(student.getAdmissionYear() != null ? student.getAdmissionYear() : student.getBatchYear());
-                builder.course(student.getCourse());
+                
+                // Fetch actual parent class name from active enrollment if available
+                String courseName = student.getCourse();
+                String sectionName = student.getSection();
+                studentEnrollmentRepository.findFirstByStudentIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+                    .ifPresent(enrollment -> {
+                        if (enrollment.getAcroClass() != null) {
+                            builder.course(enrollment.getAcroClass().getName());
+                            builder.section(enrollment.getAcroClass().getSection());
+                        }
+                    });
+                
+                if (builder.build().getCourse() == null) {
+                    builder.course(courseName);
+                    builder.section(sectionName);
+                }
+                
                 builder.currentSemester(student.getCurrentSemester());
-                builder.section(student.getSection());
             });
         }
         

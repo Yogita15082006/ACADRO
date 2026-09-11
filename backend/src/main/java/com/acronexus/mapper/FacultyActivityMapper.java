@@ -55,7 +55,7 @@ public class FacultyActivityMapper {
             }
 
             if (entity.getClassSubject().getAcroClass() != null) {
-                dto.setClassName(entity.getClassSubject().getAcroClass().getName());
+                dto.setClassName(entity.getClassSubject().getAcroClass().getFunctionalClassName());
             } else if (entity.getClassSubject().getSyllabusSubject() != null && entity.getClassSubject().getSyllabusSubject().getAcademicSyllabus() != null) {
                 dto.setClassName(entity.getClassSubject().getSyllabusSubject().getAcademicSyllabus().getClassName());
             }

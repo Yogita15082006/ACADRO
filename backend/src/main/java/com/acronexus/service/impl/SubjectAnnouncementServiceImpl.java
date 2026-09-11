@@ -94,7 +94,7 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
                 ? classSubject.getAcroClass().getDepartment().getName() : "N/A";
         announcement.setDepartment(departmentName);
 
-        String className = (classSubject.getAcroClass() != null) ? classSubject.getAcroClass().getName() : "N/A";
+        String className = (classSubject.getAcroClass() != null) ? classSubject.getAcroClass().getFunctionalClassName() : "N/A";
         announcement.setClassName(className);
 
         String yearStr = (classSubject.getAcademicYear() != null) ? String.valueOf(classSubject.getAcademicYear().getYear()) : "N/A";
@@ -105,7 +105,7 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
 
         String resolvedBatch = "N/A";
         if (classSubject.getAcroClass() != null && classSubject.getSemester() != null && classSubject.getAcademicYear() != null) {
-            resolvedBatch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName())
+            resolvedBatch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getFunctionalClassName())
                     .stream()
                     .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + classSubject.getSemester().getSemesterNumber()) &&
                                   java.util.Objects.equals(ca.getAcademicYear(), classSubject.getAcademicYear().getYear()))

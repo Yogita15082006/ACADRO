@@ -128,6 +128,16 @@ export const attendanceService = {
     return response.data;
   },
 
+  previewBulkText: async (classSubjectId: string, text: string): Promise<any> => {
+    const response = await api.post(`/attendance-sessions/class/${classSubjectId}/preview-text`, { text });
+    return response.data;
+  },
+
+  createAutomateSession: async (facultyId: string, data: any): Promise<any> => {
+    const response = await api.post(`/attendance-sessions/faculty/${facultyId}/automate`, data);
+    return response.data;
+  },
+
 
 
   bulkApplyReview: async (sessionId: string, data: { approveIds: string[], rejectIds: string[], approvalSource: string, remarks: string }): Promise<void> => {

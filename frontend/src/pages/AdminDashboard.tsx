@@ -66,9 +66,9 @@ export const AdminDashboard = ({ previewUser }: { previewUser?: any }) => {
       {(role === 'faculty' || role === 'coordinator' || role === 'both') && <DelegatedTasksOverview />}
 
       {role === 'hod' && <HodDashboardView user={user} />}
-      {role === 'coordinator' && <CoordinatorDashboardView user={user} />}
       {role === 'faculty' && <FacultyDashboardView user={user} />}
-      {role === 'both' && (
+      
+      {(role === 'coordinator' || role === 'both') && (
         <div className="space-y-12">
           <div>
             <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Coordinator Overview</h2>

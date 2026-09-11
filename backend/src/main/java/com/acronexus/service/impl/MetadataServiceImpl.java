@@ -131,11 +131,7 @@ public class MetadataServiceImpl implements MetadataService {
             .map(Optional::get)
             .map(e -> {
                 if (e.getAcroClass() != null) {
-                    String sec = e.getAcroClass().getSection() != null ? e.getAcroClass().getSection().trim() : "";
-                    if (!sec.isEmpty()) {
-                        return sec;
-                    }
-                    return e.getAcroClass().getName() != null ? e.getAcroClass().getName().trim() : null;
+                    return e.getAcroClass().getFunctionalClassName();
                 }
                 return null;
             })
