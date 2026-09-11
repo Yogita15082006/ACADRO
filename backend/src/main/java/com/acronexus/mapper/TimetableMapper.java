@@ -26,8 +26,14 @@ public class TimetableMapper {
         dto.setIsActive(entity.getIsActive());
 
         if (entity.getAcroClass() != null) {
-            dto.setClassName(entity.getAcroClass().getName() + (entity.getAcroClass().getSection() != null ? " " + entity.getAcroClass().getSection() : ""));
-            dto.setTitle(entity.getAcroClass().getName() + (entity.getAcroClass().getSection() != null ? " " + entity.getAcroClass().getSection() : "") + " Timetable V" + entity.getVersionNumber());
+            String sec = entity.getAcroClass().getSection();
+            if (sec != null && !sec.trim().isEmpty()) {
+                dto.setClassName(sec.trim());
+                dto.setTitle(entity.getAcroClass().getName() + " (" + sec.trim() + ") Timetable V" + entity.getVersionNumber());
+            } else {
+                dto.setClassName(entity.getAcroClass().getName());
+                dto.setTitle(entity.getAcroClass().getName() + " Timetable V" + entity.getVersionNumber());
+            }
             
             if (entity.getBatch() != null && !entity.getBatch().isBlank()) {
                 dto.setBatch(entity.getBatch());

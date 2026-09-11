@@ -80,9 +80,10 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
                                         }))));
 
         AcroClass acroClass = acroClassRepository.findAll().stream()
-                .filter(c -> c.getName().equalsIgnoreCase(className) && c.getDepartment() != null && c.getDepartment().getName().equalsIgnoreCase(departmentName))
+                .filter(c -> (c.getName().equalsIgnoreCase(className) || (c.getSection() != null && c.getSection().equalsIgnoreCase(className))) 
+                        && c.getDepartment() != null && c.getDepartment().getName().equalsIgnoreCase(departmentName))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Class '" + className + "' does not exist for Department '" + departmentName + "'. Please configure it first."));
+                .orElseThrow(() -> new IllegalArgumentException("Class/Section '" + className + "' does not exist for Department '" + departmentName + "'. Please configure it first."));
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File cannot be empty");
@@ -192,7 +193,12 @@ public class TimetableUploadServiceImpl implements TimetableUploadService {
             }
         }
         if (v.getAcroClass() != null) {
-            dto.setClassName(v.getAcroClass().getName());
+            String sec = v.getAcroClass().getSection();
+            if (sec != null && !sec.trim().isEmpty()) {
+                dto.setClassName(sec.trim());
+            } else {
+                dto.setClassName(v.getAcroClass().getName());
+            }
             if (v.getAcroClass().getDepartment() != null) {
                 dto.setDepartment(v.getAcroClass().getDepartment().getName());
             }

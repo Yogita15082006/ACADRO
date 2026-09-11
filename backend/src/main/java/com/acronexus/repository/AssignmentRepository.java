@@ -20,15 +20,15 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
     @EntityGraph(attributePaths = {"classSubject", "classSubject.subject", "classSubject.acroClass", "file", "createdBy"})
     @Query("SELECT a FROM Assignment a WHERE a.classSubject.id IN " +
            "(SELECT cs.id FROM ClassSubject cs JOIN StudentEnrollment se ON cs.acroClass.id = se.acroClass.id " +
-           "WHERE se.student.id = :studentId AND se.isActive = true AND cs.isActive = true) " +
+           "WHERE se.student.user.id = :userId AND se.isActive = true AND cs.isActive = true) " +
            "AND a.isDeleted = false ORDER BY a.createdAt DESC")
-    List<Assignment> findAssignmentsForStudent(@Param("studentId") UUID studentId);
+    List<Assignment> findAssignmentsForStudent(@Param("userId") UUID userId);
 
     @Query("SELECT COUNT(a) > 0 FROM Assignment a WHERE a.id = :assignmentId AND a.classSubject.id IN " +
            "(SELECT cs.id FROM ClassSubject cs JOIN StudentEnrollment se ON cs.acroClass.id = se.acroClass.id " +
-           "WHERE se.student.id = :studentId AND se.isActive = true AND cs.isActive = true) " +
+           "WHERE se.student.user.id = :userId AND se.isActive = true AND cs.isActive = true) " +
            "AND a.isDeleted = false")
-    boolean existsByIdAndStudentId(@Param("assignmentId") UUID assignmentId, @Param("studentId") UUID studentId);
+    boolean existsByIdAndStudentId(@Param("assignmentId") UUID assignmentId, @Param("userId") UUID userId);
 
     long countByIsDeletedFalse();
 

@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   X, Plus, Trash2, Sparkles, CheckCircle2, XCircle, AlertCircle, Edit, Upload, 
-  BookOpen, Users, Clock, HelpCircle, FileText, Award, BarChart3, FileQuestion, TrendingUp
+  BookOpen, Users, Clock, HelpCircle, FileText, Award, BarChart3, FileQuestion, TrendingUp, Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { quizService } from '../services/quizService';
 import type { QuizQuestion, QuizAttempt } from '../services/quizService';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 // ─── Creation Method Card Helper ───────────────────────────────────────────
 function CreationMethodCard({ title, icon, desc, active, onClick }: any) {
@@ -524,6 +527,7 @@ export function CreateQuizModal({ onClose, onSave, workspaceContext }: any) {
 export function ViewQuizModal({ quiz, onClose }: any) {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     async function fetchQ() {
@@ -540,6 +544,116 @@ export function ViewQuizModal({ quiz, onClose }: any) {
     fetchQ();
   }, [quiz.id]);
 
+  const handleDownloadPDF = async () => {
+    try {
+      setIsDownloading(true);
+      const doc = new jsPDF();
+      let currentY = 22;
+
+      // HEADER
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(33, 37, 41);
+      doc.text('Assessment Questions', 14, currentY);
+      
+      currentY += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(108, 117, 125);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, currentY);
+      
+      currentY += 12;
+
+      // QUIZ DETAILS SECTION
+      doc.setFillColor(248, 249, 250);
+      doc.setDrawColor(222, 226, 230);
+      doc.roundedRect(14, currentY, 182, 24, 2, 2, 'FD');
+      
+      doc.setFontSize(11);
+      doc.setTextColor(33, 37, 41);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Title:`, 18, currentY + 9);
+      doc.text(`Status:`, 18, currentY + 17);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${quiz.title || 'N/A'}`, 45, currentY + 9);
+      doc.text(`${quiz.status || 'Active'}`, 45, currentY + 17);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total Marks:`, 100, currentY + 9);
+      doc.text(`Duration:`, 100, currentY + 17);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${quiz.totalMarks || 0} Marks`, 130, currentY + 9);
+      doc.text(`${quiz.durationMinutes || 30} Minutes`, 130, currentY + 17);
+
+      currentY += 32;
+
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text(`Questions (${questions.length})`, 14, currentY);
+      currentY += 4;
+
+      const stripHtml = (html: string) => {
+        if (!html) return '';
+        const tmp = document.createElement("DIV");
+        tmp.innerHTML = html;
+        let text = tmp.textContent || tmp.innerText || "";
+        text = text.replace(/[^\x20-\x7E]/g, ' ');
+        text = text.replace(/\s+/g, ' ');
+        return text.trim();
+      };
+
+      const tableData = questions.map((q: any, i: number) => {
+        let optionsStr = '—';
+        if (q.options && q.options.length > 0) {
+            optionsStr = q.options.map((opt: any) => `${opt.id}) ${stripHtml(opt.text)}`).join('\n');
+        }
+        
+        let correctStr = stripHtml(q.correctAnswer);
+        if (!correctStr && q.options) {
+            const correctOpt = q.options.find((o: any) => o.isCorrect);
+            if (correctOpt) correctStr = correctOpt.id;
+        }
+
+        return [
+          `${i + 1}`,
+          stripHtml(q.questionText) || '—',
+          q.questionType || 'MCQ',
+          optionsStr,
+          correctStr || '—',
+          `${q.marks}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['#', 'Question', 'Type', 'Options', 'Ans', 'Marks']],
+        body: tableData,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 4, textColor: [60, 60, 60], lineColor: [230, 230, 230], lineWidth: 0.1, halign: 'left', overflow: 'linebreak' },
+        headStyles: { fillColor: [248, 249, 250], textColor: [33, 37, 41], fontStyle: 'bold', halign: 'left' },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 55 },
+          2: { cellWidth: 20 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 20, fontStyle: 'bold' },
+          5: { cellWidth: 22 }
+        }
+      });
+
+      const safeName = quiz.title ? quiz.title.replace(/\s+/g, '_') : 'Quiz';
+      doc.save(`${safeName}_Questions.pdf`);
+      toast?.success('PDF downloaded successfully');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast?.error('Failed to generate PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
@@ -552,7 +666,12 @@ export function ViewQuizModal({ quiz, onClose }: any) {
             </h2>
             <p className="text-xs text-muted-foreground">Subject Assessment Overview</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}><X size={20} /></Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isDownloading || loading || questions.length === 0} className="gap-2 shadow-sm font-semibold hover:bg-muted">
+              <Download size={16} /> {isDownloading ? 'Generating...' : 'Download'}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}><X size={20} /></Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           {/* Quiz Settings Overview Box */}
@@ -776,6 +895,141 @@ function FacultyAttemptReviewModal({ attempt, quiz, onClose }: any) {
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<any>(null);
   const [error, setError] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPDF = async () => {
+    try {
+      setIsDownloading(true);
+      const doc = new jsPDF();
+      let currentY = 22;
+
+      // HEADER
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(33, 37, 41); // Dark Gray
+      doc.text('Quiz Performance Report', 14, currentY);
+      
+      currentY += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(108, 117, 125); // Muted Gray
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, currentY);
+      
+      currentY += 12;
+
+      // STUDENT DETAILS SECTION
+      doc.setFillColor(248, 249, 250);
+      doc.setDrawColor(222, 226, 230);
+      doc.roundedRect(14, currentY, 182, 24, 2, 2, 'FD');
+      
+      doc.setFontSize(11);
+      doc.setTextColor(33, 37, 41);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Student Name:`, 18, currentY + 9);
+      doc.text(`Enrollment No:`, 18, currentY + 17);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${attempt.studentName || 'N/A'}`, 52, currentY + 9);
+      doc.text(`${attempt.studentEnrollmentNumber || 'N/A'}`, 52, currentY + 17);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Assessment:`, 100, currentY + 9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${quiz?.title || 'N/A'}`, 128, currentY + 9);
+
+      currentY += 32;
+
+      // SUMMARY CARDS DATA
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Attempt Summary', 14, currentY);
+      currentY += 4;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Questions', 'Attempted', 'Correct', 'Incorrect', 'Score', 'Status']],
+        body: [[
+          totalQuestions.toString(),
+          attemptedCount.toString(),
+          correctCount.toString(),
+          incorrectCount.toString(),
+          `${marksObtained} / ${maxMarks}`,
+          grade.toString()
+        ]],
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 10, cellPadding: 5, textColor: [50, 50, 50], lineColor: [222, 226, 230], lineWidth: 0.1, halign: 'left' },
+        headStyles: { fillColor: [248, 249, 250], textColor: [33, 37, 41], fontStyle: 'bold', halign: 'left' }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 12;
+
+      // QUESTIONS LIST
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Question-by-Question Review', 14, currentY);
+      currentY += 4;
+
+      const stripHtml = (html: string) => {
+        if (!html) return '';
+        const tmp = document.createElement("DIV");
+        tmp.innerHTML = html;
+        let text = tmp.textContent || tmp.innerText || "";
+        
+        // STRICT SANITIZATION: Replace ALL non-ASCII characters (e.g. smart quotes, tabs, invisible spaces)
+        // with standard spaces. This 100% guarantees jsPDF's Helvetica font width calculation will never glitch
+        // and cause artificial letter kerning/spacing.
+        text = text.replace(/[^\x20-\x7E]/g, ' ');
+        text = text.replace(/\s+/g, ' '); // collapse multiple spaces
+        return text.trim();
+      };
+
+      const tableData = questionReviews.map((q: any, i: number) => {
+        const isCorrect = q.status === 'correct';
+        return [
+          `${i + 1}`,
+          stripHtml(q.questionText) || '—',
+          stripHtml(q.studentAnswer) || 'Not Attempted',
+          stripHtml(q.correctAnswer) || '—',
+          isCorrect ? 'Correct' : (q.status === 'unanswered' ? 'Skipped' : 'Incorrect'),
+          `${q.marksAwarded ?? 0} / ${q.maximumMarks ?? 1}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['#', 'Question', 'Student Answer', 'Correct Answer', 'Status', 'Marks']],
+        body: tableData,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 4, textColor: [60, 60, 60], lineColor: [230, 230, 230], lineWidth: 0.1, halign: 'left', overflow: 'linebreak' },
+        headStyles: { fillColor: [248, 249, 250], textColor: [33, 37, 41], fontStyle: 'bold', halign: 'left' },
+        columnStyles: {
+          0: { cellWidth: 8 },
+          1: { cellWidth: 55 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 22, fontStyle: 'bold' }, // 22mm ensures 'Incorrect' fits strictly on one line
+          5: { cellWidth: 17 }
+        },
+        didParseCell: (data: any) => {
+           if (data.section === 'body' && data.column.index === 4) {
+              if (data.cell.raw === 'Correct') data.cell.styles.textColor = [16, 185, 129]; // Emerald
+              else if (data.cell.raw === 'Incorrect') data.cell.styles.textColor = [239, 68, 68]; // Red
+           }
+        }
+      });
+
+      const safeName = attempt.studentName ? attempt.studentName.replace(/\s+/g, '_') : 'Student';
+      doc.save(`${safeName}_Quiz_Report.pdf`);
+      toast?.success('PDF downloaded successfully');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast?.error('Failed to generate PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -825,12 +1079,18 @@ function FacultyAttemptReviewModal({ attempt, quiz, onClose }: any) {
               <p className="text-xs text-muted-foreground font-mono mt-0.5">Enrollment No: {attempt.studentEnrollmentNumber || 'N/A'} • Quiz: {quiz?.title || 'Assessment'}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-muted/50 shrink-0"><X size={20} /></Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isDownloading} className="gap-2 shadow-sm font-semibold hover:bg-muted">
+              <Download size={16} /> {isDownloading ? 'Generating...' : 'Download'}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-muted/50 shrink-0"><X size={20} /></Button>
+          </div>
         </div>
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {error && <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-semibold text-sm">{error}</div>}
+          <div id={`pdf-report-content-${attempt.id}`} className="space-y-6 bg-card pb-4">
+            {error && <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-semibold text-sm">{error}</div>}
 
           {/* QUESTION SUMMARY CARDS */}
           <div className="space-y-2">
@@ -1019,6 +1279,7 @@ function FacultyAttemptReviewModal({ attempt, quiz, onClose }: any) {
                 })}
               </div>
             )}
+          </div>
           </div>
         </div>
 

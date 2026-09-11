@@ -4849,7 +4849,7 @@ export const FacultyManagementModule = () => {
         onClose={() => setShowConsolidatedReport(false)}
         onOpenIndividualReport={(id: string) => {
           setShowConsolidatedReport(false);
-          setViewingFacultyId(id);
+          setReportFacultyId(id);
         }}
       />
 

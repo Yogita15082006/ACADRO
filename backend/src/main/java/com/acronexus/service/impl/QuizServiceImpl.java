@@ -43,6 +43,7 @@ public class QuizServiceImpl implements QuizService {
     private final QuizRepository quizRepository;
     private final ClassSubjectRepository classSubjectRepository;
     private final UserRepository userRepository;
+    private final com.acronexus.service.ClassSubjectService classSubjectService;
     private final AiService aiService;
     private final QuizQuestionRepository quizQuestionRepository;
     private final QuizAttemptRepository quizAttemptRepository;
@@ -58,7 +59,7 @@ public class QuizServiceImpl implements QuizService {
     }
 
     private void verifyFacultyOwnership(Quiz quiz, User user) {
-        if (user.getRole() == UserRole.FACULTY && !quiz.getCreatedBy().getId().equals(user.getId())) {
+        if (!classSubjectService.canManageSubjectWorkspace(user.getId(), user.getRole().name(), quiz.getClassSubject().getId())) {
             throw new UnauthorizedException("You are not authorized to manage this quiz.");
         }
     }
@@ -71,7 +72,7 @@ public class QuizServiceImpl implements QuizService {
         ClassSubject classSubject = classSubjectRepository.findById(request.getClassSubjectId())
                 .orElseThrow(() -> new ResourceNotFoundException("Class Subject not found"));
 
-        if (facultyUser.getRole() == UserRole.FACULTY && !classSubject.getFaculty().getId().equals(facultyUser.getId())) {
+        if (!classSubjectService.canManageSubjectWorkspace(facultyUser.getId(), facultyUser.getRole().name(), classSubject.getId())) {
             throw new UnauthorizedException("You are not authorized to create a quiz for this subject.");
         }
 
@@ -281,7 +282,7 @@ public class QuizServiceImpl implements QuizService {
                 .orElseThrow(() -> new ResourceNotFoundException("Class Subject not found"));
                 
         User facultyUser = getCurrentUser();
-        if (facultyUser.getRole() == UserRole.FACULTY && !classSubject.getFaculty().getId().equals(facultyUser.getId())) {
+        if (!classSubjectService.canManageSubjectWorkspace(facultyUser.getId(), facultyUser.getRole().name(), classSubject.getId())) {
             throw new UnauthorizedException("You are not authorized for this subject.");
         }
         
@@ -336,7 +337,7 @@ public class QuizServiceImpl implements QuizService {
         ClassSubject classSubject = classSubjectRepository.findById(classSubjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class Subject not found"));
         User facultyUser = getCurrentUser();
-        if (facultyUser.getRole() == UserRole.FACULTY && !classSubject.getFaculty().getId().equals(facultyUser.getId())) {
+        if (!classSubjectService.canManageSubjectWorkspace(facultyUser.getId(), facultyUser.getRole().name(), classSubject.getId())) {
             throw new UnauthorizedException("You are not authorized for this subject.");
         }
         Map<String, Object> payload = new HashMap<>();
@@ -456,12 +457,27 @@ public class QuizServiceImpl implements QuizService {
                                 }
                             }
                         } else if (q.getOptions() != null && !q.getOptions().isEmpty()) {
-                            List<QuizQuestionDto.Option> opts = objectMapper.convertValue(q.getOptions(), new TypeReference<>() {});
-                            if (opts != null) {
-                                String target = studentAns;
-                                correct = opts.stream().anyMatch(opt -> opt.isCorrect() && (opt.getId().equalsIgnoreCase(target) || opt.getText().equalsIgnoreCase(target)));
+                            String target = studentAns.trim();
+                            // 1. Direct canonical match
+                            if (q.getCorrectAnswer() != null && q.getCorrectAnswer().trim().equalsIgnoreCase(target)) {
+                                correct = true;
+                            } else {
+                                List<QuizQuestionDto.Option> opts = objectMapper.convertValue(q.getOptions(), new TypeReference<>() {});
+                                if (opts != null) {
+                                    // 2. Check option's isCorrect flag
+                                    correct = opts.stream().anyMatch(opt -> opt.isCorrect() && (opt.getId().equalsIgnoreCase(target) || opt.getText().equalsIgnoreCase(target)));
+                                    
+                                    // 3. Robust fallback: Compare selected option against canonical correct answer
+                                    if (!correct && q.getCorrectAnswer() != null) {
+                                        String expected = q.getCorrectAnswer().trim();
+                                        correct = opts.stream().anyMatch(opt -> 
+                                            (opt.getId().equalsIgnoreCase(target) || opt.getText().equalsIgnoreCase(target)) && 
+                                            (opt.getId().equalsIgnoreCase(expected) || opt.getText().equalsIgnoreCase(expected))
+                                        );
+                                    }
+                                }
                             }
-                        } else if (q.getCorrectAnswer() != null && q.getCorrectAnswer().equalsIgnoreCase(studentAns.trim())) {
+                        } else if (q.getCorrectAnswer() != null && q.getCorrectAnswer().trim().equalsIgnoreCase(studentAns.trim())) {
                             correct = true;
                         }
 

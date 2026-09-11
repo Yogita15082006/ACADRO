@@ -37,8 +37,8 @@ public class SubjectAnnouncementController {
     }
 
     @PostMapping("/subject/{classSubjectId}")
-    @PreAuthorize("hasRole('FACULTY')")
-    @Operation(summary = "Post Subject Announcement", description = "Allows officially assigned faculty to broadcast an announcement to students.")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
+    @Operation(summary = "Post Subject Announcement", description = "Allows officially assigned faculty, HOD or Coordinator to broadcast an announcement to students.")
     public ResponseEntity<ApiResponse<SubjectAnnouncementResponseDto>> createAnnouncement(
             @PathVariable UUID classSubjectId,
             @Valid @RequestBody SubjectAnnouncementRequestDto requestDto,
@@ -48,8 +48,8 @@ public class SubjectAnnouncementController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('FACULTY')")
-    @Operation(summary = "Delete Subject Announcement", description = "Allows authoring faculty to delete their posted announcement.")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
+    @Operation(summary = "Delete Subject Announcement", description = "Allows authorized user to delete their posted announcement.")
     public ResponseEntity<ApiResponse<Void>> deleteAnnouncement(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {

@@ -333,7 +333,8 @@ async def extract_timetable(request: TimetableExtractRequest):
         systemPrompt=system_prompt,
         userPrompt=user_prompt,
         maxTokens=4096,
-        temperature=0.0 # Zero temperature to strictly prevent hallucinations
+        temperature=0.0,
+        responseFormat="json_object"
     )
 
     try:

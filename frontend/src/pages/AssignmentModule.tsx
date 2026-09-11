@@ -20,10 +20,17 @@ import { ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Tooltip, AreaCh
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { toast } from 'sonner';
 
 // Define types
 type Assignment = any;
 type Submission = any;
+type WorkspaceContext = {
+  id?: string;
+  subjectId?: string;
+  classId?: string;
+  [key: string]: any;
+};
 
 const containerVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -50,13 +57,17 @@ export function AssignmentModule({ workspaceContext }: { workspaceContext?: any 
   useEffect(() => {
     const fetchRealData = async () => {
       try {
-        const targetUrl = workspaceContext?.subjectId ? `/v1/assignments/subject/${workspaceContext.id}` : `/v1/assignments/all`;
+        const targetUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}` : 
+          (role === 'student' ? '/v1/assignments/student' : `/v1/assignments/all`);
         const res = await api.get(targetUrl);
         if (res?.data?.data && Array.isArray(res.data.data)) {
           setAssignments(res.data.data);
+        } else if (res?.data && Array.isArray(res.data)) {
+          setAssignments(res.data);
         }
         
-        const subUrl = workspaceContext?.subjectId ? `/v1/assignments/subject/${workspaceContext.id}/my-submissions` : `/v1/assignments/subject/00000000-0000-0000-0000-000000000000/my-submissions`;
+        const subUrl = workspaceContext?.id ? `/v1/assignments/subject/${workspaceContext.id}/my-submissions` 
+          : `/v1/assignments/subject/00000000-0000-0000-0000-000000000000/my-submissions`;
         const subRes = await api.get(subUrl);
         if (subRes?.data?.data && Array.isArray(subRes.data.data)) {
           setSubmissions(subRes.data.data);
@@ -66,7 +77,7 @@ export function AssignmentModule({ workspaceContext }: { workspaceContext?: any 
       }
     };
     fetchRealData();
-  }, [workspaceContext]);
+  }, [workspaceContext, role]);
 
   if (['faculty', 'hod', 'coordinator', 'both'].includes(role)) {
     return <AdminAssignmentDashboard assignments={assignments} setAssignments={setAssignments} submissions={submissions} setSubmissions={setSubmissions} workspaceContext={workspaceContext} />;
@@ -524,7 +535,9 @@ export const handleAuthenticatedDownload = async (url: string, filename: string 
   try {
     let targetUrl = url;
     if (url.includes('/api/v1/')) {
-        targetUrl = url.substring(url.indexOf('/api/v1/'));
+        targetUrl = url.substring(url.indexOf('/api/v1/') + 4);
+    } else if (url.includes('/v1/')) {
+        targetUrl = url.substring(url.indexOf('/v1/'));
     }
     
     if (url.startsWith('http') && !url.includes('localhost') && !url.includes('/api/v1/')) {
@@ -533,8 +546,22 @@ export const handleAuthenticatedDownload = async (url: string, filename: string 
     }
 
     const response = await api.get(targetUrl, { responseType: 'blob' });
-    const contentType = response.headers['content-type'];
-    const blob = new Blob([response.data], { type: typeof contentType === 'string' ? contentType : 'application/octet-stream' });
+    let contentType = response.headers['content-type'];
+    if (typeof contentType !== 'string') {
+        contentType = 'application/octet-stream';
+    }
+    
+    // Force PDF content type if viewing, to prevent browser from downloading
+    if (asView && (filename.toLowerCase().endsWith('.pdf') || targetUrl.toLowerCase().includes('.pdf'))) {
+        contentType = 'application/pdf';
+    } else if (asView && contentType === 'application/octet-stream') {
+        // Fallback guess based on extension if octet-stream is returned
+        if (filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.jpeg')) contentType = 'image/jpeg';
+        if (filename.toLowerCase().endsWith('.png')) contentType = 'image/png';
+        if (filename.toLowerCase().endsWith('.pdf')) contentType = 'application/pdf';
+    }
+
+    const blob = new Blob([response.data], { type: contentType });
     const blobUrl = URL.createObjectURL(blob);
     
     if (asView) {
@@ -1310,6 +1337,31 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
   
   const [zoomLevel, setZoomLevel] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [blobViewUrl, setBlobViewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (submission && submission.id) {
+      let isMounted = true;
+      const fetchBlob = async () => {
+        try {
+          const res = await api.get(`/v1/assignments/submissions/${submission.id}/view`, { responseType: 'blob' });
+          if (isMounted) {
+            const blob = new Blob([res.data], { type: 'application/pdf' });
+            setBlobViewUrl(URL.createObjectURL(blob));
+          }
+        } catch (e) {
+          console.error("Failed to load PDF blob for preview", e);
+        }
+      };
+      fetchBlob();
+      return () => {
+        isMounted = false;
+        if (blobViewUrl) {
+          URL.revokeObjectURL(blobViewUrl);
+        }
+      };
+    }
+  }, [submission]);
 
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 25, 300));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 25, 25));
@@ -1324,8 +1376,9 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
   
   // A generic fallback for preview URL if it's pointing to example.com
   const rawFileUrl = resolveApiUrl(submission.fileUrl || assignment.attachmentUrl);
-  const viewUrl = submission.id ? `/api/v1/assignments/submissions/${submission.id}/view` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
-  const downloadUrl = submission.id ? `/api/v1/assignments/submissions/${submission.id}/download` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl);
+  const viewUrl = resolveApiUrl(submission.id ? `/api/v1/assignments/submissions/${submission.id}/view` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl));
+  const iframeSrc = blobViewUrl || viewUrl;
+  const downloadUrl = resolveApiUrl(submission.id ? `/api/v1/assignments/submissions/${submission.id}/download` : (rawFileUrl?.includes('example.com') ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' : rawFileUrl));
 
   const isPreviewable = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'png', 'jpg', 'jpeg', 'zip', 'js', 'py', 'java', 'cpp', 'html', 'css'].includes(fileExtension || '');
 
@@ -1426,7 +1479,7 @@ function AssignmentPreviewModal({ previewData, onClose }: { previewData: any, on
                     style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
                   >
                     {fileExtension === 'pdf' && (
-                      <iframe src={`${viewUrl}#toolbar=0&navpanes=0`} className="w-full h-full min-h-[800px] bg-white shadow-sm" title="PDF Preview" />
+                      <iframe src={`${iframeSrc}#toolbar=0&navpanes=0`} className="w-full h-full min-h-[800px] bg-white shadow-sm" title="PDF Preview" />
                     )}
                     {['png', 'jpg', 'jpeg'].includes(fileExtension || '') && (
                       <img src={viewUrl} alt="Preview" className="max-w-full max-h-full object-contain rounded shadow-sm" />
@@ -1541,7 +1594,7 @@ const assignmentSchema = z.object({
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
 
-function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceContext }: { onClose: () => void, onSuccess: (data: any) => void, activeClassId: string, workspaceContext?: { classId: string, className: string, subjectId: string, year: string, semester: string } }) {
+function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceContext }: { onClose: () => void, onSuccess: (data: any) => void, activeClassId: string, workspaceContext?: { id?: string, classId: string, className: string, subjectId: string, year: string, semester: string } }) {
   const { subjects, classes } = mockData;
   const [file, setFile] = useState<File | null>(null);
   const [targetClasses, setTargetClasses] = useState<string[]>([]);
@@ -1588,7 +1641,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
   const onSubmit = async (data: AssignmentFormValues) => {
     try {
-      const targetId = workspaceContext ? workspaceContext.subjectId : (data.subjectId || '00000000-0000-0000-0000-000000000000');
+      const targetId = workspaceContext ? workspaceContext.id : (data.subjectId || '00000000-0000-0000-0000-000000000000');
       const formData = new FormData();
       if (file) formData.append('file', file);
       formData.append('title', data.title);
@@ -1607,33 +1660,16 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res?.data?.data) {
+        toast.success("Assignment created successfully");
         onSuccess(res.data.data);
+        onClose();
       } else {
-        const newAssignment = {
-          id: `a-${Date.now()}`,
-          ...data,
-          targetClasses: workspaceContext ? [workspaceContext.className] : targetClasses,
-          classId: workspaceContext ? workspaceContext.classId : (availableClasses[0]?.id || activeClassId),
-          status: 'Open',
-          attachmentUrl: file ? URL.createObjectURL(file) : undefined,
-          createdAt: new Date().toISOString()
-        };
-        onSuccess(newAssignment);
+        toast.error("Failed to create assignment");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error submitting real assignment to database:", e);
-      const newAssignment = {
-        id: `a-${Date.now()}`,
-        ...data,
-        targetClasses: workspaceContext ? [workspaceContext.className] : targetClasses,
-        classId: workspaceContext ? workspaceContext.classId : (availableClasses[0]?.id || activeClassId),
-        status: 'Open',
-        attachmentUrl: file ? URL.createObjectURL(file) : undefined,
-        createdAt: new Date().toISOString()
-      };
-      onSuccess(newAssignment);
+      toast.error(e.response?.data?.message || "Failed to create assignment");
     }
-    onClose();
   };
 
   return createPortal(
@@ -1860,23 +1896,20 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 // ==========================================
 // STUDENT DASHBOARD
 // ==========================================
-function StudentAssignmentDashboard({ assignments, submissions, setSubmissions, workspaceContext }: { assignments: Assignment[], submissions: Submission[], setSubmissions: any, workspaceContext?: any }) {
-  const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
+function StudentAssignmentDashboard({ assignments, submissions, setSubmissions, workspaceContext }: { assignments: Assignment[], submissions: Submission[], setSubmissions?: any, workspaceContext?: any }) {
   const { subjects } = mockData;
-  
-  // Assuming the user is a student, we filter by their class
-  // Filter by subject if workspaceContext is provided
-  const studentAssignments = useMemo(() => {
-    if (workspaceContext) return assignments;
-    return assignments.filter(a => !a.classId || !user?.classId || a.classId === user?.classId || a.className === 'All Classes');
-  }, [assignments, workspaceContext, user]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('active');
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const { role, user } = useAuth();
+
+  // Assignments are already filtered by the backend based on current authoritative StudentEnrollment
+  const studentAssignments = assignments;
 
   const filtered = studentAssignments.filter(a => 
     a.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (subjects.find(s => s.id === a.subjectId)?.name.toLowerCase() || '').includes(searchQuery.toLowerCase())
+    (a.subjectName?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -1917,93 +1950,71 @@ function StudentAssignmentDashboard({ assignments, submissions, setSubmissions, 
         <AnimatePresence>
           {filtered.map(assignment => {
             const subject = subjects.find(s => s.id === assignment.subjectId);
-            // Robust submission & evaluated status lookup
-            const submission = submissions.find(s => s.assignmentId === assignment.id && (!user?.id || s.studentId === user?.id || (s as any).userId === user?.id || submissions.filter(x => x.assignmentId === assignment.id).length === 1));
-            const isEvaluated = submission && (submission.marksAwarded != null || submission.marks != null || submission.grade != null || submission.status === 'Reviewed' || submission.status === 'Graded' || submission.status === 'Reviewed & Graded');
-            const status = isEvaluated ? 'Reviewed' : (submission ? submission.status : assignment.status);
+            // Mock submission lookup
+            const submission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user?.id);
+            const status = submission ? submission.status : assignment.status;
             
             const daysRemaining = Math.ceil((new Date(assignment.deadline).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
             
             return (
               <motion.div key={assignment.id} variants={itemVariants} layout>
-                <Card className="h-full border border-slate-200/80 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group rounded-2xl bg-white hover:-translate-y-1 justify-between">
-                  <div className={`h-2 w-full ${
-                    isEvaluated || status === 'Submitted' || status === 'Graded' ? 'bg-emerald-500' :
+                <Card className="h-full border-none shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group">
+                  <div className={`h-1.5 w-full ${
+                    status === 'Submitted' || status === 'Graded' ? 'bg-emerald-500' :
                     status === 'Late Submitted' ? 'bg-amber-500' :
-                    status === 'Expired' ? 'bg-rose-500' : 'bg-indigo-600'
+                    status === 'Expired' ? 'bg-rose-500' : 'bg-indigo-500'
                   }`} />
-                  <CardContent className="p-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <Badge variant={
-                          isEvaluated || status === 'Submitted' || status === 'Graded' ? 'active' :
-                          status === 'Late Submitted' ? 'pending' :
-                          status === 'Expired' ? 'rejected' : 'event'
-                        } className="font-bold uppercase tracking-wider text-[11px] px-2.5 py-0.5">
-                          {isEvaluated ? 'Reviewed & Graded' : status}
-                        </Badge>
-                        {isEvaluated ? (
-                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                            {submission?.grade && submission.grade !== 'Graded' && submission.grade !== 'Reviewed' && (
-                              <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-emerald-600 text-white shadow-xs">
-                                Grade: {submission.grade}
-                              </span>
-                            )}
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Marks: {submission?.marksAwarded ?? submission?.marks ?? '-'} / {assignment.maxMarks}
-                            </span>
-                          </div>
-                        ) : daysRemaining > 0 && !isEvaluated && status !== 'Submitted' ? (
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                            daysRemaining <= 2 ? 'bg-rose-50 text-rose-700 border border-rose-200' : 
-                            'bg-slate-100 text-slate-700'
-                          }`}>
-                            {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
-                          </span>
-                        ) : null}
-                      </div>
-                      
-                      <h3 className="font-extrabold text-xl text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors tracking-tight">
-                        {assignment.title}
-                      </h3>
-                      {assignment.description && (
-                        <p className="text-sm text-slate-600 mb-4 line-clamp-2">
-                          {assignment.description}
-                        </p>
+                  <CardContent className="p-6 flex-1 flex flex-col">
+                    <div className="flex justify-between items-start mb-3">
+                      <Badge variant={
+                        status === 'Submitted' || status === 'Graded' ? 'active' :
+                        status === 'Late Submitted' ? 'pending' :
+                        status === 'Expired' ? 'rejected' : 'event'
+                      } className="capitalize">
+                        {status}
+                      </Badge>
+                      {daysRemaining > 0 && status !== 'Submitted' && status !== 'Graded' && (
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                          daysRemaining <= 2 ? 'bg-rose-100 text-rose-700' : 
+                          'bg-indigo-100 text-indigo-700'
+                        }`}>
+                          {daysRemaining} days left
+                        </span>
                       )}
+                    </div>
+                    
+                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-2 line-clamp-1">
+                      {assignment.title}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500 mb-4 line-clamp-1">
+                      {assignment.subjectName || subject?.name || 'Subject'} • {assignment.facultyName || assignment.createdByName || 'Faculty'}
+                    </p>
 
-                      <div className="space-y-2 mb-6">
-                        <div className="flex items-center text-sm text-slate-600 font-medium">
-                          <Calendar className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
-                          <span>Due: <strong className="text-slate-900 ml-1">{formatDeadlineDisplay(assignment.deadline)}</strong></span>
-                        </div>
-                        <div className="flex items-center text-sm text-slate-600 font-medium">
-                          <Activity className="w-4 h-4 mr-2 text-indigo-500 shrink-0" />
-                          <span>Max Marks: <strong className="text-slate-900 ml-1">{assignment.maxMarks}</strong></span>
-                        </div>
-                        {isEvaluated && (submission?.evaluationDate || submission?.evaluatedAt) && (
-                          <div className="flex items-center text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100 mt-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600 shrink-0" />
-                            <span>Evaluated on: <strong className="text-slate-900 ml-1">{submission.evaluationDate || new Date(submission.evaluatedAt).toLocaleString()}</strong></span>
-                          </div>
-                        )}
+                    <div className="space-y-3 mb-6 flex-1">
+                      <div className="flex items-center text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
+                        <FileText className="w-4 h-4 mr-3 text-indigo-500" />
+                        <span className="truncate">{assignment.type}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
+                        <Calendar className="w-4 h-4 mr-3 text-indigo-500" />
+                        Due: {new Date(assignment.deadline).toLocaleString()}
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        {assignment.type || 'Assignment'}
+                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center mt-auto">
+                      <span className="text-sm font-bold text-slate-900">
+                        {assignment.maxMarks} Marks
                       </span>
                       <Button 
                         onClick={() => setSelectedAssignment(assignment)}
-                        className={`px-4 py-2 h-9 rounded-xl text-sm font-semibold shadow-sm transition-all flex items-center gap-1.5 ${
+                        className={`shadow-sm rounded-xl transition-all ${
                           status === 'Submitted' || status === 'Graded' 
-                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
                         }`}
                       >
-                        {status === 'Submitted' || status === 'Graded' ? 'View Details' : 'Open & Submit'}
-                        <ChevronRight className="w-4 h-4" />
+                        View Details
+                        <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
                     </div>
                   </CardContent>
@@ -2030,72 +2041,44 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
   const { user } = useAuth();
   const { subjects } = mockData;
   const subject = subjects.find(s => s.id === assignment.subjectId);
-  const submission = submissions.find(s => s.assignmentId === assignment.id && (!user?.id || s.studentId === user?.id || (s as any).userId === user?.id || submissions.filter(x => x.assignmentId === assignment.id).length === 1));
-  const isEvaluated = submission && (submission.marksAwarded != null || submission.marks != null || submission.grade != null || submission.status === 'Reviewed' || submission.status === 'Graded' || submission.status === 'Reviewed & Graded');
-  const status = isEvaluated ? 'Reviewed' : (submission ? submission.status : assignment.status);
+  const submission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user?.id);
+  const status = submission ? submission.status : assignment.status;
   
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [isReplacing, setIsReplacing] = useState(false);
 
-  const canSubmit = status !== 'Expired' && !isEvaluated && status !== 'Graded' && (new Date() <= new Date(assignment.deadline) || assignment.lateSubmissionAllowed !== false);
+  const canSubmit = status !== 'Expired' && status !== 'Graded';
 
   const handleUpload = async () => {
-    if (!file && !submission) return;
+    if (!file && !canSubmit) return;
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      if (file) formData.append('file', file);
-
+      if (file) {
+        formData.append('file', file);
+      }
+      
       const res = await api.post(`/v1/assignments/${assignment.id}/submit`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      
       if (res?.data?.data) {
-        setSubmissions((prev: any[]) => {
-          const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && (!s.studentId || s.studentId === user?.id)));
+        setSubmissions((prev: any) => {
+          // Remove old submission from state if exists
+          const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && (s.studentId === res.data.data.studentId || s.studentId === user?.id)));
           return [res.data.data, ...filtered];
         });
+        setIsSuccess(true);
+        toast.success("Assignment submitted successfully");
       } else {
-        const isLate = new Date() > new Date(assignment.deadline);
-        const newSubmission = {
-          id: `sub-${Date.now()}`,
-          assignmentId: assignment.id,
-          studentId: user?.id || 'st-0',
-          submitDate: new Date().toISOString(),
-          status: isLate ? 'Late Submitted' : 'Submitted',
-          fileName: file?.name || 'submission.pdf',
-          fileUrl: file ? URL.createObjectURL(file) : '',
-          marksObtained: null,
-          feedback: null
-        };
-        setSubmissions((prev: any[]) => {
-          const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && s.studentId === user?.id));
-          return [newSubmission, ...filtered];
-        });
+        toast.error("Failed to submit assignment");
       }
-    } catch (e) {
-      console.error("Failed to submit assignment to backend:", e);
-      const isLate = new Date() > new Date(assignment.deadline);
-      const newSubmission = {
-        id: `sub-${Date.now()}`,
-        assignmentId: assignment.id,
-        studentId: user?.id || 'st-0',
-        submitDate: new Date().toISOString(),
-        status: isLate ? 'Late Submitted' : 'Submitted',
-        fileName: file?.name || 'submission.pdf',
-        fileUrl: file ? URL.createObjectURL(file) : '',
-        marksObtained: null,
-        feedback: null
-      };
-      setSubmissions((prev: any[]) => {
-        const filtered = prev.filter((s: any) => !(s.assignmentId === assignment.id && s.studentId === user?.id));
-        return [newSubmission, ...filtered];
-      });
+    } catch (error) {
+      console.error("Submit error", error);
+      toast.error("An error occurred while submitting.");
     } finally {
       setIsSubmitting(false);
-      setIsReplacing(false);
-      setIsSuccess(true);
     }
   };
 
@@ -2109,23 +2092,12 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
       >
         {/* Left Side: Details */}
         <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto border-r border-slate-100 bg-slate-50/50">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-            <div className="flex items-center gap-2 flex-wrap">
-              {subject?.name && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg border border-indigo-100 shadow-xs">
-                  <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  {subject.name}
-                </span>
-              )}
-              <span className={`inline-flex items-center px-3 py-1 font-extrabold uppercase tracking-wider text-[11px] rounded-lg shadow-xs ${
-                isEvaluated ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                status === 'Submitted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                status === 'Late Submitted' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                status === 'Expired' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
-              }`}>
-                {isEvaluated ? 'Reviewed & Graded' : status}
-              </span>
-            </div>
+          <div className="flex justify-between items-start mb-6">
+            {(assignment.subjectName || subject?.name) ? (
+              <Badge variant="date" className="bg-indigo-100 text-indigo-700 border-none">
+                {assignment.subjectName || subject?.name}
+              </Badge>
+            ) : <div></div>}
             <button onClick={onClose} className="p-2 md:hidden hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full">
               <X className="w-5 h-5 text-slate-500" />
             </button>
@@ -2140,9 +2112,10 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
             </div>
             <div className="p-4 rounded-2xl bg-white shadow-sm border border-slate-100">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Deadline</p>
-              <p className="text-base font-bold text-rose-600">
-                {formatDeadlineDisplay(assignment.deadline)}
+              <p className="text-sm font-bold text-rose-600">
+                {new Date(assignment.deadline).toLocaleDateString()}
               </p>
+              <p className="text-xs text-rose-500">{new Date(assignment.deadline).toLocaleTimeString()}</p>
             </div>
           </div>
 
@@ -2170,32 +2143,43 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
                 <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <Archive className="w-4 h-4 text-indigo-500" /> Attachments
                 </h4>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-colors overflow-hidden">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="p-2 bg-indigo-50 rounded-lg shrink-0">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 rounded-lg">
                       <File className="w-5 h-5 text-indigo-600" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-extrabold text-slate-900 truncate max-w-[240px] sm:max-w-none">{assignment.fileName || `${assignment.title}_Attachment.pdf`}</p>
-                      <p className="text-xs font-semibold text-slate-500">Document Attachment</p>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {assignment.fileName || 'Assignment_Doc.pdf'}
+                      </p>
+                      <p className="text-xs text-slate-500">{assignment.maxUploadSize || '1.2 MB'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto w-full sm:w-auto justify-end">
-                    <a 
-                      href={resolveApiUrl(assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/view` : '#')).replace('/download', '/view')} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="px-3.5 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 flex-1 sm:flex-none shadow-xs"
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={(e) => { 
+                        e.preventDefault(); 
+                        const rawUrl = assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/download` : '#');
+                        const docUrl = resolveApiUrl(rawUrl).replace('/download', '/view');
+                        handleAuthenticatedDownload(docUrl, assignment.title || 'assignment.pdf', true);
+                      }}
+                      className="p-2 hover:bg-indigo-50 rounded-lg transition-colors text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                      title="View"
                     >
-                      <Eye className="w-3.5 h-3.5 shrink-0" /> View
-                    </a>
-                    <a 
-                      href={resolveApiUrl(assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/download` : '#')).replace('/view', '/download')} 
-                      download 
-                      className="px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 flex-1 sm:flex-none shadow-xs"
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => { 
+                        e.preventDefault(); 
+                        const rawUrl = assignment.attachmentUrl || assignment.fileUrl || (assignment.id ? `/api/v1/assignments/${assignment.id}/download` : '#');
+                        const docUrl = resolveApiUrl(rawUrl);
+                        handleAuthenticatedDownload(docUrl, assignment.title || 'assignment', false);
+                      }}
+                      className="p-2 hover:bg-indigo-50 rounded-lg transition-colors text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                      title="Download"
                     >
-                      <Download className="w-3.5 h-3.5 shrink-0" /> Download
-                    </a>
+                      <Download className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2211,54 +2195,23 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
 
           <h3 className="text-xl font-bold text-slate-900 mb-6">Submission</h3>
           
-          <div className="flex items-center justify-between mb-8 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white rounded-xl shadow-sm">
-                <Activity className="w-5 h-5 text-indigo-500" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase">Status</p>
-                <p className={`text-sm font-bold ${
-                  isEvaluated || status === 'Submitted' || status === 'Graded' ? 'text-emerald-600' :
-                  status === 'Late Submitted' ? 'text-amber-600' :
-                  status === 'Expired' ? 'text-rose-600' : 'text-indigo-600'
-                }`}>
-                  {isEvaluated ? 'Reviewed & Graded' : status}
-                </p>
-              </div>
+          <div className="flex items-center gap-3 mb-8 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div className="p-2 bg-white rounded-xl shadow-sm">
+              <Activity className="w-5 h-5 text-indigo-500" />
             </div>
-            {(isEvaluated || status === 'Graded') && (
-              <div className="flex items-center gap-4 text-right pl-4 border-l border-slate-200">
-                {submission?.grade && submission.grade !== 'Graded' && submission.grade !== 'Reviewed' && (
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Grade</p>
-                    <p className="text-xl font-black text-emerald-600">{submission.grade}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Marks Awarded</p>
-                  <p className="text-xl font-black text-indigo-600">
-                    {submission?.marksAwarded ?? submission?.marks ?? '-'} <span className="text-sm text-slate-400 font-normal">/ {assignment.maxMarks}</span>
-                  </p>
-                </div>
-              </div>
-            )}
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase">Status</p>
+              <p className={`text-sm font-bold ${
+                status === 'Submitted' || status === 'Graded' ? 'text-emerald-600' :
+                status === 'Late Submitted' ? 'text-amber-600' :
+                status === 'Expired' ? 'text-rose-600' : 'text-indigo-600'
+              }`}>
+                {status}
+              </p>
+            </div>
           </div>
-          {(isEvaluated || status === 'Graded') && (
-            <div className="mb-6 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-sm flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-indigo-900 text-xs uppercase tracking-wider">Evaluation & Feedback</span>
-                {(submission?.evaluationDate || submission?.evaluatedAt) && (
-                  <span className="text-xs font-medium text-slate-500">Evaluated on {submission.evaluationDate || new Date(submission.evaluatedAt).toLocaleString()}</span>
-                )}
-              </div>
-              {submission?.feedback && (
-                <p className="text-slate-700 italic font-medium">"{submission.feedback}"</p>
-              )}
-            </div>
-          )}
 
-          {!isReplacing && (submission || isSuccess) ? (
+          {submission || isSuccess ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -2272,23 +2225,11 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
               
               <div className="w-full text-left p-4 rounded-xl bg-white shadow-sm border border-slate-100 mb-6">
                 <p className="text-xs text-slate-500 mb-1">Submitted File</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-indigo-500" />
-                    <span className="text-sm font-medium text-slate-900 truncate max-w-[200px]">
-                      {submission?.fileName || file?.name || 'submission.pdf'}
-                    </span>
-                  </div>
-                  {submission && (
-                    <div className="flex items-center">
-                      <button 
-                        onClick={(e) => { e.preventDefault(); handleAuthenticatedDownload(submission.id ? `/api/v1/assignments/submissions/${submission.id}/view` : (submission.fileUrl || '#'), 'document', true); }} 
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> View
-                      </button>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-medium text-slate-900 truncate">
+                    {submission?.fileName || file?.name || 'submission.pdf'}
+                  </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
                   Submitted on: {submission ? new Date(submission.submitDate).toLocaleString() : new Date().toLocaleString()}
@@ -2298,8 +2239,8 @@ function StudentAssignmentModal({ assignment, submissions, setSubmissions, onClo
               {canSubmit && (
                 <Button 
                   variant="outline" 
-                  onClick={() => { setIsSuccess(false); setIsReplacing(true); }}
-                  className="w-full rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold shadow-sm"
+                  onClick={() => setIsSuccess(false)}
+                  className="w-full rounded-xl border-slate-200"
                 >
                   Replace Submission
                 </Button>

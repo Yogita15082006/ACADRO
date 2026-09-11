@@ -180,7 +180,11 @@ public class ClassSubjectController {
             dto.setId(cs.getId());
             if (cs.getAcroClass() != null) {
                 dto.setClassId(cs.getAcroClass().getId());
-                dto.setClassName(cs.getAcroClass().getName());
+                if (cs.getAcroClass().getSection() != null && !cs.getAcroClass().getSection().trim().isEmpty()) {
+                    dto.setClassName(cs.getAcroClass().getSection().trim());
+                } else {
+                    dto.setClassName(cs.getAcroClass().getName());
+                }
             }
             if (cs.getAcademicYear() != null) dto.setYear(String.valueOf(cs.getAcademicYear().getYear()));
             if (cs.getSemester() != null) dto.setSemester(String.valueOf(cs.getSemester().getSemesterNumber()));
@@ -199,8 +203,12 @@ public class ClassSubjectController {
                 if (cs.getAcroClass().getDepartment() != null) {
                     dto.setDepartment(cs.getAcroClass().getDepartment().getName());
                 }
-                // For class section, fallback to className if not explicitly tracked
-                dto.setClassSection(cs.getAcroClass().getName());
+                // For class section, use section if explicitly tracked, else fallback to className
+                if (cs.getAcroClass().getSection() != null && !cs.getAcroClass().getSection().trim().isEmpty()) {
+                    dto.setClassSection(cs.getAcroClass().getSection().trim());
+                } else {
+                    dto.setClassSection(cs.getAcroClass().getName());
+                }
             }
             
             // Map Coordinator name (first active one for the class/semester/year)

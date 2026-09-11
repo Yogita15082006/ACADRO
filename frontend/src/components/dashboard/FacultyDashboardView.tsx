@@ -159,7 +159,7 @@ export const FacultyDashboardView = ({ user }: { user: any }) => {
                 <Library className="w-8 h-8 text-primary" />
               </div>
               <CardDescription className="text-sm px-4">
-                Access and manage your academic resources including lecture materials, syllabi, and schemes.
+                Access and manage your academic resources including resources, syllabi, and schemes.
               </CardDescription>
               <Button 
                 onClick={() => navigate('/admin/academic-resources')}

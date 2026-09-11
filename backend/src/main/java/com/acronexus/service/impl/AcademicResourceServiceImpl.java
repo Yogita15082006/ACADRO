@@ -575,7 +575,12 @@ private AcademicResourceDto mapTimetableToDto(Timetable timetable) {
             dto.getMetadata().put("semester", String.valueOf(timetable.getSemester().getSemesterNumber()));
         }
         if (timetable.getAcroClass() != null) {
-            dto.getMetadata().put("className", timetable.getAcroClass().getName());
+            String sec = timetable.getAcroClass().getSection();
+            if (sec != null && !sec.trim().isEmpty()) {
+                dto.getMetadata().put("className", sec.trim());
+            } else {
+                dto.getMetadata().put("className", timetable.getAcroClass().getName());
+            }
             if (timetable.getAcroClass().getDepartment() != null) {
                 dto.getMetadata().put("department", timetable.getAcroClass().getDepartment().getName());
             }

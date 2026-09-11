@@ -33,6 +33,8 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
     private final ClassSubjectRepository classSubjectRepository;
     private final StudentEnrollmentRepository studentEnrollmentRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
+    private final com.acronexus.repository.UserRepository userRepository;
+    private final com.acronexus.service.ClassSubjectService classSubjectService;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,9 +56,9 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
             if (!isEnrolled) {
                 throw new AccessDeniedException("Access Denied: You are not enrolled in this subject's class and semester.");
             }
-        } else if ("ROLE_FACULTY".equals(role)) {
-            if (classSubject.getFaculty() == null || !classSubject.getFaculty().getId().equals(userDetails.getId())) {
-                throw new AccessDeniedException("Access Denied: You are not assigned to this subject workspace.");
+        } else {
+            if (!classSubjectService.canManageSubjectWorkspace(userDetails.getId(), role, classSubjectId)) {
+                throw new AccessDeniedException("Access Denied: You are not authorized to manage this subject workspace.");
             }
         }
 
@@ -73,18 +75,18 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
                 .orElseThrow(() -> new ResourceNotFoundException("Subject Workspace not found"));
 
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
-        if (!"ROLE_FACULTY".equals(role) || classSubject.getFaculty() == null || !classSubject.getFaculty().getId().equals(userDetails.getId())) {
-            throw new AccessDeniedException("Only the officially assigned faculty for this subject card can post announcements.");
+        if (!classSubjectService.canManageSubjectWorkspace(userDetails.getId(), role, classSubjectId)) {
+            throw new AccessDeniedException("Only the officially assigned faculty, HOD, or Coordinator for this subject card can post announcements.");
         }
 
         SubjectAnnouncement announcement = new SubjectAnnouncement();
         announcement.setClassSubject(classSubject);
         announcement.setSubject(classSubject.getSubject());
         announcement.setFaculty(classSubject.getFaculty());
-        
-        String facultyFullName = "Assigned Faculty";
-        if (classSubject.getFaculty().getUser() != null) {
-            facultyFullName = classSubject.getFaculty().getUser().getFirstName() + " " + classSubject.getFaculty().getUser().getLastName();
+        String facultyFullName = "Authorized User";
+        com.acronexus.entity.User author = userRepository.findById(userDetails.getId()).orElse(null);
+        if (author != null) {
+            facultyFullName = author.getFirstName() + " " + author.getLastName();
         }
         announcement.setFacultyName(facultyFullName);
 
@@ -131,8 +133,12 @@ public class SubjectAnnouncementServiceImpl implements SubjectAnnouncementServic
                 .orElseThrow(() -> new ResourceNotFoundException("Announcement not found or already deleted"));
 
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
-        if (!"ROLE_FACULTY".equals(role) || announcement.getFaculty() == null || !announcement.getFaculty().getId().equals(userDetails.getId())) {
-            throw new AccessDeniedException("Only the faculty who created this announcement can delete it.");
+        boolean isAuthor = announcement.getFacultyName() != null && userRepository.findById(userDetails.getId()).map(u -> (u.getFirstName() + " " + u.getLastName()).equals(announcement.getFacultyName())).orElse(false);
+        if (!isAuthor) {
+             // If not the original author, check if they manage the workspace
+             if (announcement.getClassSubject() == null || !classSubjectService.canManageSubjectWorkspace(userDetails.getId(), role, announcement.getClassSubject().getId())) {
+                 throw new AccessDeniedException("Only the original author or a workspace manager can delete this announcement.");
+             }
         }
 
         announcement.setIsDeleted(true);

@@ -267,7 +267,12 @@ public class ClassSubjectService {
 
         if (classSubject.getAcroClass() != null) {
             dto.setClassId(classSubject.getAcroClass().getId());
-            dto.setClassName(classSubject.getAcroClass().getName() + " - " + classSubject.getAcroClass().getSection());
+            if (classSubject.getAcroClass().getSection() != null && !classSubject.getAcroClass().getSection().trim().isEmpty()) {
+                dto.setClassSection(classSubject.getAcroClass().getSection().trim());
+                dto.setClassName(classSubject.getAcroClass().getSection().trim());
+            } else {
+                dto.setClassName(classSubject.getAcroClass().getName());
+            }
             
             List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName());
             if (!coordinatorAssignments.isEmpty()) {
@@ -310,6 +315,9 @@ public class ClassSubjectService {
         if (classSubject.getSyllabusSubject() != null) {
             dto.setLinkedSyllabus(mapSyllabusToMap(classSubject.getSyllabusSubject()));
         }
+        
+        // This won't have the user context inside mapToDto, so we can't fully populate canManageWorkspace here easily without passing UserDetails.
+        // We'll leave the boolean out of DTO or let the controller set it if needed. Let's just return dto.
 
         return dto;
     }
@@ -598,5 +606,55 @@ public class ClassSubjectService {
             map.put("documentUrl", "/api/v1/academic-resources/" + ss.getAcademicSyllabus().getFileStorage().getId() + "/download");
         }
         return map;
+    }
+    @Transactional(readOnly = true)
+    public boolean canManageSubjectWorkspace(UUID userId, String userRole, UUID classSubjectId) {
+        if ("ROLE_ADMIN".equals(userRole)) {
+            return true; // Admin override
+        }
+
+        ClassSubject classSubject = classSubjectRepository.findById(classSubjectId).orElse(null);
+        if (classSubject == null) return false;
+
+        // 1. Faculty Check
+        if (classSubject.getFaculty() != null && classSubject.getFaculty().getId().equals(userId)) {
+            return true;
+        }
+
+        // 2. HOD Check
+        if (classSubject.getAcroClass() != null && classSubject.getAcroClass().getDepartment() != null) {
+            Department dept = classSubject.getAcroClass().getDepartment();
+            if (dept.getHod() != null && dept.getHod().getId().equals(userId)) {
+                return true;
+            }
+        }
+
+        // 3. Coordinator Check
+        if (classSubject.getAcroClass() != null && classSubject.getSemester() != null && classSubject.getAcademicYear() != null) {
+            List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(userId);
+            for (CoordinatorAssignment ca : assignments) {
+                if (Boolean.TRUE.equals(ca.getIsActive())) {
+                    boolean matchClass = ca.getClassName() != null && classSubject.getAcroClass().getName() != null &&
+                            ca.getClassName().trim().equalsIgnoreCase(classSubject.getAcroClass().getName().trim());
+                    
+                    boolean matchSem = true;
+                    if (ca.getSemester() != null) {
+                        String semName = "Semester " + classSubject.getSemester().getSemesterNumber();
+                        matchSem = ca.getSemester().equalsIgnoreCase(semName);
+                    }
+                    
+                    boolean matchYear = true;
+                    if (ca.getAcademicYear() != null) {
+                        matchYear = ca.getAcademicYear().equalsIgnoreCase(classSubject.getAcademicYear().getYear());
+                    }
+                    
+                    if (matchClass && matchSem && matchYear) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

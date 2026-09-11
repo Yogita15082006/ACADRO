@@ -360,11 +360,18 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
                     }
                 } else if (q.getOptions() != null && !q.getOptions().isEmpty()) {
                     try {
+                        String targetAns = submittedOptionId.trim();
+                        String expectedAns = q.getCorrectAnswer() != null ? q.getCorrectAnswer().trim() : null;
+                        
+                        // 1. Direct match with canonical expectedAns
+                        if (expectedAns != null && targetAns.equalsIgnoreCase(expectedAns)) {
+                            isCorrect = true;
+                        }
+
                         List<QuizQuestionDto.Option> options = objectMapper.convertValue(q.getOptions(), new TypeReference<>() {});
                         if (options != null) {
-                            String targetAns = submittedOptionId;
                             for (QuizQuestionDto.Option opt : options) {
-                                if (opt.isCorrect()) {
+                                if (opt.isCorrect() || (expectedAns != null && (opt.getId().equalsIgnoreCase(expectedAns) || opt.getText().equalsIgnoreCase(expectedAns)))) {
                                     correctAnswerText = opt.getId().toUpperCase() + ". " + opt.getText();
                                 }
                                 if (opt.getId().equalsIgnoreCase(targetAns) || opt.getText().equalsIgnoreCase(targetAns)) {
@@ -374,8 +381,13 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
                                     }
                                 }
                             }
-                            if (!isCorrect && options.stream().anyMatch(opt -> opt.getText().equalsIgnoreCase(targetAns) && opt.isCorrect())) {
-                                isCorrect = true;
+                            
+                            // 3. Robust fallback: Compare selected option against canonical correct answer
+                            if (!isCorrect && expectedAns != null) {
+                                isCorrect = options.stream().anyMatch(opt -> 
+                                    (opt.getId().equalsIgnoreCase(targetAns) || opt.getText().equalsIgnoreCase(targetAns)) && 
+                                    (opt.getId().equalsIgnoreCase(expectedAns) || opt.getText().equalsIgnoreCase(expectedAns))
+                                );
                             }
                         }
                     } catch (Exception ignored) {}
@@ -411,9 +423,9 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
         }
 
         int totalQuestionsCount = questions.size();
-        int finalCorrect = attempt.getCorrectAnswers() != null ? attempt.getCorrectAnswers() : computedCorrect;
-        int finalIncorrect = attempt.getWrongAnswers() != null ? attempt.getWrongAnswers() : computedIncorrect;
-        int finalUnattempted = attempt.getUnattemptedQuestions() != null ? attempt.getUnattemptedQuestions() : computedUnattempted;
+        int finalCorrect = computedCorrect;
+        int finalIncorrect = computedIncorrect;
+        int finalUnattempted = computedUnattempted;
         int attemptedCount = finalCorrect + finalIncorrect;
 
         BigDecimal accuracyPct = attemptedCount > 0 ?
@@ -422,10 +434,12 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
 
         int totalM = quiz.getTotalMarks() != null && quiz.getTotalMarks() > 0 ? quiz.getTotalMarks() : Math.max(1, questions.stream().mapToInt(q -> q.getMarks() != null && q.getMarks() > 0 ? q.getMarks() : 1).sum());
         int passingM = quiz.getPassingMarks() != null ? quiz.getPassingMarks() : (int) Math.ceil(totalM * 0.4);
-        BigDecimal obtM = attempt.getScore() != null ? attempt.getScore() : new BigDecimal(questionReviews.stream().mapToInt(QuizAttemptDto.QuestionReviewDto::getMarksAwarded).sum());
-        BigDecimal pct = attempt.getPercentage() != null ? attempt.getPercentage() : new BigDecimal(((double) obtM.doubleValue() / totalM) * 100.0).setScale(2, java.math.RoundingMode.HALF_UP);
-        boolean passed = attempt.getIsPassed() != null ? attempt.getIsPassed() : (obtM.doubleValue() >= passingM || pct.doubleValue() >= 40.0);
-        String grade = attempt.getGrade() != null && !"Pending".equalsIgnoreCase(attempt.getGrade()) ? attempt.getGrade() : (passed ? "Passed" : "Failed");
+        
+        // Dynamically compute the score based on the current authoritative evaluation
+        BigDecimal obtM = new BigDecimal(questionReviews.stream().mapToInt(QuizAttemptDto.QuestionReviewDto::getMarksAwarded).sum());
+        BigDecimal pct = new BigDecimal(((double) obtM.doubleValue() / totalM) * 100.0).setScale(2, java.math.RoundingMode.HALF_UP);
+        boolean passed = (obtM.doubleValue() >= passingM || pct.doubleValue() >= 40.0);
+        String grade = passed ? "Passed" : "Failed";
 
         // Time taken calculation
         long durationSecs = 0;
@@ -650,9 +664,77 @@ public class QuizAttemptServiceImpl implements QuizAttemptService {
         if (quiz == null) return new java.util.ArrayList<>();
         List<QuizAttempt> dbAttempts = attemptRepository.findByQuiz_Id(quiz.getId());
         java.util.Map<UUID, QuizAttemptDto.Response> rosterMap = new java.util.LinkedHashMap<>();
+        List<QuizQuestion> questions = questionRepository.findByQuiz_Id(quiz.getId());
+        int totalQuizMarks = quiz.getTotalMarks() != null && quiz.getTotalMarks() > 0 ? quiz.getTotalMarks() : 100;
+        int passingM = quiz.getPassingMarks() != null ? quiz.getPassingMarks() : (int) Math.ceil(totalQuizMarks * 0.4);
+
         for (QuizAttempt att : dbAttempts) {
             QuizAttemptDto.Response dto = attemptMapper.toResponseDto(att);
             if (dto != null && dto.getStudentId() != null) {
+                if (att.getCompletedAt() != null) {
+                    int correct = 0;
+                    int incorrect = 0;
+                    int unattempted = 0;
+                    int obtM = 0;
+                    
+                    try {
+                        java.util.Map<String, String> ansMap = new java.util.HashMap<>();
+                        if (att.getSubmittedAnswers() != null) {
+                            ansMap = att.getSubmittedAnswers();
+                        }
+                        for (int i = 0; i < questions.size(); i++) {
+                            QuizQuestion q = questions.get(i);
+                            String studentAns = ansMap.get(q.getId().toString());
+                            if (studentAns == null) studentAns = ansMap.get(String.valueOf(i));
+                            
+                            if (studentAns == null || studentAns.trim().isEmpty()) {
+                                unattempted++;
+                                continue;
+                            }
+                            
+                            boolean isCorrect = false;
+                            String target = studentAns.trim();
+                            String expected = q.getCorrectAnswer() != null ? q.getCorrectAnswer().trim() : null;
+                            
+                            if (expected != null && target.equalsIgnoreCase(expected)) {
+                                isCorrect = true;
+                            }
+                            
+                            if (!isCorrect && q.getOptions() != null) {
+                                List<com.acronexus.dto.QuizQuestionDto.Option> opts = objectMapper.convertValue(q.getOptions(), new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                                if (opts != null) {
+                                    for (com.acronexus.dto.QuizQuestionDto.Option opt : opts) {
+                                        if (opt.getId().equalsIgnoreCase(target) || opt.getText().equalsIgnoreCase(target)) {
+                                            if (opt.isCorrect()) isCorrect = true;
+                                        }
+                                    }
+                                    if (!isCorrect && expected != null) {
+                                        isCorrect = opts.stream().anyMatch(opt -> 
+                                            (opt.getId().equalsIgnoreCase(target) || opt.getText().equalsIgnoreCase(target)) && 
+                                            (opt.getId().equalsIgnoreCase(expected) || opt.getText().equalsIgnoreCase(expected))
+                                        );
+                                    }
+                                }
+                            }
+                            
+                            if (isCorrect) {
+                                correct++;
+                                obtM += (q.getMarks() != null && q.getMarks() > 0 ? q.getMarks() : 1);
+                            } else {
+                                incorrect++;
+                            }
+                        }
+                        
+                        dto.setCorrectAnswers(correct);
+                        dto.setWrongAnswers(incorrect);
+                        dto.setUnattemptedQuestions(unattempted);
+                        dto.setScore(new BigDecimal(obtM));
+                        BigDecimal pct = new BigDecimal(((double) obtM / totalQuizMarks) * 100.0).setScale(2, java.math.RoundingMode.HALF_UP);
+                        dto.setPercentage(pct);
+                        dto.setPassed(obtM >= passingM || pct.doubleValue() >= 40.0);
+                        dto.setGrade(dto.getPassed() ? "Passed" : "Failed");
+                    } catch (Exception ignored) { }
+                }
                 rosterMap.put(dto.getStudentId(), dto);
             }
         }

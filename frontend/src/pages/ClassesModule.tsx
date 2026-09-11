@@ -241,8 +241,8 @@ export const ClassesModule = () => {
       setIsUploadMaterialOpen(false);
       fetchMaterials();
     } catch (e: any) {
-      console.error('Failed to upload lecture material', e);
-      alert(e.response?.data?.message || "Failed to upload lecture material. Only the assigned faculty can upload materials.");
+      console.error('Failed to upload resource', e);
+      alert(e.response?.data?.message || "Failed to upload resource. Only authorized users can upload materials.");
     } finally {
       setIsUploadingMaterial(false);
     }
@@ -256,7 +256,7 @@ export const ClassesModule = () => {
       fetchMaterials();
     } catch (e: any) {
       console.error('Failed to delete material', e);
-      alert(e.response?.data?.message || "Failed to delete lecture material.");
+      alert(e.response?.data?.message || "Failed to delete resource.");
     }
   };
 
@@ -348,10 +348,7 @@ export const ClassesModule = () => {
     const ws = workspaces.find(w => w.id === activeWorkspace);
     if (!ws) return null;
 
-    const isAssignedFaculty = role === 'faculty' && (
-      String(ws.facultyId) === String(user?.id) || 
-      (ws.facultyName && ws.facultyName === `${user?.firstName || ''} ${user?.lastName || ''}`.trim())
-    );
+    const canManageWorkspace = ['faculty', 'hod', 'coordinator', 'admin'].includes(role.toLowerCase());
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300 pb-10">
@@ -380,7 +377,7 @@ export const ClassesModule = () => {
           {[
             { id: 'overview', label: 'Overview', icon: BookOpen },
             { id: 'announcements', label: 'Announcements', icon: Bell },
-            { id: 'materials', label: 'Lecture Materials', icon: FileText },
+            { id: 'materials', label: 'Resources', icon: FileText },
             { id: 'assignments', label: 'Assignments', icon: ClipboardList },
             { id: 'quizzes', label: 'Quizzes', icon: CheckCircle2 },
             { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
@@ -409,7 +406,7 @@ export const ClassesModule = () => {
                   <h3 className="text-lg font-semibold flex items-center gap-2"><Bell className="w-5 h-5 text-amber-500" /> Announcements</h3>
                   <p className="text-sm text-muted-foreground">Stay updated with the latest news for this subject.</p>
                 </div>
-                {isAssignedFaculty && (
+                {canManageWorkspace && (
                   <Button onClick={() => setIsPostAnnouncementOpen(true)} className="shadow-sm">
                     <MessageSquare className="w-4 h-4 mr-2" /> Post Announcement
                   </Button>
@@ -433,7 +430,7 @@ export const ClassesModule = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className={`${n.priority === 'Urgent' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' : n.priority === 'Important' || n.priority === 'High' ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' : ''}`}>{n.priority}</Badge>
-                          {(isAssignedFaculty && (!n.facultyId || String(n.facultyId) === String(user?.id))) && (
+                          {canManageWorkspace && (
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -476,21 +473,21 @@ export const ClassesModule = () => {
             <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
               <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border/50 shadow-sm">
                 <div className="space-y-1">
-                  <h3 className="text-lg font-semibold flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-500" /> Lecture Materials</h3>
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-500" /> Resources</h3>
                   <p className="text-sm text-muted-foreground">Access and organize subject resources.</p>
                 </div>
-                {role === 'faculty' && (
+                {canManageWorkspace && (
                   <Button onClick={() => setIsUploadMaterialOpen(true)} className="shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white">
-                    <Upload className="w-4 h-4 mr-2" /> Upload Material
+                    <Upload className="w-4 h-4 mr-2" /> Upload Resource
                   </Button>
                 )}
               </div>
               
               {loadingMaterials ? (
-                <div className="py-12 text-center text-muted-foreground">Loading lecture materials...</div>
+                <div className="py-12 text-center text-muted-foreground">Loading resources...</div>
               ) : materials.length === 0 ? (
                 <div className="py-12 text-center bg-card rounded-xl border border-border/50 text-muted-foreground">
-                  No lecture materials uploaded for this subject yet.
+                  No resources uploaded for this subject yet.
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -524,7 +521,7 @@ export const ClassesModule = () => {
                                   <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs font-medium gap-1.5" onClick={() => handleDownloadMaterial(m)}>
                                     <Download className="w-3.5 h-3.5" /> Download
                                   </Button>
-                                  {role === 'faculty' && (
+                                  {canManageWorkspace && (
                                     <Button size="sm" variant="destructive" className="h-8 px-2.5 text-xs font-medium gap-1.5" onClick={() => setDeleteMaterialId(m.id)}>
                                       <Trash2 className="w-3.5 h-3.5" /> Delete
                                     </Button>
@@ -571,7 +568,7 @@ export const ClassesModule = () => {
         <Dialog open={isUploadMaterialOpen} onOpenChange={(open) => { setIsUploadMaterialOpen(open); if (!open) { setMaterialTitle(''); setMaterialUnit(''); setMaterialFile(null); } }}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Upload Lecture Material</DialogTitle>
+              <DialogTitle>Upload Resource</DialogTitle>
               <DialogDescription>Share documents (PDF, DOC, PPT) or images (JPG, PNG, WEBP) with students.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -669,9 +666,9 @@ export const ClassesModule = () => {
         <Dialog open={!!deleteMaterialId} onOpenChange={(open) => !open && setDeleteMaterialId(null)}>
           <DialogContent className="sm:max-w-[400px]">
             <DialogHeader>
-              <DialogTitle>Delete Lecture Material</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this lecture material? It will be immediately removed from both faculty and student views. This action cannot be undone.
+              <DialogTitle>Delete Resource</DialogTitle>
+              <DialogDescription className="py-4 text-sm text-muted-foreground leading-relaxed">
+                Are you sure you want to delete this resource? It will be immediately removed from both faculty and student views. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

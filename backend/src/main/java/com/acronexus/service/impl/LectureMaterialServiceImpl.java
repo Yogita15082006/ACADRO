@@ -42,6 +42,7 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
     private final ResourceDownloadRepository resourceDownloadRepository;
     private final CoordinatorAssignmentRepository coordinatorAssignmentRepository;
     private final com.acronexus.service.AiService aiService;
+    private final com.acronexus.service.ClassSubjectService classSubjectService;
 
     @Override
     @Transactional
@@ -236,9 +237,9 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
                 if (!isEnrolled) {
                     throw new AccessDeniedException("Access Denied: You are not enrolled in this subject's class and semester.");
                 }
-            } else if ("ROLE_FACULTY".equals(role)) {
-                if (classSubject.getFaculty() == null || !classSubject.getFaculty().getId().equals(userDetails.getId())) {
-                    throw new AccessDeniedException("Faculty can only access materials for subjects assigned to them.");
+            } else {
+                if (!classSubjectService.canManageSubjectWorkspace(userDetails.getId(), role, classSubjectId)) {
+                    throw new AccessDeniedException("You are not authorized to manage this subject workspace.");
                 }
             }
         }
@@ -254,8 +255,8 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
                 .orElseThrow(() -> new ResourceNotFoundException("Subject Workspace not found"));
 
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
-        if (!"ROLE_FACULTY".equals(role) || classSubject.getFaculty() == null || !classSubject.getFaculty().getId().equals(userDetails.getId())) {
-            throw new AccessDeniedException("Only the officially assigned faculty for this subject card can upload materials.");
+        if (!classSubjectService.canManageSubjectWorkspace(userDetails.getId(), role, classSubjectId)) {
+            throw new AccessDeniedException("Only the officially assigned faculty, HOD, or Coordinator for this subject card can upload resources.");
         }
 
         if (file == null || file.isEmpty()) {
@@ -344,13 +345,20 @@ public class LectureMaterialServiceImpl implements LectureMaterialService {
     @Override
     @Transactional
     public void deleteSubjectMaterial(UUID materialId, UserDetailsImpl userDetails, String token) {
-        UUID userId = userDetails != null ? userDetails.getId() : jwtUtils.getUserIdFromToken(token);
         LectureMaterial material = repository.findById(materialId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lecture Material not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resource not found"));
 
-        if (!material.getUploadedBy().getId().equals(userId) && 
-            (material.getClassSubject() == null || material.getClassSubject().getFaculty() == null || !material.getClassSubject().getFaculty().getId().equals(userId))) {
-            throw new UnauthorizedException("Only the faculty who uploaded the material can delete it.");
+        UUID effectiveUserId = userDetails != null ? userDetails.getId() : jwtUtils.getUserIdFromToken(token);
+        String role = userDetails != null && userDetails.getAuthorities() != null && !userDetails.getAuthorities().isEmpty() 
+            ? userDetails.getAuthorities().iterator().next().getAuthority() : "ROLE_FACULTY";
+            
+        boolean isUploader = material.getUploadedBy() != null && material.getUploadedBy().getId().equals(effectiveUserId);
+        
+        if (!isUploader) {
+            // Check if they are a workspace manager
+            if (material.getClassSubject() == null || !classSubjectService.canManageSubjectWorkspace(effectiveUserId, role, material.getClassSubject().getId())) {
+                throw new AccessDeniedException("Only the original uploader or a workspace manager can delete this resource.");
+            }
         }
 
         material.setIsDeleted(true);
