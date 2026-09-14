@@ -15,4 +15,7 @@ public interface ExamAiFeedbackRepository extends JpaRepository<ExamAiFeedback, 
     java.util.List<ExamAiFeedback> findByExaminationIdAndClassName(@org.springframework.data.repository.query.Param("examinationId") UUID examinationId, @org.springframework.data.repository.query.Param("className") String className);
     
     java.util.List<ExamAiFeedback> findByExaminationId(UUID examinationId);
+    
+    java.util.List<ExamAiFeedback> findByExaminationIdAndExamDateAndClassSubjectId(UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId);
+    java.util.Optional<ExamAiFeedback> findByExaminationIdAndExamDateAndClassSubjectIdAndStudentId(UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, UUID studentId);
 }

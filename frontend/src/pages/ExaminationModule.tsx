@@ -200,6 +200,75 @@ export const ExaminationModule = () => {
   
   // Results Management (Admin)
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClassSubject, setSelectedClassSubject] = useState<string>('');
+  const [selectedExamDate, setSelectedExamDate] = useState<string>('');
+  const [availableSubjects, setAvailableSubjects] = useState<any[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [isSubjectsLoading, setIsSubjectsLoading] = useState(false);
+  const [isDatesLoading, setIsDatesLoading] = useState(false);
+  
+  useEffect(() => {
+    if (selectedExam?.id) {
+       setSelectedClass('');
+       setSelectedClassSubject('');
+       setSelectedExamDate('');
+       setAvailableSubjects([]);
+       setAvailableDates([]);
+       setResultUploadMethod(null);
+       setUploadedFile(null);
+       setUploadStatus('idle');
+       setResultTargetClassId('');
+       setPresentStudentsForSection(null);
+    }
+  }, [selectedExam?.id]);
+
+  useEffect(() => {
+    if (selectedClass && selectedExam) {
+      setIsSubjectsLoading(true);
+      api.get(`/v1/class-subjects/class/${selectedClass}`)
+        .then(res => {
+          let subjects = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+          if (selectedExam.semesterName || selectedExam.semester) {
+             const expectedSem1 = String(selectedExam.semesterName || selectedExam.semester);
+             const expectedSem2 = `Semester ${expectedSem1}`;
+             subjects = subjects.filter((s: any) => !s.semester || String(s.semester) === expectedSem1 || String(s.semester) === expectedSem2);
+          }
+          if (selectedExam.batch) {
+             subjects = subjects.filter((s: any) => !s.batch || s.batch === selectedExam.batch);
+          }
+          if (selectedExam.academicYearName) {
+             subjects = subjects.filter((s: any) => !s.year || s.year === selectedExam.academicYearName);
+          }
+          setAvailableSubjects(subjects);
+        })
+        .catch(err => console.error(err))
+        .finally(() => setIsSubjectsLoading(false));
+    } else {
+      setAvailableSubjects([]);
+    }
+  }, [selectedClass, selectedExam]);
+
+  useEffect(() => {
+    if (selectedClassSubject && selectedExam) {
+      setIsDatesLoading(true);
+      api.get(`/examinations/${selectedExam.id}/attendance?subjectIds=${selectedClassSubject}`)
+        .then(res => {
+          if (res.data && res.data.success && res.data.data) {
+            const dates = Array.from(new Set(res.data.data.map((a: any) => a.examDate))).filter(Boolean);
+            setAvailableDates(dates as string[]);
+          } else {
+            setAvailableDates([]);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          setAvailableDates([]);
+        })
+        .finally(() => setIsDatesLoading(false));
+    } else {
+      setAvailableDates([]);
+    }
+  }, [selectedClassSubject, selectedExam]);
   const [enteringMarksForStudent, setEnteringMarksForStudent] = useState<any>(null);
   const [savedResults, setSavedResults] = useState<any[]>([]);
   const [resultViewMode, setResultViewMode] = useState<'saved' | 'create' | 'view'>('saved');
@@ -302,11 +371,11 @@ export const ExaminationModule = () => {
   }, [selectedExam, resultViewMode]);
 
   const handleGenerateAIFeedback = async () => {
-    if (uploadedMarks.length === 0 || !selectedExam || !selectedClass) return;
+    if (uploadedMarks.length === 0 || !selectedExam || !selectedClassSubject || !selectedExamDate) return;
     setIsGeneratingAIFeedback(true);
     setAiFeedbackStep('Initializing AI & generating feedback...');
     try {
-      const res = await examResultService.generateAIFeedback(selectedExam.id, selectedClass);
+      const res = await examResultService.generateAIFeedback(selectedExam.id, undefined, selectedExamDate, selectedClassSubject);
       if (res.success) {
          toast.success('AI feedback generated successfully for all students.');
       }
@@ -318,12 +387,12 @@ export const ExaminationModule = () => {
     }
   };
   
-  const fetchPresentStudents = async (classId: string) => {
-    if (!classId || !selectedExam) return;
+  const fetchPresentStudents = async () => {
+    if (!selectedClassSubject || !selectedExamDate || !selectedExam) return;
     setIsPresentStudentsLoading(true);
     setPresentStudentsError(null);
     try {
-      const res = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students?classId=${classId}`);
+      const res = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students?examDate=${selectedExamDate}&classSubjectId=${selectedClassSubject}`);
       setPresentStudentsForSection(res.data.data);
     } catch (err: any) {
       setPresentStudentsError(err.response?.data?.message || "Failed to load present students");
@@ -333,36 +402,30 @@ export const ExaminationModule = () => {
     }
   };
 
-  const handleResultSectionChange = (classId: string) => {
-    setResultTargetClassId(classId);
-    if (classId) {
-       fetchPresentStudents(classId);
+  useEffect(() => {
+    if (selectedClassSubject && selectedExamDate) {
+      fetchPresentStudents();
     } else {
-       setPresentStudentsForSection(null);
-       setPresentStudentsError(null);
+      setPresentStudentsForSection(null);
+      setPresentStudentsError(null);
     }
-  };
-
-  const targetSections = selectedExam?.classIds?.map((id: string, index: number) => ({
-    id,
-    name: selectedExam.classNames[index]
-  })) || [];
+  }, [selectedClassSubject, selectedExamDate, selectedExam?.id]);
 
   const handleDownloadPresentStudentsExcel = async () => {
-    if (!selectedExam || !resultTargetClassId) return;
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
     setIsExporting(true);
     try {
-        const response = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students/export?classId=${resultTargetClassId}`, {
+        const response = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students/export?examDate=${selectedExamDate}&classSubjectId=${selectedClassSubject}`, {
             responseType: 'blob'
         });
-        const sectionName = targetSections.find((s: any) => s.id === resultTargetClassId)?.name || 'Section';
         const safeExamName = selectedExam.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-        const safeSectionName = sectionName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        const subjectName = availableSubjects.find((s: any) => s.id === selectedClassSubject)?.subjectName || 'Subject';
+        const safeSubjectName = subjectName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
         
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `${safeExamName}_${safeSectionName}_Present_Students.xlsx`);
+        link.setAttribute('download', `${safeExamName}_${safeSubjectName}_${selectedExamDate}_Present_Students.xlsx`);
         document.body.appendChild(link);
         link.click();
         link.parentNode?.removeChild(link);
@@ -378,16 +441,16 @@ export const ExaminationModule = () => {
   const [isPublishing, setIsPublishing] = useState(false);
 
   const handlePublishAll = async () => {
-    if (!selectedExam || !selectedClass) return;
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
     setIsPublishing(true);
     try {
-      const res = await examResultService.publishResults(selectedExam.id, selectedClass);
+      const res = await examResultService.publishResults(selectedExam.id, selectedExamDate, selectedClassSubject);
       if (res.success) {
         const count = res.data || 0;
         toast.success(`${count} result${count === 1 ? '' : 's'} published successfully`);
         
         // Refresh the 'uploadedMarks' (Draft View) from the actual DB state
-        const dbRes = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+        const dbRes = await examResultService.getResultsByContext(selectedExam.id, selectedExamDate, selectedClassSubject);
         if (dbRes.success && dbRes.data) {
              const grouped = dbRes.data.reduce((acc: any, row: any) => {
                  if (!acc[row.studentId]) {
@@ -443,9 +506,9 @@ export const ExaminationModule = () => {
   };
 
   const handlePublishResult = async (studentId: string) => {
-    if (!selectedExam) return;
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
     try {
-      const res = await examResultService.publishResults(selectedExam.id, undefined, studentId);
+      const res = await examResultService.publishResults(selectedExam.id, selectedExamDate, selectedClassSubject, studentId);
       if (res.success) {
         toast.success('Student result published!');
         setUploadedMarks(prev => prev.map(m => m.id === studentId ? { ...m, status: 'Published' } : m));
@@ -461,8 +524,8 @@ export const ExaminationModule = () => {
   const handleOpenStudentResult = async (student: any) => {
       setEnteringMarksForStudent(student);
       try {
-         if (selectedExam) {
-             const aiFeedback = await examResultService.getAIFeedback(selectedExam.id, student.className || selectedClass);
+         if (selectedExam && selectedClassSubject && selectedExamDate) {
+             const aiFeedback = await examResultService.getAIFeedback(selectedExam.id, undefined, selectedExamDate, selectedClassSubject);
              if (aiFeedback && aiFeedback.data) {
                  const studentFeedback = aiFeedback.data.find((f: any) => f.studentId === student.id || f.studentId === student.studentId);
                  if (studentFeedback) {
@@ -545,7 +608,16 @@ export const ExaminationModule = () => {
   const [persistedAttendanceMap, setPersistedAttendanceMap] = useState<Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'>>({});
   const [attendanceLoaded, setAttendanceLoaded] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
-  const [attendanceViewMode, setAttendanceViewMode] = useState<'cards' | 'detail'>('cards');
+  const [activeContext, setActiveContext] = useState<any>(null);
+  const [availableContexts, setAvailableContexts] = useState<any[]>([]);
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState<any[]>([]);
+  const [attendanceViewMode, setAttendanceViewMode] = useState<'cards' | 'detail' | 'setup' | 'saved'>('cards');
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [savedAttendanceContexts, setSavedAttendanceContexts] = useState<any[]>([]);
+  const [attendanceSetupDate, setAttendanceSetupDate] = useState<string>('');
+  const [attendanceSetupSubjectMap, setAttendanceSetupSubjectMap] = useState<Record<string, string>>({});
+  const [availableSubjectsMap, setAvailableSubjectsMap] = useState<Record<string, any[]>>({});
+  const [isFetchingSubjects, setIsFetchingSubjects] = useState(false);
   const [selectedAttendanceRoomId, setSelectedAttendanceRoomId] = useState<string | null>(null);
 
   // Modal States
@@ -557,6 +629,21 @@ export const ExaminationModule = () => {
   useEffect(() => {
     setPersistentData('acronexus_seating', savedSeatingLists);
   }, [savedSeatingLists]);
+
+  useEffect(() => {
+    // Reset temporary setup state when switching exams
+    setAttendanceSetupDate('');
+    setAttendanceSetupSubjectMap({});
+    setAvailableSubjectsMap({});
+    setIsFetchingSubjects(false);
+    setActiveContext(null);
+    setAttendanceViewMode('cards');
+    setSelectedAttendanceRoomId(null);
+    setAttendanceMap({});
+    setPersistedAttendanceMap({});
+    setAttendanceLoaded(false);
+  }, [selectedExam?.id]);
+
 
   useEffect(() => {
     const fetchSeatingPlan = async () => {
@@ -593,32 +680,115 @@ export const ExaminationModule = () => {
     const fetchAttendance = async () => {
       if (activeTab !== 'attendance' || !selectedExam || !seatingSaved) return;
 
-      setAttendanceMap({});
-      setPersistedAttendanceMap({});
-      setAttendanceLoaded(false);
       setIsLoadingData(true);
       try {
         const res = await api.get(`/examinations/${selectedExam.id}/attendance`);
         if (res.data.success && res.data.data) {
-           const map: Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'> = {};
-           res.data.data.forEach((a: any) => {
-               map[a.studentId] = a.isPresent ? 'PRESENT' : 'ABSENT';
-           });
-           setAttendanceMap(map);
-           setPersistedAttendanceMap(map);
-           setAttendanceLoaded(true);
+           setAllAttendanceRecords(res.data.data);
+        } else {
+           setAllAttendanceRecords([]);
         }
       } catch (err: any) {
         console.error("Failed to load attendance", err);
-        setAttendanceMap({});
-        setPersistedAttendanceMap({});
-        setAttendanceLoaded(false);
+        setAllAttendanceRecords([]);
       } finally {
         setIsLoadingData(false);
       }
     };
     fetchAttendance();
   }, [activeTab, selectedExam, seatingSaved]);
+
+  useEffect(() => {
+    const map: Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'> = {};
+    let subset = allAttendanceRecords;
+
+    if (activeContext) {
+      if (activeContext.isSavedView) {
+          subset = allAttendanceRecords.filter((a: any) => 
+              a.examDate === activeContext.examDate && a.classSubjectId === activeContext.classSubjectId
+          );
+      } else if (activeContext.examDate && activeContext.sectionSubjectMap) {
+          const mappedSubjects = Object.values(activeContext.sectionSubjectMap);
+          subset = allAttendanceRecords.filter((a: any) => 
+              a.examDate === activeContext.examDate && mappedSubjects.includes(a.classSubjectId)
+          );
+      }
+    }
+    
+    subset.forEach((a: any) => {
+        map[a.studentId] = a.isPresent ? 'PRESENT' : 'ABSENT';
+    });
+    setAttendanceMap(map);
+    setPersistedAttendanceMap(map);
+    setAttendanceLoaded(true);
+  }, [allAttendanceRecords, activeContext]);
+
+  useEffect(() => {
+    if (attendanceViewMode !== 'saved' || !selectedExam) return;
+
+    const buildSavedContexts = async () => {
+       const contextsMap = new Map<string, any>();
+       
+       allAttendanceRecords.forEach(a => {
+           if (!a.examDate || !a.classSubjectId) return;
+           const key = `${a.examDate}_${a.classSubjectId}`;
+           if (!contextsMap.has(key)) {
+               contextsMap.set(key, {
+                   examDate: a.examDate,
+                   classSubjectId: a.classSubjectId,
+                   isSavedView: true,
+                   presentCount: 0,
+                   absentCount: 0,
+                   records: []
+               });
+           }
+           const ctx = contextsMap.get(key);
+           ctx.records.push(a);
+           if (a.isPresent) ctx.presentCount++;
+           else ctx.absentCount++;
+       });
+
+       const subjectNameMap = new Map<string, string>();
+       const classInfoMap = new Map<string, { className: string, classId: string }>();
+
+       if (selectedExam.classIds) {
+           await Promise.all(selectedExam.classIds.map((classId: string) => 
+               api.get(`/v1/class-subjects/class/${classId}`).then((r: any) => {
+                   const arr = Array.isArray(r.data) ? r.data : (r.data?.data || []);
+                   arr.forEach((s: any) => {
+                       subjectNameMap.set(s.id, s.subjectName || s.subject?.name || 'Unknown');
+                       if (s.classId) {
+                           classInfoMap.set(s.id, { className: s.classSection || s.className, classId: s.classId });
+                       } else if (s.acroClass) {
+                           classInfoMap.set(s.id, { className: s.acroClass.section || s.acroClass.name, classId: s.acroClass.id });
+                       }
+                   });
+               }).catch(() => {})
+           ));
+       }
+
+       const finalContexts: any[] = [];
+       contextsMap.forEach(ctx => {
+           const name = subjectNameMap.get(ctx.classSubjectId) || 'Unknown Subject';
+           const classInfo = classInfoMap.get(ctx.classSubjectId) || { className: 'Unknown Class', classId: '' };
+           finalContexts.push({
+               ...ctx,
+               subjectName: name,
+               className: classInfo.className,
+               functionalClassId: classInfo.classId
+           });
+       });
+       
+       finalContexts.sort((a, b) => {
+           if (a.examDate !== b.examDate) return a.examDate.localeCompare(b.examDate);
+           return a.className.localeCompare(b.className);
+       });
+
+       setSavedAttendanceContexts(finalContexts);
+    };
+
+    buildSavedContexts();
+  }, [attendanceViewMode, selectedExam, allAttendanceRecords]);
 
   useEffect(() => {
     const fetchInvigilators = async () => {
@@ -673,6 +843,39 @@ export const ExaminationModule = () => {
       setClassStudents([]);
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (attendanceViewMode === 'setup' && selectedExam?.classIds) {
+      setIsFetchingSubjects(true);
+      
+      const fetchAllSubjects = async () => {
+        const newMap: Record<string, any[]> = {};
+        
+        await Promise.all(
+          selectedExam.classIds.map(async (classId: string) => {
+            try {
+              const res = await api.get(`/v1/class-subjects/class/${classId}`);
+              if (Array.isArray(res.data)) {
+                newMap[classId] = res.data;
+              } else if (res.data && res.data.data) {
+                newMap[classId] = res.data.data;
+              } else {
+                newMap[classId] = [];
+              }
+            } catch (err) {
+              console.error(`Failed to fetch class subjects for class ${classId}`, err);
+              newMap[classId] = [];
+            }
+          })
+        );
+        
+        setAvailableSubjectsMap(newMap);
+        setIsFetchingSubjects(false);
+      };
+      
+      fetchAllSubjects();
+    }
+  }, [attendanceViewMode, selectedExam?.id, selectedExam?.classIds]);
 
   const openCreateForm = (exam: any = null) => {
     if (exam) {
@@ -1544,7 +1747,7 @@ export const ExaminationModule = () => {
     
     try {
       setUploadStatus('extracting');
-      const response = await examResultService.uploadResults(file, selectedExam?.id, selectedClass);
+      const response = await examResultService.uploadResults(file, selectedExam?.id, undefined, selectedExamDate, selectedClassSubject);
       
       if (response && response.processingStatus === 'COMPLETED' || response.processingStatus === 'PARTIAL_SUCCESS') {
          toast.success(`Upload processed. Inserted: ${response.successfullyInserted || 0}, Updated: ${response.updatedRecords || 0}`);
@@ -1558,8 +1761,8 @@ export const ExaminationModule = () => {
       setUploadStatus('completed');
       setIsUploading(false);
       
-      if (selectedExam && selectedClass) {
-         const res = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+      if (selectedExam && selectedClassSubject && selectedExamDate) {
+         const res = await examResultService.getResultsByContext(selectedExam.id, selectedExamDate, selectedClassSubject);
          if (res.success && res.data) {
              const grouped = res.data.reduce((acc: any, row: any) => {
                  if (!acc[row.studentId]) {
@@ -1889,56 +2092,109 @@ export const ExaminationModule = () => {
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
-          <div>
-            <h3 className="font-bold">Result Management</h3>
-            <p className="text-sm text-muted-foreground">Select a class to upload or manage results for {selectedExam?.name}</p>
+        <div className="flex flex-col gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="font-bold">Result Management</h3>
+              <p className="text-sm text-muted-foreground">Select a context to upload or manage results for {selectedExam?.name}</p>
+            </div>
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+              <Button 
+                 variant={resultViewMode === 'saved' ? 'default' : 'outline'}
+                 onClick={() => {
+                   setResultViewMode('saved');
+                   setUploadStatus('idle');
+                   setUploadedMarks([]);
+                   setResultUploadMethod(null);
+                   setResultSaved(false);
+                 }}
+                 className="gap-2"
+              >
+                 <FolderOpen size={16}/> Saved Results
+              </Button>
+              <Button 
+                 variant={resultViewMode === 'create' ? 'default' : 'outline'}
+                 onClick={() => {
+                   setResultViewMode('create');
+                   setUploadStatus('idle');
+                   setUploadedMarks([]);
+                   setResultUploadMethod(null);
+                   setResultSaved(false);
+                 }}
+                 className="gap-2"
+                 disabled={!selectedClassSubject || !selectedExamDate}
+              >
+                 <Plus size={16}/> Create Result
+              </Button>
+              {resultViewMode === 'view' && (
+                  <Button variant="default" className="gap-2 bg-indigo-600 hover:bg-indigo-700 pointer-events-none">
+                    <Eye size={16}/> Viewing Saved Result
+                  </Button>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <Button 
-               variant={resultViewMode === 'saved' ? 'default' : 'outline'}
-               onClick={() => {
-                 setResultViewMode('saved');
-                 setUploadStatus('idle');
-                 setUploadedMarks([]);
-                 setResultUploadMethod(null);
-                 setResultSaved(false);
-               }}
-               className="gap-2"
-            >
-               <FolderOpen size={16}/> Saved Results
-            </Button>
-            <Button 
-               variant={resultViewMode === 'create' ? 'default' : 'outline'}
-               onClick={() => {
-                 setResultViewMode('create');
-                 setUploadStatus('idle');
-                 setUploadedMarks([]);
-                 setResultUploadMethod(null);
-                 setResultSaved(false);
-               }}
-               className="gap-2"
-            >
-               <Plus size={16}/> Create Result
-            </Button>
-            {resultViewMode === 'view' && (
-                <Button variant="default" className="gap-2 bg-indigo-600 hover:bg-indigo-700 pointer-events-none">
-                  <Eye size={16}/> Viewing Saved Result
-                </Button>
-            )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-3 rounded-lg border border-border/50">
             <select 
-              className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
               value={selectedClass}
               onChange={(e) => {
                 setSelectedClass(e.target.value);
+                setSelectedClassSubject('');
+                setSelectedExamDate('');
                 setResultUploadMethod(null);
                 setUploadedFile(null);
                 setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
                 if (resultViewMode === 'view') setResultViewMode('create');
               }}
             >
               <option value="">-- Select Class --</option>
-              {examClasses.map((c: string) => <option key={c} value={c}>{c}</option>)}
+              {selectedExam?.classIds?.map((id: string, idx: number) => <option key={id} value={id}>{selectedExam.classNames[idx]}</option>)}
+            </select>
+            <select 
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+              value={selectedClassSubject}
+              onChange={(e) => {
+                setSelectedClassSubject(e.target.value);
+                setSelectedExamDate('');
+                setResultUploadMethod(null);
+                setUploadedFile(null);
+                setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
+                if (resultViewMode === 'view') setResultViewMode('create');
+              }}
+              disabled={!selectedClass || isSubjectsLoading}
+            >
+              <option value="">
+                {isSubjectsLoading ? 'Loading Subjects...' : (availableSubjects.length === 0 && selectedClass ? 'No subjects found for this class.' : '-- Select Subject --')}
+              </option>
+              {availableSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.subjectName || s.subject?.name}</option>)}
+            </select>
+            <select 
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+              value={selectedExamDate}
+              onChange={(e) => {
+                setSelectedExamDate(e.target.value);
+                setResultUploadMethod(null);
+                setUploadedFile(null);
+                setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
+                if (resultViewMode === 'view') setResultViewMode('create');
+              }}
+              disabled={!selectedClassSubject || isDatesLoading}
+            >
+              <option value="">
+                 {!selectedClassSubject ? '-- Select Subject First --' : (isDatesLoading ? 'Loading Dates...' : (availableDates.length === 0 ? 'No saved attendance found for this subject.' : '-- Select Date --'))}
+              </option>
+              {availableDates.map((d: string) => {
+                 const parts = d.split('-');
+                 const display = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : d;
+                 return <option key={d} value={d}>{display}</option>;
+              })}
             </select>
           </div>
         </div>
@@ -1950,21 +2206,21 @@ export const ExaminationModule = () => {
                 <p className="text-sm text-muted-foreground">Download present students list for marks preparation.</p>
              </div>
              <div className="flex gap-2 items-center">
-                 <select 
-                     className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
-                     value={resultTargetClassId} 
-                     onChange={e => handleResultSectionChange(e.target.value)}
-                 >
-                     <option value="">-- Select Section --</option>
-                     {targetSections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                 </select>
-                 <Button disabled={!resultTargetClassId || isExporting} onClick={handleDownloadPresentStudentsExcel}>
+                 <Button disabled={!selectedClassSubject || !selectedExamDate || isExporting} onClick={handleDownloadPresentStudentsExcel}>
                     {isExporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <Download size={16} className="mr-2"/>}
                     Download Excel
                  </Button>
              </div>
           </div>
           
+          {selectedClass && selectedClassSubject && (
+             <div className="p-3 bg-muted/30 border-b border-border flex gap-6 text-sm rounded-lg mb-2 border">
+                <span><span className="font-semibold text-muted-foreground mr-1">Class:</span> {selectedExam?.classNames?.[selectedExam?.classIds?.indexOf(selectedClass)] || 'Unknown'}</span>
+                <span><span className="font-semibold text-muted-foreground mr-1">Subject:</span> {availableSubjects.find((s:any) => s.id === selectedClassSubject)?.subjectName || 'Unknown'}</span>
+                <span><span className="font-semibold text-muted-foreground mr-1">Date:</span> {selectedExamDate ? new Date(selectedExamDate).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Not selected'}</span>
+             </div>
+          )}
+
           {isPresentStudentsLoading && (
               <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
                   <Loader2 size={32} className="animate-spin text-primary" />
@@ -1978,7 +2234,7 @@ export const ExaminationModule = () => {
               </div>
           )}
           
-          {!isPresentStudentsLoading && resultTargetClassId && presentStudentsForSection && presentStudentsForSection.length === 0 && (
+          {!isPresentStudentsLoading && selectedClassSubject && selectedExamDate && presentStudentsForSection && presentStudentsForSection.length === 0 && (
               <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
                   <p>No present students found. Examination attendance may not have been recorded for this section yet.</p>
               </div>
@@ -2040,17 +2296,21 @@ export const ExaminationModule = () => {
                  
                  <div className="flex gap-2">
                    <Button variant="outline" className="flex-1 gap-2" onClick={() => {
-                     setSelectedClass(res.className);
-                     setUploadedMarks(res.marks);
-                     setUploadStatus('completed');
-                     setResultUploadMethod('upload');
-                     setResultViewMode('view');
-                   }}>
+                      const classIdx = selectedExam?.classNames?.indexOf(res.className);
+                      const classIdToSet = (classIdx !== undefined && classIdx >= 0) ? selectedExam?.classIds?.[classIdx] : res.className;
+                      setSelectedClass(classIdToSet || '');
+                      setSelectedClassSubject(res.classSubjectId);
+                      setSelectedExamDate(res.examDate);
+                      setUploadedMarks(res.marks);
+                      setUploadStatus('completed');
+                      setResultUploadMethod('upload');
+                      setResultViewMode('view');
+                    }}>
                      <Eye size={16}/> View
                    </Button>
                    <Button variant="outline" className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 gap-2 px-3" onClick={async () => {
                        try {
-                         await examResultService.deleteResultsForClass(selectedExam.id, res.className);
+                         await examResultService.deleteResultsForClass(selectedExam.id, undefined, res.examDate, res.classSubjectId);
                          setSavedResults(savedResults.filter(r => r.id !== res.id));
                          toast.success("Saved result and published data deleted successfully");
                        } catch (e: any) {
@@ -3382,15 +3642,23 @@ export const ExaminationModule = () => {
   };
 
   const executeSaveAttendance = async () => {
+    let studentsToSave: { studentId: string, isPresent: boolean }[] = [];
+    let payload: any = { attendanceList: [] };
+
     if (!selectedAttendanceRoomId || !seatingGenerated) return;
-    
     const room = seatingGenerated.roomAllocations.find((r: any) => r.id === selectedAttendanceRoomId);
     if (!room || !room.students) return;
 
-    const studentsToSave: { studentId: string, isPresent: boolean }[] = [];
     room.students.forEach((studentInfo: any) => {
       const sId = studentInfo.studentId;
       if (!sId) return;
+      
+      const isOutsideContext = activeContext?.isSavedView && 
+                               activeContext.className && 
+                               studentInfo.className && 
+                               studentInfo.className !== activeContext.className;
+      if (isOutsideContext) return;
+      
       const status = attendanceMap[sId];
       if (status === 'PRESENT' || status === 'ABSENT') {
         studentsToSave.push({
@@ -3400,22 +3668,34 @@ export const ExaminationModule = () => {
       }
     });
 
+    if (activeContext) {
+      const sectionSubjectMap = activeContext.sectionSubjectMap || 
+         (activeContext.functionalClassId && activeContext.classSubjectId ? 
+            { [activeContext.functionalClassId]: activeContext.classSubjectId } : undefined);
+            
+      payload = {
+          examDate: activeContext.examDate,
+          sectionSubjectMap: sectionSubjectMap,
+          attendanceList: studentsToSave
+      };
+    } else {
+      payload = { attendanceList: studentsToSave };
+    }
+
+    if (studentsToSave.length === 0) return;
+
     setIsSavingAttendance(true);
     try {
-      const res = await api.post(`/examinations/${selectedExam.id}/attendance`, { attendanceList: studentsToSave });
+      const res = await api.post(`/examinations/${selectedExam.id}/attendance`, payload);
       if (res.data.success) {
         toast.success("Attendance saved successfully");
         const res2 = await api.get(`/examinations/${selectedExam.id}/attendance`);
         if (res2.data.success && res2.data.data) {
-           const map: Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'> = {};
-           res2.data.data.forEach((a: any) => {
-               map[a.studentId] = a.isPresent ? 'PRESENT' : 'ABSENT';
-           });
-           setAttendanceMap(map);
-           setPersistedAttendanceMap(map);
+           setAllAttendanceRecords(res2.data.data);
         }
         setAttendanceViewMode('cards');
         setSelectedAttendanceRoomId(null);
+        setActiveContext(null);
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save attendance");
@@ -3509,6 +3789,216 @@ export const ExaminationModule = () => {
       }
     };
 
+    const renderAttendanceSetup = () => {
+      const targetClasses = selectedExam?.classIds?.map((id: string, index: number) => ({
+        id: id,
+        name: selectedExam?.classNames?.[index] || 'Class'
+      })) || [];
+
+      const handleContinue = () => {
+        const finalSectionSubjectMap: Record<string, string> = {};
+        
+        Object.keys(attendanceSetupSubjectMap).forEach(parentId => {
+            const subjectId = attendanceSetupSubjectMap[parentId];
+            if (!subjectId) return;
+            
+            const classSubjects = availableSubjectsMap[parentId] || [];
+            const subjectObj = classSubjects.find((s: any) => s.id === subjectId);
+            
+            if (subjectObj && subjectObj.classId) {
+                finalSectionSubjectMap[subjectObj.classId] = subjectId;
+            } else if (subjectObj && subjectObj.acroClass && subjectObj.acroClass.id) {
+                finalSectionSubjectMap[subjectObj.acroClass.id] = subjectId;
+            } else {
+                finalSectionSubjectMap[parentId] = subjectId;
+            }
+        });
+
+        setActiveContext({
+            examinationId: selectedExam.id,
+            examDate: attendanceSetupDate,
+            sectionSubjectMap: finalSectionSubjectMap
+        });
+        setAttendanceViewMode('cards');
+      };
+
+      const isContinueDisabled = !attendanceSetupDate || 
+        targetClasses.length === 0 || 
+        !targetClasses.every((c: any) => Boolean(attendanceSetupSubjectMap[c.id]));
+
+      return (
+        <div className="space-y-6 max-w-4xl mx-auto mt-4">
+          <div className="bg-card border border-border rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-bold text-foreground mb-4">Setup New Attendance</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium mb-1">Step 1: Select Exam Date</label>
+                <input 
+                  type="date" 
+                  value={attendanceSetupDate} 
+                  onChange={(e) => setAttendanceSetupDate(e.target.value)}
+                  className="w-full p-2 border border-border rounded-md bg-background max-w-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-3">Step 2: Assign Subjects to Sections</label>
+                <div className="space-y-4">
+                  {targetClasses.map((c: any) => {
+                    const classSubjects = availableSubjectsMap[c.id] || [];
+                    return (
+                      <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-border rounded-lg bg-accent/30">
+                        <div className="sm:w-1/3 font-medium">
+                          {c.name}
+                        </div>
+                        <div className="sm:w-2/3">
+                          <select 
+                            className="w-full p-2 border border-border rounded-md bg-background"
+                            value={attendanceSetupSubjectMap[c.id] || ''}
+                            onChange={(e) => {
+                                setAttendanceSetupSubjectMap(prev => ({
+                                  ...prev,
+                                  [c.id]: e.target.value
+                                }));
+                            }}
+                            disabled={isFetchingSubjects}
+                          >
+                            <option value="">
+                              {isFetchingSubjects ? 'Loading Subjects...' : 
+                               (classSubjects.length === 0 ? 'No subjects assigned for this class' : '-- Select Subject --')}
+                            </option>
+                            {classSubjects.map((sub: any) => (
+                              <option key={sub.id} value={sub.id}>{sub.subjectName || sub.subject?.name || sub.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {targetClasses.length === 0 && (
+                    <div className="text-sm text-muted-foreground p-4 border border-border border-dashed rounded-lg text-center">
+                      No target classes found for this examination.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setAttendanceViewMode('cards')}>
+                  Cancel
+                </Button>
+                <Button onClick={handleContinue} disabled={isContinueDisabled}>
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+  const renderSavedAttendance = () => {
+    const groupedByDate: Record<string, any[]> = {};
+    savedAttendanceContexts.forEach(ctx => {
+        if (!groupedByDate[ctx.examDate]) groupedByDate[ctx.examDate] = [];
+        groupedByDate[ctx.examDate].push(ctx);
+    });
+
+    return (
+        <div className="space-y-6">
+           <div className="flex justify-between items-center">
+             <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                 <CheckCircle size={20} className="text-primary"/> Saved Attendance History
+             </h2>
+             <Button onClick={() => { setActiveContext(null); setAttendanceViewMode('cards'); }} variant="outline" className="shadow-sm hover:shadow-md transition-all font-medium">
+                 Back to Cards
+             </Button>
+           </div>
+           
+           {Object.keys(groupedByDate).length === 0 ? (
+               <div className="p-12 text-center text-muted-foreground bg-card border border-border rounded-xl shadow-sm">
+                   <div className="w-16 h-16 bg-muted text-muted-foreground rounded-full flex items-center justify-center mx-auto mb-4">
+                       <CheckCircle size={32} />
+                   </div>
+                   <h3 className="text-lg font-bold text-foreground mb-1">No Saved Attendance</h3>
+                   <p className="text-sm">Attendance records for this examination will appear here.</p>
+               </div>
+           ) : (
+               Object.keys(groupedByDate).sort().map(date => (
+                   <div key={date} className="space-y-4">
+                       <h3 className="text-lg font-bold border-b border-border pb-2 text-foreground">{date}</h3>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                           {groupedByDate[date].map(ctx => (
+                               <div key={ctx.classSubjectId} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col justify-between hover:border-primary/30 transition-colors">
+                                   <div>
+                                       <div className="flex justify-between items-start mb-3">
+                                           <h4 className="font-bold text-lg text-foreground line-clamp-2">{ctx.subjectName}</h4>
+                                           <span className="bg-primary/10 text-primary font-bold text-xs px-2.5 py-1 rounded-full">{ctx.className}</span>
+                                       </div>
+                                       <div className="flex gap-4 mt-4 bg-muted/30 p-3 rounded-lg border border-border/50">
+                                           <div className="flex-1 text-center">
+                                              <span className="block text-xl font-bold text-emerald-600 dark:text-emerald-400">{ctx.presentCount}</span>
+                                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Present</span>
+                                           </div>
+                                           <div className="w-px bg-border my-1"></div>
+                                           <div className="flex-1 text-center">
+                                              <span className="block text-xl font-bold text-rose-600 dark:text-rose-400">{ctx.absentCount}</span>
+                                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Absent</span>
+                                           </div>
+                                       </div>
+                                   </div>
+                                   <div className="flex gap-3 mt-5 pt-4 border-t border-border">
+                                       <Button 
+                                          variant="outline" 
+                                          className="flex-1 text-sm font-semibold border-primary/20 hover:bg-primary/5 text-primary" 
+                                          onClick={() => {
+                                              setActiveContext({
+                                                  isSavedView: true,
+                                                  examDate: ctx.examDate,
+                                                  classSubjectId: ctx.classSubjectId,
+                                                  functionalClassId: ctx.functionalClassId,
+                                                  className: ctx.className,
+                                                  label: `${ctx.examDate} - ${ctx.subjectName} (${ctx.className})`
+                                              });
+                                              setAttendanceViewMode('cards');
+                                          }}
+                                       >
+                                           View Attendance
+                                       </Button>
+                                       <Button 
+                                          variant="ghost" 
+                                          className="px-3 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                          onClick={() => {
+                                              setActiveContext({
+                                                  examDate: ctx.examDate,
+                                                  classSubjectId: ctx.classSubjectId,
+                                                  label: `Date: ${ctx.examDate}, Class: ${ctx.className}, Subject: ${ctx.subjectName}`
+                                              });
+                                              setShowDeleteAttendanceModal(true);
+                                          }}
+                                       >
+                                           <Trash2 size={18} />
+                                       </Button>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
+               ))
+           )}
+        </div>
+    );
+  };
+
+    if (attendanceViewMode === 'saved') {
+      return renderSavedAttendance();
+    }
+
+    if (attendanceViewMode === 'setup') {
+      return renderAttendanceSetup();
+    }
+
     if (attendanceViewMode === 'cards') {
       return (
         <div className="space-y-6">
@@ -3519,7 +4009,45 @@ export const ExaminationModule = () => {
               </h2>
               <p className="text-sm text-muted-foreground mt-1">Select a room to view or mark student attendance.</p>
             </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setAttendanceViewMode('saved')} variant="outline" className="shadow-sm hover:shadow-md transition-all font-semibold">
+                Saved Attendance
+              </Button>
+              <Button 
+                onClick={() => {
+                  setAttendanceViewMode('setup');
+                  setAttendanceSetupSubjectMap({});
+                  setAttendanceSetupDate('');
+                  setActiveContext(null);
+                }} 
+className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transition-all gap-2 font-semibold">
+                <Plus size={16} /> Take New Attendance
+              </Button>
+            </div>
           </div>
+          
+          {activeContext && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/50 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                <CheckCircle size={18} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Active Attendance Setup</h4>
+                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                  You are actively marking attendance for <strong>{activeContext.examDate}</strong>. 
+                  All saved attendance will be linked to the subjects mapped in your setup. 
+                  Click a room to mark students.
+                </p>
+                <Button 
+                   variant="link" 
+                   className="text-blue-600 dark:text-blue-400 p-0 h-auto text-xs mt-2"
+                   onClick={() => setActiveContext(null)}
+                >
+                  Clear Setup / View Historical Attendance
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {seatingGenerated.roomAllocations.map((room: any) => {
@@ -3563,6 +4091,7 @@ export const ExaminationModule = () => {
                       className="w-full bg-primary/10 text-primary hover:bg-primary/20"
                       onClick={() => {
                         setSelectedAttendanceRoomId(room.id);
+                        setRoomSearchQuery('');
                         setAttendanceViewMode('detail');
                       }}
                     >
@@ -3578,37 +4107,89 @@ export const ExaminationModule = () => {
     }
 
     // Detail View
-    const room = seatingGenerated.roomAllocations.find((r: any) => r.id === selectedAttendanceRoomId);
-    if (!room) return null;
+    let studentList: any[] = [];
+    let viewTitle = "";
 
-    const studentList = room.students || [];
+    const room = seatingGenerated?.roomAllocations?.find((r: any) => r.id === selectedAttendanceRoomId);
+    if (!room) return null;
+    viewTitle = `Room ${room.roomNumber || room.number} Attendance`;
+    studentList = room.students || [];
+
     let presentCount = 0;
     let absentCount = 0;
     let unmarkedCount = 0;
+    let relevantStudentCount = 0;
 
-    studentList.forEach((s: any) => {
-      if (!s.studentId) return;
-      const status = attendanceMap[s.studentId] || 'UNMARKED';
+    studentList.forEach((studentInfo: any) => {
+      const isOutsideContext = activeContext?.isSavedView && 
+                               activeContext.className && 
+                               studentInfo.className && 
+                               studentInfo.className !== activeContext.className;
+      if (isOutsideContext) return;
+      
+      relevantStudentCount++;
+      const sId = studentInfo.studentId;
+      const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
       if (status === 'PRESENT') presentCount++;
       else if (status === 'ABSENT') absentCount++;
       else unmarkedCount++;
     });
 
+    const handleMarkAllPresentContext = () => {
+      setAttendanceMap(prev => {
+        const newMap = { ...prev };
+        studentList.forEach((studentInfo: any) => {
+          const isOutsideContext = activeContext?.isSavedView && 
+                                   activeContext.className && 
+                                   studentInfo.className && 
+                                   studentInfo.className !== activeContext.className;
+          if (isOutsideContext) return;
+          if (studentInfo.studentId) {
+            newMap[studentInfo.studentId] = 'PRESENT';
+          }
+        });
+        return newMap;
+      });
+    };
+
+    const handleSaveDetailAttendance = () => {
+      let unmarkedCountCheck = 0;
+      studentList.forEach((studentInfo: any) => {
+        const isOutsideContext = activeContext?.isSavedView && 
+                                 activeContext.className && 
+                                 studentInfo.className && 
+                                 studentInfo.className !== activeContext.className;
+        if (isOutsideContext) return;
+        
+        const sId = studentInfo.studentId;
+        const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
+        if (status === 'UNMARKED') unmarkedCountCheck++;
+      });
+
+      if (unmarkedCountCheck > 0) {
+        setShowUnmarkedAttendanceModal(true);
+      } else {
+        executeSaveAttendance();
+      }
+    };
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <Button variant="ghost" size="sm" onClick={handleBackToCards} className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" onClick={() => { handleBackToCards(); setRoomSearchQuery(''); }} className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
               <ChevronRight className="rotate-180 mr-1" size={16} /> Back to Room Cards
             </Button>
             <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-              <CheckCircle size={20} className="text-primary"/> Room {room.roomNumber || room.number} Attendance
+              <CheckCircle size={20} className="text-primary"/> {viewTitle}
             </h2>
-            <p className="text-sm text-muted-foreground mt-1">Mark student attendance based on the saved seating arrangement.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+               Mark student attendance based on the saved seating arrangement.
+            </p>
           </div>
           <Button 
             className="bg-primary text-primary-foreground gap-2" 
-            onClick={handleSaveAttendanceClick}
+            onClick={handleSaveDetailAttendance}
             disabled={isSavingAttendance}
           >
             {isSavingAttendance ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
@@ -3619,9 +4200,9 @@ export const ExaminationModule = () => {
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6">
           <div className="bg-muted/30 p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-foreground">Room: {room.roomNumber || room.number}</h3>
+              <h3 className="text-lg font-bold text-foreground">{viewTitle}</h3>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 text-sm text-muted-foreground font-medium">
-                <span>Total: <span className="text-foreground">{studentList.length}</span></span>
+                <span>Total: <span className="text-foreground">{relevantStudentCount}</span></span>
                 <span className="text-emerald-600 dark:text-emerald-400">Present: {presentCount}</span>
                 <span className="text-rose-600 dark:text-rose-400">Absent: {absentCount}</span>
                 <span>Unmarked: {unmarkedCount}</span>
@@ -3630,7 +4211,7 @@ export const ExaminationModule = () => {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => handleMarkAllPresent(room.id)}
+              onClick={handleMarkAllPresentContext}
               className="whitespace-nowrap"
             >
               <CheckSquare size={16} className="mr-2 text-emerald-500" />
@@ -3638,6 +4219,19 @@ export const ExaminationModule = () => {
             </Button>
           </div>
           
+          <div className="p-3 border-b border-border bg-muted/10 flex items-center">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <input
+                type="text"
+                placeholder="Search student by name or enrollment..."
+                className="w-full pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                value={roomSearchQuery}
+                onChange={(e) => setRoomSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="overflow-x-auto hide-scrollbar">
             <table className="w-full text-sm text-left">
               <thead className="bg-muted text-muted-foreground text-xs uppercase font-bold tracking-wider">
@@ -3655,36 +4249,60 @@ export const ExaminationModule = () => {
                 {studentList.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No students allocated.</td></tr>
                 ) : (
-                  studentList.map((studentInfo: any) => {
-                    const sId = studentInfo.studentId;
-                    const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
-                    return (
-                      <tr key={sId || studentInfo.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-6 py-3 font-medium">{studentInfo.enrollment}</td>
-                        <td className="px-6 py-3">{studentInfo.name}</td>
-                        <td className="px-6 py-3">{studentInfo.className || 'N/A'}</td>
-                        <td className="px-6 py-3 text-center">{studentInfo.row}</td>
-                        <td className="px-6 py-3 text-center">{studentInfo.bench}</td>
-                        <td className="px-6 py-3 text-center">
-                          {studentInfo.seat === 1 || String(studentInfo.seat) === '1' ? 'Left' : (studentInfo.seat === 2 || String(studentInfo.seat) === '2' ? 'Right' : studentInfo.seat)}
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <button
-                            onClick={() => { if (sId) toggleStudentAttendance(sId); }}
-                            className={cn(
-                              "inline-flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors",
-                              status === 'PRESENT' ? "bg-emerald-500 border-emerald-500 text-white" : 
-                              status === 'ABSENT' ? "bg-rose-500 border-rose-500 text-white" : 
-                              "bg-transparent border-gray-300 dark:border-gray-600 hover:border-gray-400"
+                  (() => {
+                    const filteredList = studentList.filter((studentInfo: any) => {
+                      if (!roomSearchQuery) return true;
+                      const q = roomSearchQuery.toLowerCase();
+                      const nameMatch = studentInfo.name?.toLowerCase().includes(q);
+                      const enrollMatch = studentInfo.enrollment?.toLowerCase().includes(q);
+                      return nameMatch || enrollMatch;
+                    });
+                    
+                    if (filteredList.length === 0 && roomSearchQuery) {
+                       return <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No students found.</td></tr>;
+                    }
+
+                    return filteredList.map((studentInfo: any) => {
+                      const sId = studentInfo.studentId;
+                      const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
+                      
+                      const isOutsideContext = activeContext?.isSavedView && 
+                                               activeContext.className && 
+                                               studentInfo.className && 
+                                               studentInfo.className !== activeContext.className;
+
+                      return (
+                        <tr key={sId || studentInfo.id} className={cn("hover:bg-muted/50 transition-colors", isOutsideContext && "opacity-50")}>
+                          <td className="px-6 py-3 font-medium">{studentInfo.enrollment}</td>
+                          <td className="px-6 py-3">{studentInfo.name}</td>
+                          <td className="px-6 py-3">{studentInfo.className || 'N/A'}</td>
+                          <td className="px-6 py-3 text-center">{studentInfo.row || '-'}</td>
+                          <td className="px-6 py-3 text-center">{studentInfo.bench || '-'}</td>
+                          <td className="px-6 py-3 text-center">
+                            {studentInfo.seat === 1 || String(studentInfo.seat) === '1' ? 'Left' : (studentInfo.seat === 2 || String(studentInfo.seat) === '2' ? 'Right' : (studentInfo.seat || '-'))}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            {isOutsideContext ? (
+                                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded border border-border">Other Class</span>
+                            ) : (
+                                <button
+                                  onClick={() => { if (sId) toggleStudentAttendance(sId); }}
+                                  className={cn(
+                                    "inline-flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors",
+                                    status === 'PRESENT' ? "bg-emerald-500 border-emerald-500 text-white" : 
+                                    status === 'ABSENT' ? "bg-rose-500 border-rose-500 text-white" : 
+                                    "bg-transparent border-gray-300 dark:border-gray-600 hover:border-gray-400"
+                                  )}
+                                >
+                                  {status === 'PRESENT' && <Check size={16} className="stroke-[3]" />}
+                                  {status === 'ABSENT' && <X size={16} className="stroke-[3]" />}
+                                </button>
                             )}
-                          >
-                            {status === 'PRESENT' && <Check size={16} className="stroke-[3]" />}
-                            {status === 'ABSENT' && <X size={16} className="stroke-[3]" />}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()
                 )}
               </tbody>
             </table>
@@ -4105,7 +4723,71 @@ export const ExaminationModule = () => {
               </div>
         </motion.div>
       );
-    };  const renderAssignCoordinatorModal = () => {
+    };  const [showDeleteAttendanceModal, setShowDeleteAttendanceModal] = useState(false);
+  const [isDeletingAttendance, setIsDeletingAttendance] = useState(false);
+
+  const handleDeleteAttendance = async () => {
+    if (!activeContext || !selectedExam) return;
+    setIsDeletingAttendance(true);
+    try {
+      let query = '';
+      if (activeContext.examDate) {
+          query = `?examDate=${activeContext.examDate}`;
+          if (activeContext.classSubjectId) {
+              query += `&classSubjectId=${activeContext.classSubjectId}`;
+          }
+      }
+      const res = await api.delete(`/examinations/${selectedExam.id}/attendance${query}`);
+      if (res.data.success) {
+        toast.success("Attendance deleted successfully");
+        setActiveContext(null);
+        setShowDeleteAttendanceModal(false);
+        
+        const res2 = await api.get(`/examinations/${selectedExam.id}/attendance`);
+        if (res2.data.success && res2.data.data) {
+           setAllAttendanceRecords(res2.data.data);
+        } else {
+           setAllAttendanceRecords([]);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete attendance");
+    } finally {
+      setIsDeletingAttendance(false);
+    }
+  };
+
+  const renderDeleteAttendanceModal = () => {
+    if (!showDeleteAttendanceModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full overflow-hidden"
+        >
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-foreground">Delete Attendance?</h3>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to permanently delete the attendance record for <strong>{activeContext?.label}</strong>? This action cannot be undone.
+            </p>
+          </div>
+          <div className="flex border-t border-border bg-accent/30 p-4 gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteAttendanceModal(false)} disabled={isDeletingAttendance}>Cancel</Button>
+            <Button className="flex-1 bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteAttendance} disabled={isDeletingAttendance}>
+              {isDeletingAttendance ? <Loader2 size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />} Delete
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const renderAssignCoordinatorModal = () => {
     if (!showAssignModal) return null;
 
     return (
@@ -4205,6 +4887,7 @@ export const ExaminationModule = () => {
       {renderDiscardAttendanceModal()}
       {renderUnmarkedAttendanceModal()}
       {renderDeleteSeatingModal()}
+      {renderDeleteAttendanceModal()}
       {renderAssignCoordinatorModal()}
     </div>
   );

@@ -14,8 +14,11 @@ public class ExamResultRequestDto {
     @NotNull(message = "Student ID is required")
     private UUID studentId;
 
-    @NotNull(message = "Subject ID is required")
+    // Left nullable for backward compatibility, but conceptually should be migrated to classSubjectId
     private UUID subjectId;
+
+    private java.time.LocalDate examDate;
+    private UUID classSubjectId;
 
     @PositiveOrZero(message = "Marks obtained must be positive or zero")
     private BigDecimal marksObtained;

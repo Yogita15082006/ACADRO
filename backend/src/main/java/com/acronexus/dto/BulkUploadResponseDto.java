@@ -24,4 +24,7 @@ public class BulkUploadResponseDto {
     private Long processingTimeMs;
     private Instant uploadedAt;
     private Instant completedAt;
+    
+    // For preview mode only
+    private List<PreviewResultRowDto> previewRows;
 }

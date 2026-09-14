@@ -22,8 +22,23 @@ public class ExaminationAttendanceController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
-    public ResponseEntity<ApiResponse<List<ExaminationAttendanceDto>>> getAttendance(@PathVariable UUID examinationId) {
+    public ResponseEntity<ApiResponse<List<ExaminationAttendanceDto>>> getAttendance(
+            @PathVariable UUID examinationId,
+            @RequestParam(required = false) java.time.LocalDate examDate,
+            @RequestParam(required = false) List<UUID> subjectIds) {
         List<ExaminationAttendanceDto> attendance = service.getAttendanceForExamination(examinationId);
+        
+        if (examDate != null) {
+            attendance = attendance.stream()
+                .filter(a -> a.getExamDate() != null && a.getExamDate().equals(examDate))
+                .toList();
+        }
+        if (subjectIds != null && !subjectIds.isEmpty()) {
+            attendance = attendance.stream()
+                .filter(a -> a.getClassSubjectId() == null || subjectIds.contains(a.getClassSubjectId()))
+                .toList();
+        }
+        
         return ResponseEntity.ok(ApiResponse.success("Examination attendance fetched successfully", attendance));
     }
 
@@ -34,5 +49,24 @@ public class ExaminationAttendanceController {
             @Valid @RequestBody ExaminationAttendanceSaveRequestDto requestDto) {
         service.saveAttendanceForExamination(examinationId, requestDto);
         return ResponseEntity.ok(ApiResponse.success("Examination attendance saved successfully", null));
+    }
+
+    @DeleteMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<Void>> deleteAttendance(
+            @PathVariable UUID examinationId,
+            @RequestParam(required = false) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId) {
+        service.deleteAttendanceContext(examinationId, examDate, classSubjectId);
+        return ResponseEntity.ok(ApiResponse.success("Examination attendance deleted successfully", null));
+    }
+
+    @GetMapping("/dates")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<java.time.LocalDate>>> getAvailableAttendanceDates(
+            @PathVariable UUID examinationId,
+            @RequestParam UUID classSubjectId) {
+        List<java.time.LocalDate> dates = service.getAvailableAttendanceDates(examinationId, classSubjectId);
+        return ResponseEntity.ok(ApiResponse.success("Available attendance dates fetched successfully", dates));
     }
 }

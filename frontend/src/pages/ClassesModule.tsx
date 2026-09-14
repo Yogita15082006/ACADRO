@@ -10,12 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Users, BookOpen, Plus, FileText, Calendar, Bell, ClipboardList, CheckCircle2, TrendingUp, MessageSquare, Upload, File, ArrowLeft, ClipboardCheck, Eye, Sparkles, Trash2, Download, Image as ImageIcon } from 'lucide-react';
+import { Users, BookOpen, Plus, FileText, Calendar, Bell, ClipboardList, CheckCircle2, TrendingUp, MessageSquare, Upload, File, ArrowLeft, ClipboardCheck, Eye, Sparkles, Trash2, Download, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { AssignmentModule } from './AssignmentModule';
 import { QuizModule } from './QuizModule';
 import { SubjectAttendancePanel } from './SubjectAttendancePanel';
 import { SubjectAnalyticsPanel } from './SubjectAnalyticsPanel';
 import { SubjectSyllabusView } from './SubjectSyllabusView';
+import ExamResultWorkspace from './ExamResultWorkspace';
 
 export const ClassesModule = () => {
   const { role, user } = useAuth();
@@ -36,7 +37,7 @@ export const ClassesModule = () => {
   }, []);
 
   const [activeWorkspace, setActiveWorkspace] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'materials' | 'assignments' | 'quizzes' | 'attendance' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'materials' | 'assignments' | 'quizzes' | 'attendance' | 'examResult' | 'analytics'>('overview');
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newWorkspace, setNewWorkspace] = useState({ 
@@ -381,6 +382,7 @@ export const ClassesModule = () => {
             { id: 'assignments', label: 'Assignments', icon: ClipboardList },
             { id: 'quizzes', label: 'Quizzes', icon: CheckCircle2 },
             { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
+            { id: 'examResult', label: 'Exam Result', icon: FileSpreadsheet },
             ...(role !== 'student' ? [{ id: 'analytics', label: 'Student Analytics', icon: TrendingUp }] : []),
           ].map(t => (
             <button 
@@ -554,6 +556,12 @@ export const ClassesModule = () => {
           {activeTab === 'attendance' && (
             <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
               <SubjectAttendancePanel workspaceContext={ws} />
+            </div>
+          )}
+
+          {activeTab === 'examResult' && (
+            <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
+              <ExamResultWorkspace mode="subject_card" workspaceContext={ws} />
             </div>
           )}
 

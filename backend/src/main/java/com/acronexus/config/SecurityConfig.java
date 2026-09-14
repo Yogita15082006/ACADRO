@@ -88,6 +88,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/dump").permitAll()
                             .requestMatchers("/api/events/banner/**").permitAll()
                             .requestMatchers("/api/debug-dashboard/**").permitAll()
+                            .requestMatchers("/temp-debug-enrollments", "/temp-trace").permitAll()
                             .requestMatchers("/favicon.ico", "/error", "/uploads/**").permitAll()
                             .anyRequest().authenticated()
                 );

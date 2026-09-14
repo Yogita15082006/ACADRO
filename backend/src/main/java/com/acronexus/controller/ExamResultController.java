@@ -29,6 +29,14 @@ public class ExamResultController {
                 .body(ApiResponse.success("ExamResult created successfully", created));
     }
 
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<List<ExamResultResponseDto>>> createBulk(@Valid @RequestBody com.acronexus.dto.BulkExamResultRequestDto requestDto) {
+        List<ExamResultResponseDto> createdList = service.createBulk(requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Bulk ExamResults saved successfully", createdList));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<ExamResultResponseDto>> getById(@PathVariable UUID id) {
@@ -47,8 +55,15 @@ public class ExamResultController {
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<List<ExamResultResponseDto>>> search(
             @RequestParam UUID examinationId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId,
             @RequestParam(required = false) String className) {
-        List<ExamResultResponseDto> list = service.findByExaminationAndClass(examinationId, className);
+        List<ExamResultResponseDto> list;
+        if (examDate != null && classSubjectId != null) {
+            list = service.findByExaminationAndContext(examinationId, examDate, classSubjectId, className);
+        } else {
+            list = service.findByExaminationAndClass(examinationId, className);
+        }
         return ResponseEntity.ok(ApiResponse.success("ExamResults fetched successfully", list));
     }
     
@@ -70,17 +85,24 @@ public class ExamResultController {
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<ApiResponse<Void>> deleteResultsForClass(
             @RequestParam UUID examinationId,
-            @RequestParam String className) {
-        service.deleteResultsForClass(examinationId, className);
-        return ResponseEntity.ok(ApiResponse.success("ExamResults for class deleted successfully", null));
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId,
+            @RequestParam(required = false) String className) {
+        if (examDate != null && classSubjectId != null) {
+            service.deleteResultsForContext(examinationId, examDate, classSubjectId);
+        } else {
+            service.deleteResultsForClass(examinationId, className);
+        }
+        return ResponseEntity.ok(ApiResponse.success("ExamResults deleted successfully", null));
     }
 
     @GetMapping("/examinations/{examinationId}/present-students")
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<ApiResponse<List<com.acronexus.dto.PresentStudentDto>>> getPresentStudents(
             @PathVariable UUID examinationId,
-            @RequestParam UUID classId) {
-        List<com.acronexus.dto.PresentStudentDto> students = service.getPresentStudents(examinationId, classId);
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId) {
+        List<com.acronexus.dto.PresentStudentDto> students = service.getPresentStudentsByContext(examinationId, examDate, classSubjectId);
         return ResponseEntity.ok(ApiResponse.success("Present students fetched successfully", students));
     }
 
@@ -88,8 +110,9 @@ public class ExamResultController {
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
     public ResponseEntity<byte[]> exportPresentStudentsExcel(
             @PathVariable UUID examinationId,
-            @RequestParam UUID classId) {
-        byte[] excelData = service.exportPresentStudentsExcel(examinationId, classId);
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId) {
+        byte[] excelData = service.exportPresentStudentsExcelByContext(examinationId, examDate, classSubjectId);
         
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
@@ -103,9 +126,57 @@ public class ExamResultController {
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")
     public ResponseEntity<ApiResponse<Integer>> publishResults(
             @RequestParam UUID examinationId,
-            @RequestParam(required = false) String className,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId,
             @RequestParam(required = false) UUID studentId) {
-        int count = service.publishResults(examinationId, className, studentId);
+        int count = service.publishResultsForContext(examinationId, examDate, classSubjectId, studentId);
         return ResponseEntity.ok(ApiResponse.success("Results published successfully", count));
+    }
+
+
+
+    @GetMapping("/examinations/{examinationId}/context")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.ExamResultContextRowDto>>> getResultContext(
+            @PathVariable UUID examinationId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId) {
+        java.util.List<com.acronexus.dto.ExamResultContextRowDto> contextRows = service.getResultContext(examinationId, examDate, classSubjectId);
+        return ResponseEntity.ok(ApiResponse.success("Exam Result context fetched successfully", contextRows));
+    }
+
+    @GetMapping("/examinations/{examinationId}/saved-contexts")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<java.util.List<com.acronexus.dto.SavedResultContextDto>>> getSavedContexts(
+            @PathVariable UUID examinationId) {
+        java.util.List<com.acronexus.dto.SavedResultContextDto> savedContexts = service.getSavedContexts(examinationId);
+        return ResponseEntity.ok(ApiResponse.success("Saved contexts fetched successfully", savedContexts));
+    }
+
+    @GetMapping("/examinations/{examinationId}/context/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<byte[]> exportResultContextExcel(
+            @PathVariable UUID examinationId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId) {
+        byte[] excelData = service.exportResultContextExcel(examinationId, examDate, classSubjectId);
+        
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", "Exam_Results_List.xlsx");
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+        
+        return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
+    }
+    
+    @PostMapping("/context/bulk")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<Integer>> bulkSaveResults(
+            @RequestParam UUID examinationId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam UUID classSubjectId,
+            @RequestBody java.util.List<com.acronexus.dto.ExamResultContextRowDto> results) {
+        int savedCount = service.bulkSaveResults(examinationId, examDate, classSubjectId, results);
+        return ResponseEntity.ok(ApiResponse.success("Results bulk saved successfully", savedCount));
     }
 }

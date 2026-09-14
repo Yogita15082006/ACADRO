@@ -16,4 +16,12 @@ public class ExaminationAttendanceDto {
     
     @NotNull(message = "Attendance status cannot be null")
     private Boolean isPresent;
+
+    private java.time.LocalDate examDate;
+    private UUID classSubjectId;
+
+    public ExaminationAttendanceDto(UUID studentId, Boolean isPresent) {
+        this.studentId = studentId;
+        this.isPresent = isPresent;
+    }
 }

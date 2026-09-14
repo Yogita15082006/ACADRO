@@ -11,6 +11,6 @@ public interface ExamAiFeedbackService {
     List<ExamAiFeedbackResponseDto> getAll();
     ExamAiFeedbackResponseDto update(UUID id, ExamAiFeedbackRequestDto requestDto);
     void delete(UUID id);
-    List<ExamAiFeedbackResponseDto> generateFeedbackForClass(UUID examinationId, String className);
-    List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className);
+    List<ExamAiFeedbackResponseDto> generateFeedbackForClass(UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, List<com.acronexus.dto.ExamResultContextRowDto> unsavedRows);
+    List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId);
 }

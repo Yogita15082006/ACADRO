@@ -90,6 +90,11 @@ export const attendanceService = {
     return response.data;
   },
 
+  getExaminationAttendanceBySubject: async (classSubjectId: string): Promise<any[]> => {
+    const response = await api.get(`/examinations/subject-attendance/${classSubjectId}`);
+    return response.data?.data || [];
+  },
+
   addStudentToHistory: async (sessionId: string, enrollmentNumber: string): Promise<void> => {
     const response = await api.post(`/attendance-sessions/${sessionId}/add-student/${enrollmentNumber}`);
     return response.data;

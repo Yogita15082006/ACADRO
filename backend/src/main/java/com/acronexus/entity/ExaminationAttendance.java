@@ -8,7 +8,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "examination_attendance", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"examination_id", "student_id"})
+    @UniqueConstraint(columnNames = {"examination_id", "student_id", "exam_date", "class_subject_id"})
 })
 @Getter
 @Setter
@@ -26,4 +26,11 @@ public class ExaminationAttendance extends BaseAuditableEntity {
 
     @Column(nullable = false)
     private Boolean isPresent;
+
+    @Column(name = "exam_date")
+    private java.time.LocalDate examDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_subject_id")
+    private ClassSubject classSubject;
 }

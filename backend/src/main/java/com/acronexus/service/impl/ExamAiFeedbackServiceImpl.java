@@ -4,6 +4,7 @@ import com.acronexus.dto.ExamAiFeedbackRequestDto;
 import com.acronexus.dto.ExamAiFeedbackResponseDto;
 import com.acronexus.dto.ai.AiAnalyticsRequest;
 import com.acronexus.dto.ai.AiInsightDto;
+import com.acronexus.entity.ClassSubject;
 import com.acronexus.entity.ExamAiFeedback;
 import com.acronexus.entity.ExamResult;
 import com.acronexus.entity.Examination;
@@ -87,40 +88,77 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
     
     @Override
     @Transactional
-    public List<ExamAiFeedbackResponseDto> generateFeedbackForClass(UUID examinationId, String className) {
+    public List<ExamAiFeedbackResponseDto> generateFeedbackForClass(UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, List<com.acronexus.dto.ExamResultContextRowDto> unsavedRows) {
         Examination examination = examinationRepository.findById(examinationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Examination not found: " + examinationId));
                 
-        List<ExamResult> results;
-        if (className != null && !className.trim().isEmpty()) {
-            results = examResultRepository.findByExaminationIdAndClassName(examinationId, className);
-        } else {
-            results = examResultRepository.findByExaminationId(examinationId);
-        }
-        
-        if (results.isEmpty()) {
-            throw new IllegalArgumentException("No results found for the given examination and class");
-        }
+        boolean isUnsavedFlow = unsavedRows != null && !unsavedRows.isEmpty();
         
         List<Map<String, Object>> allResultsData = new ArrayList<>();
+        List<ExamAiFeedbackResponseDto> unsavedGeneratedFeedbacks = new ArrayList<>();
         
-        for (ExamResult r : results) {
-            Map<String, Object> dataPayload = new HashMap<>();
-            dataPayload.put("resultId", r.getId());
-            dataPayload.put("studentId", r.getStudent().getId());
-            dataPayload.put("examinationName", examination.getName());
-            dataPayload.put("subject", r.getSubject().getName());
-            dataPayload.put("subjectCode", r.getSubject().getCode());
-            dataPayload.put("marksObtained", r.getMarksObtained());
-            dataPayload.put("maxMarks", r.getMaxMarks());
-            
-            double percentage = 0.0;
-            if (r.getMaxMarks() != null && r.getMaxMarks().compareTo(java.math.BigDecimal.ZERO) > 0) {
-                percentage = r.getMarksObtained().doubleValue() / r.getMaxMarks().doubleValue() * 100.0;
+        if (isUnsavedFlow) {
+            // Unsaved Flow (Create Result / Upload)
+            for (com.acronexus.dto.ExamResultContextRowDto r : unsavedRows) {
+                if (r.getMarksObtained() != null) {
+                    Map<String, Object> dataPayload = new HashMap<>();
+                    dataPayload.put("resultId", r.getResultId() != null ? r.getResultId() : UUID.randomUUID());
+                    dataPayload.put("studentId", r.getStudentId());
+                    dataPayload.put("examinationName", examination.getName());
+                    dataPayload.put("subject", "Subject Context");
+                    dataPayload.put("subjectCode", "CODE");
+                    dataPayload.put("marksObtained", r.getMarksObtained());
+                    dataPayload.put("maxMarks", r.getMaxMarks());
+                    
+                    double percentage = 0.0;
+                    if (r.getMaxMarks() != null && r.getMaxMarks().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                        percentage = r.getMarksObtained().doubleValue() / r.getMaxMarks().doubleValue() * 100.0;
+                    }
+                    dataPayload.put("percentage", String.format("%.2f%%", percentage));
+                    
+                    allResultsData.add(dataPayload);
+                }
             }
-            dataPayload.put("percentage", String.format("%.2f%%", percentage));
+        } else {
+            // Saved Flow
+            List<ExamResult> results;
+            if (examDate != null && classSubjectId != null) {
+                results = examResultRepository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
+            } else if (className != null && !className.trim().isEmpty()) {
+                results = examResultRepository.findByExaminationIdAndClassName(examinationId, className);
+            } else {
+                results = examResultRepository.findByExaminationId(examinationId);
+            }
             
-            allResultsData.add(dataPayload);
+            List<ExamResult> eligibleResults = new ArrayList<>();
+            for (ExamResult r : results) {
+                if (r.getMarksObtained() != null) {
+                    eligibleResults.add(r);
+                }
+            }
+            
+            for (ExamResult r : eligibleResults) {
+                Map<String, Object> dataPayload = new HashMap<>();
+                dataPayload.put("resultId", r.getId());
+                dataPayload.put("studentId", r.getStudent().getId());
+                dataPayload.put("examinationName", examination.getName());
+                dataPayload.put("subject", r.getSubject().getName());
+                dataPayload.put("subjectCode", r.getSubject().getCode());
+                dataPayload.put("marksObtained", r.getMarksObtained());
+                dataPayload.put("maxMarks", r.getMaxMarks());
+                
+                double percentage = 0.0;
+                if (r.getMaxMarks() != null && r.getMaxMarks().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    percentage = r.getMarksObtained().doubleValue() / r.getMaxMarks().doubleValue() * 100.0;
+                }
+                dataPayload.put("percentage", String.format("%.2f%%", percentage));
+                
+                allResultsData.add(dataPayload);
+            }
+        }
+        
+        if (allResultsData.isEmpty()) {
+            throw new IllegalArgumentException("No eligible results with marks found for the given context.");
         }
         
         try {
@@ -160,14 +198,33 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
                             String resultIdStr = node.get("resultId").asText();
                             UUID resultId = UUID.fromString(resultIdStr);
                             
-                            ExamResult examResult = examResultRepository.findById(resultId).orElse(null);
-                            if(examResult == null) continue;
+                            Map<String, Object> originalData = null;
+                            for (Map<String, Object> pd : batch) {
+                                if (pd.get("resultId").equals(resultId)) {
+                                    originalData = pd; break;
+                                }
+                            }
+                            if (originalData == null) continue;
 
-                            UUID studentId = examResult.getStudent().getId();
-                            UUID subjectId = examResult.getSubject().getId();
+                            UUID studentId = (UUID) originalData.get("studentId");
                             
-                            ExamAiFeedback feedback = repository.findByExaminationIdAndStudentIdAndSubjectId(examinationId, studentId, subjectId)
-                                    .orElse(new ExamAiFeedback());
+                            ExamAiFeedback feedback = null;
+                            if (isUnsavedFlow) {
+                                feedback = new ExamAiFeedback();
+                            } else {
+                                if (examDate != null && classSubjectId != null) {
+                                    feedback = repository.findByExaminationIdAndExamDateAndClassSubjectIdAndStudentId(examinationId, examDate, classSubjectId, studentId)
+                                            .orElse(new ExamAiFeedback());
+                                } else {
+                                    UUID subjId = (UUID) originalData.get("subjectId"); // Need to add this to map
+                                    if (subjId != null) {
+                                        feedback = repository.findByExaminationIdAndStudentIdAndSubjectId(examinationId, studentId, subjId)
+                                                .orElse(new ExamAiFeedback());
+                                    } else {
+                                        feedback = new ExamAiFeedback();
+                                    }
+                                }
+                            }
                                     
                             Student detachedStudent = new Student();
                             detachedStudent.setId(studentId);
@@ -175,12 +232,15 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
                             Examination detachedExam = new Examination();
                             detachedExam.setId(examinationId);
 
-                            Subject detachedSubject = new Subject();
-                            detachedSubject.setId(subjectId);
-                                    
                             feedback.setExamination(detachedExam);
                             feedback.setStudent(detachedStudent);
-                            feedback.setSubject(detachedSubject);
+                            feedback.setExamDate(examDate);
+                            
+                            if (classSubjectId != null) {
+                                ClassSubject detachedClassSubject = new ClassSubject();
+                                detachedClassSubject.setId(classSubjectId);
+                                feedback.setClassSubject(detachedClassSubject);
+                            }
                             
                             String reasoning = node.has("reasoning") ? node.get("reasoning").asText() : "Analysis completed.";
                             feedback.setOverallPerformance(reasoning);
@@ -212,7 +272,23 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
                             
                             feedbacksToSave.add(feedback);
                         }
-                        repository.saveAll(feedbacksToSave);                        
+                        if (!isUnsavedFlow) {
+                            repository.saveAll(feedbacksToSave);
+                        }
+                        
+                        if (isUnsavedFlow) {
+                            for (ExamAiFeedback fb : feedbacksToSave) {
+                                ExamAiFeedbackResponseDto dto = new ExamAiFeedbackResponseDto();
+                                dto.setId(fb.getId() != null ? fb.getId() : UUID.randomUUID());
+                                dto.setStudentId(fb.getStudent().getId());
+                                dto.setOverallPerformance(fb.getOverallPerformance());
+                                dto.setStrengths(fb.getStrengths() != null ? fb.getStrengths() : new String[0]);
+                                dto.setAreasOfImprovement(fb.getAreasOfImprovement() != null ? fb.getAreasOfImprovement() : new String[0]);
+                                dto.setActionPlan(fb.getActionPlan());
+                                
+                                unsavedGeneratedFeedbacks.add(dto);
+                            }
+                        }
                     } catch (Exception e) {
                         log.error("Error parsing AI response for batch {} to {}", start, end - 1, e);
                     }
@@ -230,23 +306,42 @@ public class ExamAiFeedbackServiceImpl implements ExamAiFeedbackService {
             throw new RuntimeException("AI bulk generation failed: " + e.getMessage(), e);
         }
         
-        return searchFeedback(examinationId, className);
+        if (isUnsavedFlow) {
+            return unsavedGeneratedFeedbacks;
+        }
+        return searchFeedback(examinationId, className, examDate, classSubjectId);
     }
     
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className) {
+    public List<ExamAiFeedbackResponseDto> searchFeedback(UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.getReferenceById(userDetails.getId());
 
         List<ExamAiFeedback> feedbacks;
         if (currentUser.getRole() == com.acronexus.entity.UserRole.STUDENT) {
-            // Check if they have at least one published result for this exam
-            List<ExamResult> publishedResults = examResultRepository.findByExaminationIdAndStudentIdAndIsPublishedTrue(examinationId, currentUser.getId());
-            if (publishedResults.isEmpty()) {
-                return new ArrayList<>(); // Do not return feedback if results are not published
+            com.acronexus.entity.Student student = com.acronexus.config.SpringContext.getBean(com.acronexus.repository.StudentRepository.class).findByUser_Id(currentUser.getId())
+                    .orElseThrow(() -> new RuntimeException("Student profile not found"));
+            
+            List<ExamResult> publishedResults;
+            if (examDate != null && classSubjectId != null) {
+                 publishedResults = examResultRepository.findByExaminationIdAndExamDateAndClassSubjectIdAndStudentIdAndIsPublishedTrue(examinationId, examDate, classSubjectId, student.getId());
+            } else {
+                 publishedResults = examResultRepository.findByExaminationIdAndStudentIdAndIsPublishedTrue(examinationId, student.getId());
             }
-            feedbacks = repository.findByExaminationIdAndStudentId(examinationId, currentUser.getId());
+            
+            if (publishedResults.isEmpty()) {
+                return new ArrayList<>(); 
+            }
+            
+            if (examDate != null && classSubjectId != null) {
+                 feedbacks = repository.findByExaminationIdAndExamDateAndClassSubjectIdAndStudentId(examinationId, examDate, classSubjectId, student.getId())
+                                     .map(java.util.Collections::singletonList).orElse(new ArrayList<>());
+            } else {
+                 feedbacks = repository.findByExaminationIdAndStudentId(examinationId, student.getId());
+            }
+        } else if (examDate != null && classSubjectId != null) {
+            feedbacks = repository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
         } else if (className != null && !className.trim().isEmpty()) {
             feedbacks = repository.findByExaminationIdAndClassName(examinationId, className);
         } else {

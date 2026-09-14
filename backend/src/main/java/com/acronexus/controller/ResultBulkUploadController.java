@@ -46,9 +46,12 @@ public class ResultBulkUploadController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "examinationId", required = false) UUID examinationId,
             @RequestParam(value = "className", required = false) String className,
+            @RequestParam(value = "examDate", required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(value = "classSubjectId", required = false) UUID classSubjectId,
+            @RequestParam(value = "previewOnly", required = false, defaultValue = "false") boolean previewOnly,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId(), examinationId, className);
+        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId(), examinationId, className, examDate, classSubjectId, previewOnly);
         return ResponseEntity.ok(response);
     }
 

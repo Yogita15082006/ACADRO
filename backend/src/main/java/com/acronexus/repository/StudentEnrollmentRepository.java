@@ -61,6 +61,7 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
     );
 
     boolean existsByStudentIdAndAcroClassIdAndIsActiveTrue(java.util.UUID studentId, java.util.UUID classId);
+    long countByAcroClassIdAndIsActiveTrue(java.util.UUID classId);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT e.student.id) FROM StudentEnrollment e WHERE e.isActive = true AND e.acroClass.department.id = :departmentId")
     long countDistinctActiveStudentsByDepartmentId(@org.springframework.data.repository.query.Param("departmentId") java.util.UUID departmentId);
@@ -105,4 +106,21 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
 
     @org.springframework.data.jpa.repository.Query("SELECT e FROM StudentEnrollment e JOIN Examination ex ON ex.id = :examinationId JOIN ex.classes c WHERE e.acroClass = c AND e.student.batchYear = ex.batch AND e.isActive = true ORDER BY e.acroClass.name, e.student.user.firstName")
     java.util.List<StudentEnrollment> findByExaminationId(@org.springframework.data.repository.query.Param("examinationId") java.util.UUID examinationId);
+    @org.springframework.data.jpa.repository.Query("SELECT e FROM StudentEnrollment e WHERE e.acroClass.id = :classId AND e.student.batchYear = :batch AND e.academicYear.id = :academicYearId AND e.semester.id = :semesterId AND e.isActive = true ORDER BY e.student.enrollmentNo ASC")
+    java.util.List<StudentEnrollment> findByExactAcademicScope(
+        @org.springframework.data.repository.query.Param("classId") java.util.UUID classId, 
+        @org.springframework.data.repository.query.Param("batch") String batch, 
+        @org.springframework.data.repository.query.Param("academicYearId") java.util.UUID academicYearId, 
+        @org.springframework.data.repository.query.Param("semesterId") java.util.UUID semesterId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT e FROM StudentEnrollment e WHERE e.acroClass.id = :classId AND e.student.batchYear = :batch AND e.isActive = true ORDER BY e.student.enrollmentNo ASC")
+    java.util.List<StudentEnrollment> findActiveStudentsByClassAndBatch(
+        @org.springframework.data.repository.query.Param("classId") java.util.UUID classId, 
+        @org.springframework.data.repository.query.Param("batch") String batch);
+
+    @org.springframework.data.jpa.repository.Query("SELECT e FROM StudentEnrollment e WHERE e.acroClass.id = :classId AND e.academicYear.id = :academicYearId AND e.semester.id = :semesterId AND e.isActive = true ORDER BY e.student.enrollmentNo ASC")
+    java.util.List<StudentEnrollment> findByClassSubjectScope(
+        @org.springframework.data.repository.query.Param("classId") java.util.UUID classId, 
+        @org.springframework.data.repository.query.Param("academicYearId") java.util.UUID academicYearId, 
+        @org.springframework.data.repository.query.Param("semesterId") java.util.UUID semesterId);
 }
