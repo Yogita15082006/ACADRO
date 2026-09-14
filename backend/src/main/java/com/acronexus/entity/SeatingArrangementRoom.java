@@ -29,6 +29,9 @@ public class SeatingArrangementRoom extends BaseEntity {
     @Column(name = "max_per_bench")
     private Integer maxPerBench;
 
+    @Column(name = "row_config")
+    private String rowConfig;
+
     private Integer allocated;
 
     private String classes;

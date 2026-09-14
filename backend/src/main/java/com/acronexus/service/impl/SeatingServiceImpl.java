@@ -200,53 +200,80 @@ public class SeatingServiceImpl implements SeatingService {
             room.setEndTime(roomConfig.getEndTime());
             room.setStudents(new ArrayList<>());
             
+            boolean useRowConfig = roomConfig.getRowConfig() != null && !roomConfig.getRowConfig().isEmpty();
+            
+            if (useRowConfig) {
+                int expectedBenches = roomConfig.getRowConfig().stream().mapToInt(Integer::intValue).sum();
+                if (expectedBenches != roomConfig.getBenches()) {
+                    throw new IllegalArgumentException("Validation Error: Row bench sum (" + expectedBenches + ") does not equal Total Benches (" + roomConfig.getBenches() + ") for room " + roomConfig.getRoomNumber() + ". Please correct the room configuration.");
+                }
+            }
+
             Set<String> classesInRoom = new HashSet<>();
             int allocated = 0;
             
-            for (int r = 1; r <= roomConfig.getBenches(); r++) {
-                Set<String> benchParentIdentities = new HashSet<>();
+            int legacyBenchCounter = 1;
+            int numRows = useRowConfig ? roomConfig.getRowConfig().size() : roomConfig.getBenches();
+
+            for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
+                int benchesInThisRow = useRowConfig ? roomConfig.getRowConfig().get(rowIndex) : 1;
                 
-                for (int b = 1; b <= roomConfig.getMaxPerBench(); b++) {
-                    SectionQueue candidateQueue = activeQueuesBySeat.get(b);
+                for (int localBench = 1; localBench <= benchesInThisRow; localBench++) {
+                    int r = legacyBenchCounter++;
+                    Set<String> benchParentIdentities = new HashSet<>();
                     
-                    boolean isValid = candidateQueue != null && !candidateQueue.isExhausted() && !benchParentIdentities.contains(candidateQueue.parentIdentity);
-                    
-                    if (!isValid) {
-                        candidateQueue = null;
-                        for (SectionQueue q : allQueues) {
-                            if (!q.isExhausted() && !benchParentIdentities.contains(q.parentIdentity)) {
-                                candidateQueue = q;
-                                activeQueuesBySeat.put(b, q);
-                                break;
+                    for (int b = 1; b <= roomConfig.getMaxPerBench(); b++) {
+                        SectionQueue candidateQueue = activeQueuesBySeat.get(b);
+                        
+                        boolean isValid = candidateQueue != null && !candidateQueue.isExhausted() && !benchParentIdentities.contains(candidateQueue.parentIdentity);
+                        
+                        if (!isValid) {
+                            candidateQueue = null;
+                            for (SectionQueue q : allQueues) {
+                                if (!q.isExhausted() && !benchParentIdentities.contains(q.parentIdentity)) {
+                                    candidateQueue = q;
+                                    activeQueuesBySeat.put(b, q);
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    if (candidateQueue != null) {
-                        StudentEnrollment selectedStudent = candidateQueue.next();
-                        SeatingArrangementStudentDto studentDto = new SeatingArrangementStudentDto();
-                        studentDto.setSno(globalSno++);
-                        studentDto.setEnrollment(selectedStudent.getStudent().getEnrollmentNo());
-                        String name = selectedStudent.getStudent().getUser().getFirstName();
-                        if (selectedStudent.getStudent().getUser().getLastName() != null) {
-                            name += " " + selectedStudent.getStudent().getUser().getLastName();
-                        }
-                        studentDto.setName(name);
-                        studentDto.setClassName(candidateQueue.displayClassName);
-                        // Isolate visual row convention
-                        studentDto.setRow("R" + ((r - 1) / 5 + 1));
-                        studentDto.setBench("B" + r);
-                        studentDto.setSeat(b);
                         
-                        room.getStudents().add(studentDto);
-                        benchParentIdentities.add(candidateQueue.parentIdentity);
-                        classesInRoom.add(candidateQueue.displayClassName);
-                        allocated++;
+                        if (candidateQueue != null) {
+                            StudentEnrollment selectedStudent = candidateQueue.next();
+                            SeatingArrangementStudentDto studentDto = new SeatingArrangementStudentDto();
+                            studentDto.setSno(globalSno++);
+                            studentDto.setEnrollment(selectedStudent.getStudent().getEnrollmentNo());
+                            String name = selectedStudent.getStudent().getUser().getFirstName();
+                            if (selectedStudent.getStudent().getUser().getLastName() != null) {
+                                name += " " + selectedStudent.getStudent().getUser().getLastName();
+                            }
+                            studentDto.setName(name);
+                            studentDto.setClassName(candidateQueue.displayClassName);
+                            
+                            if (useRowConfig) {
+                                studentDto.setRow("R" + (rowIndex + 1));
+                                studentDto.setBench("B" + localBench);
+                            } else {
+                                // For legacy fallback, we simulate 5 benches per row
+                                int legacyRow = ((r - 1) / 5) + 1;
+                                int legacyLocalBench = ((r - 1) % 5) + 1;
+                                studentDto.setRow("R" + legacyRow);
+                                studentDto.setBench("B" + legacyLocalBench);
+                            }
+                            
+                            studentDto.setSeat(b);
+                            
+                            room.getStudents().add(studentDto);
+                            benchParentIdentities.add(candidateQueue.parentIdentity);
+                            classesInRoom.add(candidateQueue.displayClassName);
+                            allocated++;
+                        }
                     }
                 }
             }
             room.setAllocated(allocated);
             room.setClasses(new ArrayList<>(classesInRoom));
+            room.setRowConfig(roomConfig.getRowConfig());
             allocatedRooms.add(room);
         }
         
@@ -267,7 +294,7 @@ public class SeatingServiceImpl implements SeatingService {
             Map<String, Set<String>> benchParentIdentities = new HashMap<>();
             
             for (SeatingArrangementStudentDto student : room.getStudents()) {
-                String seatKey = room.getRoomNumber() + "-" + student.getBench() + "-" + student.getSeat();
+                String seatKey = room.getRoomNumber() + "-" + student.getRow() + "-" + student.getBench() + "-" + student.getSeat();
                 if (!usedSeats.add(seatKey)) {
                     throw new IllegalStateException("Seat assigned twice: " + seatKey);
                 }
@@ -283,7 +310,7 @@ public class SeatingServiceImpl implements SeatingService {
                 AcroClass ac = enrollment.getAcroClass();
                 String parentId = ac.getDegreeProgram().getId().toString() + "-" + ac.getDepartment().getId().toString() + "-" + ac.getName().trim().toLowerCase();
                 
-                String benchKey = room.getRoomNumber() + "-" + student.getBench();
+                String benchKey = room.getRoomNumber() + "-" + student.getRow() + "-" + student.getBench();
                 Set<String> benchIdentities = benchParentIdentities.computeIfAbsent(benchKey, k -> new HashSet<>());
                 if (!benchIdentities.add(parentId)) {
                     throw new IllegalStateException("Anti-cheating violation on bench: " + benchKey + " (Multiple students from parent group: " + ac.getName() + ")");
@@ -346,6 +373,10 @@ public class SeatingServiceImpl implements SeatingService {
                 room.setInvigilators(invigs);
             }
             
+            if (roomDto.getRowConfig() != null) {
+                room.setRowConfig(roomDto.getRowConfig().stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")));
+            }
+            
             List<SeatingArrangementStudent> students = new ArrayList<>();
             for (SeatingArrangementStudentDto studentDto : roomDto.getStudents()) {
                 SeatingArrangementStudent student = new SeatingArrangementStudent();
@@ -405,6 +436,10 @@ public class SeatingServiceImpl implements SeatingService {
             roomDto.setMaxPerBench(room.getMaxPerBench());
             roomDto.setAllocated(room.getAllocated());
             roomDto.setClasses(Arrays.asList(room.getClasses().split(",")));
+            
+            if (room.getRowConfig() != null && !room.getRowConfig().isEmpty()) {
+                roomDto.setRowConfig(Arrays.stream(room.getRowConfig().split(",")).map(Integer::parseInt).collect(java.util.stream.Collectors.toList()));
+            }
             
             if (room.getInvigilators() != null) {
                 List<UUID> ids = new ArrayList<>();

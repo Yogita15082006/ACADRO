@@ -808,6 +808,8 @@ export const ExaminationModule = () => {
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomNumber, setNewRoomNumber] = useState('');
   const [newRoomBenches, setNewRoomBenches] = useState('');
+  const [newRoomNumRows, setNewRoomNumRows] = useState('');
+  const [newRoomRowConfig, setNewRoomRowConfig] = useState<any[]>([]);
   const [newRoomMaxPerBench, setNewRoomMaxPerBench] = useState('2');
   const [newRoomInvigilators, setNewRoomInvigilators] = useState<string[]>([]);
   const [invigilatorsList, setInvigilatorsList] = useState<any[]>([]);
@@ -3506,10 +3508,13 @@ export const ExaminationModule = () => {
         return invig ? `${invig.firstName} ${invig.lastName || ''}`.trim() : '';
       }),
       startTime: newRoomStartTime,
-      endTime: newRoomEndTime
+      endTime: newRoomEndTime,
+      rowConfig: newRoomRowConfig.length > 0 && newRoomNumRows ? newRoomRowConfig.slice(0, parseInt(newRoomNumRows)).map(v => parseInt(v) || 0) : undefined
     }]);
     setNewRoomName('');
     setNewRoomBenches('');
+    setNewRoomNumRows('');
+    setNewRoomRowConfig([]);
     setNewRoomInvigilators([]);
   };
 
@@ -3553,7 +3558,8 @@ export const ExaminationModule = () => {
                 number: r.number,
                 benches: r.benches,
                 maxPerBench: r.maxPerBench || seatingConfig.maxPerBench,
-                invigilatorIds: r.invigilatorIds
+                invigilatorIds: r.invigilatorIds,
+                rowConfig: r.rowConfig
             })),
             eligibleEnrollments: eligibleStudents.map((s:any) => s.enrollment)
         };
@@ -4635,6 +4641,18 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
                   <input type="number" placeholder="e.g. 30" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomBenches} onChange={e => setNewRoomBenches(e.target.value)} />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs font-semibold">Number of Rows</label>
+                  <input type="number" placeholder="e.g. 3" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomNumRows} onChange={e => {
+                    setNewRoomNumRows(e.target.value);
+                    const rows = parseInt(e.target.value);
+                    if (!isNaN(rows) && rows > 0) {
+                      setNewRoomRowConfig(Array(rows).fill(''));
+                    } else {
+                      setNewRoomRowConfig([]);
+                    }
+                  }} />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-semibold">Max Students Per Bench</label>
                   <input type="number" placeholder="e.g. 2" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomMaxPerBench} onChange={e => setNewRoomMaxPerBench(e.target.value)} />
                 </div>
@@ -4669,8 +4687,51 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
                       ))}
                     </div>
                   </div>
+                  
+                {newRoomNumRows && parseInt(newRoomNumRows) > 0 && (
+                  <div className="lg:col-span-3 space-y-2 bg-muted/30 p-4 rounded-lg border border-border mt-1">
+                    <label className="text-xs font-semibold">Row Bench Configuration</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {Array.from({ length: parseInt(newRoomNumRows) }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs whitespace-nowrap font-medium text-muted-foreground">Row {i + 1}</span>
+                          <input 
+                            type="number" 
+                            min="1"
+                            placeholder="benches" 
+                            className="w-full p-1.5 text-sm border border-border rounded bg-background" 
+                            value={newRoomRowConfig[i] === undefined ? '' : newRoomRowConfig[i]}
+                            onChange={e => {
+                              const newConfig = [...newRoomRowConfig];
+                              newConfig[i] = e.target.value === '' ? '' : parseInt(e.target.value);
+                              setNewRoomRowConfig(newConfig);
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {(() => {
+                      const totalNeeded = parseInt(newRoomBenches) || 0;
+                      const currentSum = newRoomRowConfig.slice(0, parseInt(newRoomNumRows)).reduce((acc, val) => acc + (parseInt(val) || 0), 0);
+                      if (currentSum !== totalNeeded) {
+                        return <p className="text-xs text-rose-500 mt-2 font-medium">Row bench total ({currentSum}) must equal Total Benches ({totalNeeded}).</p>;
+                      }
+                      return <p className="text-xs text-emerald-600 mt-2 font-medium">Row bench total matches Total Benches.</p>;
+                    })()}
+                  </div>
+                )}
+                
                 <div className="flex items-end lg:col-span-1">
-                  <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" onClick={handleAddRoom} disabled={!newRoomName || !newRoomBenches}>
+                  <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" onClick={handleAddRoom} disabled={(() => {
+                    if (!newRoomName || !newRoomBenches) return true;
+                    const rows = parseInt(newRoomNumRows);
+                    if (!isNaN(rows) && rows > 0) {
+                        const sum = newRoomRowConfig.slice(0, rows).reduce((acc, val) => acc + (parseInt(val) || 0), 0);
+                        if (sum !== parseInt(newRoomBenches)) return true;
+                        if (newRoomRowConfig.slice(0, rows).some(val => !val || parseInt(val) < 1)) return true;
+                    }
+                    return false;
+                  })()}>
                     <Plus size={16} className="mr-2"/> Add Room
                   </Button>
                 </div>
@@ -4684,7 +4745,10 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-extrabold text-sm text-foreground">{room.name} <span className="text-muted-foreground font-semibold">({room.number})</span></p>
-                          <p className="text-xs font-medium text-muted-foreground mt-0.5">{room.benches} Benches × {room.maxPerBench} / bench</p>
+                          <p className="text-xs font-medium text-muted-foreground mt-0.5">
+                            {room.benches} Benches × {room.maxPerBench} / bench
+                            {room.rowConfig && room.rowConfig.length > 0 && <span className="ml-1 opacity-80">({room.rowConfig.length} Rows)</span>}
+                          </p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500 hover:bg-rose-50 -mt-1 -mr-1" onClick={() => setSeatRooms(seatRooms.filter(r => r.id !== room.id))}>
                           <Trash2 size={14}/>

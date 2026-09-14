@@ -10,6 +10,7 @@ public class SeatingArrangementRoomDto {
     private String roomNumber;
     private Integer benches;
     private Integer maxPerBench;
+    private List<Integer> rowConfig;
     private Integer allocated;
     private List<String> classes;
     private List<UUID> invigilatorIds;
