@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { getAssetUrl } from '@/lib/utils';
@@ -505,23 +507,23 @@ export const StudentsModule = () => {
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Search by name or enrollment..." className="pl-9" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <select value={filterBatch} onChange={e => setFilterBatch(e.target.value)}
+            <CustomSelect value={filterBatch} onChange={e => setFilterBatch(e.target.value)}
               className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-ring">
               <option value="">All Batches</option>
               {batches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
+            </CustomSelect>
+            <CustomSelect value={filterClass} onChange={e => setFilterClass(e.target.value)}
               className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-ring">
               <option value="">All Classes</option>
               {classesList.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </CustomSelect>
             {isHod && (
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+              <CustomSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
                 className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-ring">
                 <option value="">All Status</option>
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
-              </select>
+              </CustomSelect>
             )}
             <Button variant="ghost" size="icon" onClick={() => { setSearchQuery(''); setFilterBatch(''); setFilterClass(''); setFilterStatus(''); }}>
               <X size={16} />
@@ -670,10 +672,10 @@ export const StudentsModule = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Gender</label>
-                <select value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
+                <CustomSelect value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                   <option>Male</option><option>Female</option><option>Other</option>
-                </select>
+                </CustomSelect>
               </div>
             </div>
 
@@ -686,29 +688,29 @@ export const StudentsModule = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Year</label>
-                  <select value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
+                  <CustomSelect value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Year</option>
                     {studyYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
+                  <CustomSelect value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.studyYear}>
                     <option value="">Select Semester</option>
                     {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class & Section</label>
-                  <select value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
+                  <CustomSelect value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Class</option>
                     {classOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
             </div>
@@ -740,10 +742,10 @@ export const StudentsModule = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Gender</label>
-                <select value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
+                <CustomSelect value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                   <option>Male</option><option>Female</option><option>Other</option>
-                </select>
+                </CustomSelect>
               </div>
             </div>
 
@@ -756,29 +758,29 @@ export const StudentsModule = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Year</label>
-                  <select value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
+                  <CustomSelect value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Year</option>
                     {studyYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
+                  <CustomSelect value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.studyYear}>
                     <option value="">Select Semester</option>
                     {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class & Section</label>
-                  <select value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
+                  <CustomSelect value={form.classId} onChange={e => setForm({...form, classId: e.target.value})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Class</option>
                     {classOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
             </div>
@@ -786,11 +788,11 @@ export const StudentsModule = () => {
             <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-3">
               <h4 className="text-xs font-semibold text-primary uppercase">Account Status</h4>
               <div className="space-y-1">
-                <select value={form.status} onChange={e => setForm({...form, status: e.target.value})}
+                <CustomSelect value={form.status} onChange={e => setForm({...form, status: e.target.value})}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
-                </select>
+                </CustomSelect>
               </div>
             </div>
           </div>

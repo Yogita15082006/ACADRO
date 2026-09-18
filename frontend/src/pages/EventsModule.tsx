@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { toast } from 'react-hot-toast';
 import { eventService } from '../services/eventService';
 import { CreateEventForm } from '../components/events/CreateEventForm';
@@ -1516,11 +1518,11 @@ export const EventsModule = () => {
                       </label>
                     ) : f.type === 'select' || f.type === 'dropdown' ? (
                       <div className="relative">
-                        <select required={f.required} value={customFormResponses[f.label] || ''} onChange={e => setCustomFormResponses({...customFormResponses, [f.label]: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background font-bold text-foreground shadow-sm focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer pr-10">
+                        <CustomSelect required={f.required} value={customFormResponses[f.label] || ''} onChange={e => setCustomFormResponses({...customFormResponses, [f.label]: e.target.value})} className="w-full p-4 border border-border rounded-2xl bg-background font-bold text-foreground shadow-sm focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer pr-10">
                           <option value="" disabled>Select an option</option>
                           <option value="Yes">Yes</option>
                           <option value="No">No</option>
-                        </select>
+                        </CustomSelect>
                         <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-muted-foreground pointer-events-none" size={20} />
                       </div>
                     ) : (
@@ -1653,7 +1655,7 @@ export const EventsModule = () => {
               </div>
               <div>
                 <label className="text-sm font-bold">Field Type</label>
-                <select className="w-full p-3 border border-border rounded-xl bg-background font-medium" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value})}>
+                <CustomSelect className="w-full p-3 border border-border rounded-xl bg-background font-medium" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value})}>
                   <option>Text</option>
                   <option>Number</option>
                   <option>Dropdown</option>
@@ -1662,7 +1664,7 @@ export const EventsModule = () => {
                   <option>Date</option>
                   <option>File Upload</option>
                   <option>Text Area</option>
-                </select>
+                </CustomSelect>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-8">

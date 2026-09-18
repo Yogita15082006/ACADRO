@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -218,7 +220,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Gender</label>
-                    <select 
+                    <CustomSelect 
                       value={formData.gender}
                       onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -226,7 +228,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Date of Birth</label>
@@ -234,7 +236,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Category</label>
-                    <select 
+                    <CustomSelect 
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -243,11 +245,11 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                       <option value="OBC">OBC</option>
                       <option value="SC">SC</option>
                       <option value="ST">ST</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Blood Group</label>
-                    <select 
+                    <CustomSelect 
                       value={formData.bloodGroup}
                       onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -257,7 +259,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                       <option value="B+">B+</option><option value="B-">B-</option>
                       <option value="AB+">AB+</option><option value="AB-">AB-</option>
                       <option value="O+">O+</option><option value="O-">O-</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Nationality</label>
@@ -273,14 +275,14 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Residence Type</label>
-                    <select 
+                    <CustomSelect 
                       value={formData.residenceType}
                       onChange={(e) => setFormData({ ...formData, residenceType: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                     >
                       <option value="Local">Local</option>
                       <option value="Hosteler">Hosteler</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                 </div>
               </div>
@@ -335,14 +337,14 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ data, readOnly
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Current Semester</label>
-                  <select 
+                  <CustomSelect 
                     value={formData.currentSemester}
                     onChange={(e) => setFormData({ ...formData, currentSemester: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                   >
                     <option value="">Select Sem</option>
                     {[1,2,3,4,5,6,7,8].map(sem => <option key={sem} value={sem}>{sem}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Section</label>

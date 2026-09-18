@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
@@ -259,13 +261,13 @@ export const FacultyActivityModule = () => {
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
               <label className="text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Sort By:</label>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="h-10 px-3 rounded-lg border border-border bg-background text-sm flex-1 md:w-56">
+              <CustomSelect value={sortBy} onChange={e => setSortBy(e.target.value)} className="h-10 px-3 rounded-lg border border-border bg-background text-sm flex-1 md:w-56">
                 <option value="name-asc">Name (A-Z)</option>
                 <option value="name-desc">Name (Z-A)</option>
                 <option value="recently-active">Recently Active</option>
                 <option value="highest-attendance">Highest Teaching Attendance</option>
                 <option value="lowest-attendance">Lowest Teaching Attendance</option>
-              </select>
+              </CustomSelect>
             </div>
           </div>
 
@@ -613,11 +615,11 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOp
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-muted-foreground">Holiday Reason</label>
-                    <select value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm">
+                    <CustomSelect value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm">
                       <option value="">Select Reason</option>
                       {holidayReasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
                       <option value="Other">Other (Please specify)</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                   {holidayReason === 'Other' && (
                     <div className="space-y-2">
@@ -638,16 +640,16 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOp
                         <CardContent className="p-4 space-y-3">
                           <h4 className="text-sm font-bold text-foreground">Bulk Action</h4>
                           <div className="flex flex-col sm:flex-row gap-3">
-                            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-background text-sm flex-1">
+                            <CustomSelect value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-background text-sm flex-1">
                               <option value="Present">Present</option>
                               <option value="Absent">Absent</option>
                               <option value="Class Missed">Class Missed</option>
-                            </select>
+                            </CustomSelect>
                             {(bulkStatus === 'Absent' || bulkStatus === 'Class Missed') && (
-                              <select value={bulkReason} onChange={e => setBulkReason(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-background text-sm flex-1">
+                              <CustomSelect value={bulkReason} onChange={e => setBulkReason(e.target.value)} className="h-9 px-3 rounded-md border border-border bg-background text-sm flex-1">
                                 <option value="">Select Reason</option>
                                 {absenceReasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                              </select>
+                              </CustomSelect>
                             )}
                             <Button size="sm" onClick={handleBulkApply} variant="secondary">Apply to Selected</Button>
                           </div>
@@ -679,18 +681,18 @@ export const MarkAttendanceModal = ({ isOpen, onClose, user, onSuccess }: { isOp
                                     </div>
                                   </TableCell>
                                 <TableCell className="align-top pt-3">
-                                  <select value={sub.status} onChange={e => updateSubject(idx, 'status', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs">
+                                  <CustomSelect value={sub.status} onChange={e => updateSubject(idx, 'status', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs">
                                     <option value="Present">Present</option>
                                     <option value="Absent">Absent</option>
                                     <option value="Class Missed">Missed</option>
-                                  </select>
+                                  </CustomSelect>
                                 </TableCell>
                                 <TableCell className="align-top pt-3">
                                   {(sub.status === 'Absent' || sub.status === 'Class Missed') ? (
-                                    <select value={sub.reason} onChange={e => updateSubject(idx, 'reason', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs border-red-200">
+                                    <CustomSelect value={sub.reason} onChange={e => updateSubject(idx, 'reason', e.target.value)} className="w-full h-8 px-2 rounded border border-border bg-background text-xs border-red-200">
                                       <option value="">Reason...</option>
                                       {absenceReasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                                    </select>
+                                    </CustomSelect>
                                   ) : (
                                     <span className="text-muted-foreground text-xs block py-1.5">—</span>
                                   )}

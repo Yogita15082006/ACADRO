@@ -13,6 +13,8 @@ import {
   Loader2, CheckSquare, Check, Download
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/select";
+import { CustomDatePicker } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -1203,10 +1205,9 @@ export const ExaminationModule = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-foreground">Category <span className="text-rose-500">*</span></label>
-                  <select 
+                  <CustomSelect 
                     value={publishNoticeCategory}
                     onChange={(e) => setPublishNoticeCategory(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   >
                     <option value="">Select Category</option>
                     <option value="General Information">General Information</option>
@@ -1214,20 +1215,19 @@ export const ExaminationModule = () => {
                     <option value="Seating Arrangement">Seating Arrangement</option>
                     <option value="Result Declaration">Result Declaration</option>
                     <option value="Syllabus/Curriculum">Syllabus/Curriculum</option>
-                  </select>
+                  </CustomSelect>
                 </div>
                 
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-foreground">Priority</label>
-                  <select 
+                  <CustomSelect 
                     value={publishNoticePriority}
                     onChange={(e) => setPublishNoticePriority(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   >
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
 
@@ -1396,12 +1396,12 @@ export const ExaminationModule = () => {
           {role !== 'hod' && examCapabilities?.activeCoordinatorAssignments && examCapabilities.activeCoordinatorAssignments.length > 0 && (
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium">Fulfilling Assignment *</label>
-              <select className="w-full p-2 border border-border rounded-lg bg-background" value={createCoordinatorAssignmentId} onChange={e => setCreateCoordinatorAssignmentId(e.target.value)}>
+              <CustomSelect value={createCoordinatorAssignmentId} onChange={e => setCreateCoordinatorAssignmentId(e.target.value)}>
                 <option value="">Select active assignment...</option>
                 {examCapabilities.activeCoordinatorAssignments.map((a: any) => (
                   <option key={a.id} value={a.id}>{a.examPurpose} (Valid until {new Date(a.validUntil).toLocaleDateString()})</option>
                 ))}
-              </select>
+              </CustomSelect>
             </div>
           )}
           <div className="space-y-2 md:col-span-2">
@@ -1411,13 +1411,13 @@ export const ExaminationModule = () => {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Examination Type *</label>
-            <select className="w-full p-2 border border-border rounded-lg bg-background" value={createType} onChange={e => setCreateType(e.target.value)}>
+            <CustomSelect value={createType} onChange={e => setCreateType(e.target.value)}>
               <option value="MID_TERM">Mid Term</option>
               <option value="END_TERM">End Term</option>
               <option value="PRACTICAL">Practical</option>
               <option value="QUIZ">Quiz</option>
               <option value="OTHER">Other (Manual Entry)</option>
-            </select>
+            </CustomSelect>
           </div>
           {createType === 'OTHER' && (
             <div className="space-y-2">
@@ -1427,30 +1427,30 @@ export const ExaminationModule = () => {
           )}
           <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium">Batch *</label>
-              <select className="w-full p-2 border border-border rounded-lg bg-background" value={createBatch} onChange={e => { setCreateBatch(e.target.value); setCreateYear(''); }}>
+              <CustomSelect value={createBatch} onChange={e => { setCreateBatch(e.target.value); setCreateYear(''); }}>
                 <option value="">Select Batch</option>
                 {batches.map(b => (
                   <option key={b} value={b}>{b}</option>
                 ))}
-              </select>
+              </CustomSelect>
             </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Academic Year *</label>
-            <select className="w-full p-2 border border-border rounded-lg bg-background" value={createYear} onChange={e => { setCreateYear(e.target.value); setCreateClasses([]); }}>
+            <CustomSelect value={createYear} onChange={e => { setCreateYear(e.target.value); setCreateClasses([]); }}>
               <option value="">Select Year</option>
               {academicYears.map(year => (
                 <option key={year.id} value={year.id}>{year.displayYear || year.year}</option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Semester *</label>
-            <select className="w-full p-2 border border-border rounded-lg bg-background" value={createSemester} onChange={e => setCreateSemester(e.target.value)}>
+            <CustomSelect value={createSemester} onChange={e => setCreateSemester(e.target.value)}>
               <option value="">Select Semester</option>
               {semesters.map(sem => (
                 <option key={sem.id} value={sem.id}>Semester {sem.semesterNumber}</option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
           <div className="space-y-2 md:col-span-2">
             <div className="flex items-center justify-between">
@@ -1501,11 +1501,11 @@ export const ExaminationModule = () => {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Start Date *</label>
-            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createStartDate} onChange={e => setCreateStartDate(e.target.value)} />
+            <CustomDatePicker value={createStartDate} onChange={e => setCreateStartDate(e.target.value)} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">End Date *</label>
-            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createEndDate} onChange={e => setCreateEndDate(e.target.value)} />
+            <CustomDatePicker value={createEndDate} onChange={e => setCreateEndDate(e.target.value)} />
           </div>
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Description</label>
@@ -1931,8 +1931,8 @@ export const ExaminationModule = () => {
                 onChange={e => setResultSearch(e.target.value)}
               />
             </div>
-            <select 
-              className="py-2 px-3 text-sm border border-border rounded-lg bg-background"
+            <CustomSelect 
+              className="py-2 px-3 text-sm min-w-[140px]"
               value={resultStatusFilter}
               onChange={e => setResultStatusFilter(e.target.value)}
             >
@@ -1940,7 +1940,7 @@ export const ExaminationModule = () => {
               <option value="Pending">Pending</option>
               <option value="Draft">Draft</option>
               <option value="Published">Published</option>
-            </select>
+            </CustomSelect>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
             {!isAllPublished && filteredData.length > 0 && (
@@ -2137,8 +2137,8 @@ export const ExaminationModule = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-3 rounded-lg border border-border/50">
-            <select 
-              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+            <CustomSelect 
+              className="flex-1 min-w-0"
               value={selectedClass}
               onChange={(e) => {
                 setSelectedClass(e.target.value);
@@ -2154,9 +2154,9 @@ export const ExaminationModule = () => {
             >
               <option value="">-- Select Class --</option>
               {selectedExam?.classIds?.map((id: string, idx: number) => <option key={id} value={id}>{selectedExam.classNames[idx]}</option>)}
-            </select>
-            <select 
-              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+            </CustomSelect>
+            <CustomSelect 
+              className="flex-1 min-w-0"
               value={selectedClassSubject}
               onChange={(e) => {
                 setSelectedClassSubject(e.target.value);
@@ -2174,9 +2174,9 @@ export const ExaminationModule = () => {
                 {isSubjectsLoading ? 'Loading Subjects...' : (availableSubjects.length === 0 && selectedClass ? 'No subjects found for this class.' : '-- Select Subject --')}
               </option>
               {availableSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.subjectName || s.subject?.name}</option>)}
-            </select>
-            <select 
-              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+            </CustomSelect>
+            <CustomSelect 
+              className="flex-1 min-w-0"
               value={selectedExamDate}
               onChange={(e) => {
                 setSelectedExamDate(e.target.value);
@@ -2197,7 +2197,7 @@ export const ExaminationModule = () => {
                  const display = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : d;
                  return <option key={d} value={d}>{display}</option>;
               })}
-            </select>
+            </CustomSelect>
           </div>
         </div>
 
@@ -3290,24 +3290,24 @@ export const ExaminationModule = () => {
                 />
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                <select 
-                  className="p-2 text-sm border border-border rounded-lg bg-background flex-1 sm:flex-none"
+                <CustomSelect 
+                  className="p-2 text-sm min-w-[140px] flex-1 sm:flex-none"
                   value={elgFilter.status}
                   onChange={e => setElgFilter({...elgFilter, status: e.target.value})}
                 >
                   <option value="All">All Status</option>
                   <option value="Eligible">Eligible Only</option>
                   <option value="Not Eligible">Not Eligible Only</option>
-                </select>
-                <select 
-                  className="p-2 text-sm border border-border rounded-lg bg-background flex-1 sm:flex-none"
+                </CustomSelect>
+                <CustomSelect 
+                  className="p-2 text-sm min-w-[160px] flex-1 sm:flex-none"
                   value={elgFilter.sort}
                   onChange={e => setElgFilter({...elgFilter, sort: e.target.value})}
                 >
                   <option value="Alpha">Sort: A-Z</option>
                   <option value="Enrollment">Sort: Enrollment No</option>
                   <option value="Attendance">Sort: Attendance</option>
-                </select>
+                </CustomSelect>
               </div>
             </div>
             
@@ -3840,11 +3840,10 @@ export const ExaminationModule = () => {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-1">Step 1: Select Exam Date</label>
-                <input 
-                  type="date" 
+                <CustomDatePicker 
                   value={attendanceSetupDate} 
                   onChange={(e) => setAttendanceSetupDate(e.target.value)}
-                  className="w-full p-2 border border-border rounded-md bg-background max-w-sm"
+                  wrapperClassName="max-w-sm"
                 />
               </div>
 
@@ -3859,8 +3858,7 @@ export const ExaminationModule = () => {
                           {c.name}
                         </div>
                         <div className="sm:w-2/3">
-                          <select 
-                            className="w-full p-2 border border-border rounded-md bg-background"
+                          <CustomSelect 
                             value={attendanceSetupSubjectMap[c.id] || ''}
                             onChange={(e) => {
                                 setAttendanceSetupSubjectMap(prev => ({
@@ -3877,7 +3875,7 @@ export const ExaminationModule = () => {
                             {classSubjects.map((sub: any) => (
                               <option key={sub.id} value={sub.id}>{sub.subjectName || sub.subject?.name || sub.name}</option>
                             ))}
-                          </select>
+                          </CustomSelect>
                         </div>
                       </div>
                     );
@@ -4871,12 +4869,12 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium">Select Faculty *</label>
-                <select className="w-full p-2 border border-border rounded-lg bg-background" value={assignFacultyId} onChange={e => setAssignFacultyId(e.target.value)}>
+                <CustomSelect value={assignFacultyId} onChange={e => setAssignFacultyId(e.target.value)}>
                   <option value="">Select faculty member...</option>
                   {eligibleFaculty.map(f => (
                     <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
                   ))}
-                </select>
+                </CustomSelect>
               </div>
               
               <div className="space-y-2">
@@ -4886,7 +4884,7 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Valid Until *</label>
-                <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} />
+                <CustomDatePicker value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} />
               </div>
             </div>
             

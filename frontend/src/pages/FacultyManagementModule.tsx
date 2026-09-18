@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 
 import api from '../services/api';
 
@@ -117,13 +119,13 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
 
         <label className="text-xs font-semibold text-muted-foreground">Batch</label>
 
-        <select value={row.batch} onChange={e => updateRow(index, 'batch', e.target.value)} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm">
+        <CustomSelect value={row.batch} onChange={e => updateRow(index, 'batch', e.target.value)} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm">
 
           <option value="">Select</option>
 
           {batches.map(b => <option key={b} value={b}>{b}</option>)}
 
-        </select>
+        </CustomSelect>
 
       </div>
 
@@ -131,13 +133,13 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
 
         <label className="text-xs font-semibold text-muted-foreground">Academic Year</label>
 
-        <select value={row.academicYear} onChange={e => updateRow(index, 'academicYear', e.target.value)} disabled={!row.batch} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+        <CustomSelect value={row.academicYear} onChange={e => updateRow(index, 'academicYear', e.target.value)} disabled={!row.batch} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
 
           <option value="">Select</option>
 
           {years.map(y => <option key={y} value={y}>{y}</option>)}
 
-        </select>
+        </CustomSelect>
 
       </div>
 
@@ -145,13 +147,13 @@ const AssignmentRow = ({ row, index, updateRow, removeRow }: any) => {
 
         <label className="text-xs font-semibold text-muted-foreground">Class / Section</label>
 
-        <select value={row.className} onChange={e => updateRow(index, 'className', e.target.value)} disabled={!row.academicYear} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+        <CustomSelect value={row.className} onChange={e => updateRow(index, 'className', e.target.value)} disabled={!row.academicYear} className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm disabled:opacity-50">
 
           <option value="">Select</option>
 
           {classes.map(c => <option key={c} value={c}>{c}</option>)}
 
-        </select>
+        </CustomSelect>
 
       </div>
 
@@ -597,7 +599,7 @@ const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => 
 
           <Label>Base Department Membership</Label>
 
-          <select 
+          <CustomSelect 
 
             value={baseDept} 
 
@@ -617,7 +619,7 @@ const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => 
 
             ))}
 
-          </select>
+          </CustomSelect>
 
         </div>
 
@@ -3939,7 +3941,7 @@ export const FacultyManagementModule = () => {
 
                 <Label htmlFor="role">Role</Label>
 
-                <select id="role" name="role" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+                <CustomSelect id="role" name="role" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                   <option value="faculty">Faculty</option>
 
@@ -3947,7 +3949,7 @@ export const FacultyManagementModule = () => {
 
                   <option value="hod">HOD</option>
 
-                </select>
+                </CustomSelect>
 
               </div>
 
@@ -3955,7 +3957,7 @@ export const FacultyManagementModule = () => {
 
                 <Label htmlFor="dept">Department</Label>
 
-                <select id="dept" name="dept" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+                <CustomSelect id="dept" name="dept" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                   {departmentsList.map((d: string) => (
 
@@ -3965,7 +3967,7 @@ export const FacultyManagementModule = () => {
 
                   {departmentsList.length === 0 && <option value="">No departments available</option>}
 
-                </select>
+                </CustomSelect>
 
               </div>
 
@@ -4007,11 +4009,11 @@ export const FacultyManagementModule = () => {
 
               <Label htmlFor="facultyName">Select Faculty</Label>
 
-              <select id="facultyName" name="facultyName" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+              <CustomSelect id="facultyName" name="facultyName" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                 {localFaculty.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
 
-              </select>
+              </CustomSelect>
 
             </div>
 
@@ -4021,7 +4023,7 @@ export const FacultyManagementModule = () => {
 
                 <Label htmlFor="year">Academic Year</Label>
 
-                <select id="year" name="year" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+                <CustomSelect id="year" name="year" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                   <option value="2nd Year">2nd Year</option>
 
@@ -4029,7 +4031,7 @@ export const FacultyManagementModule = () => {
 
                   <option value="4th Year">4th Year</option>
 
-                </select>
+                </CustomSelect>
 
               </div>
 
@@ -4037,7 +4039,7 @@ export const FacultyManagementModule = () => {
 
                 <Label htmlFor="semester">Semester</Label>
 
-                <select id="semester" name="semester" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+                <CustomSelect id="semester" name="semester" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                   <option value="Semester 3">Sem 3</option>
 
@@ -4047,7 +4049,7 @@ export const FacultyManagementModule = () => {
 
                   <option value="Semester 6">Sem 6</option>
 
-                </select>
+                </CustomSelect>
 
               </div>
 
@@ -4059,13 +4061,13 @@ export const FacultyManagementModule = () => {
 
                 <Label htmlFor="className">Class</Label>
 
-                <select id="className" name="className" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+                <CustomSelect id="className" name="className" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                   <option value="">Select Class</option>
 
                   {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
 
-                </select>
+                </CustomSelect>
 
               </div>
 
@@ -4225,11 +4227,11 @@ export const FacultyManagementModule = () => {
 
               <Label htmlFor="newFacultyName">Select Faculty</Label>
 
-              <select id="newFacultyName" name="newFacultyName" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
+              <CustomSelect id="newFacultyName" name="newFacultyName" className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none">
 
                 {localFaculty.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
 
-              </select>
+              </CustomSelect>
 
             </div>
 
@@ -5123,7 +5125,7 @@ export const FacultyManagementModule = () => {
 
                             ) : null}
 
-                            <select 
+                            <CustomSelect 
 
                               className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
 
@@ -5147,7 +5149,7 @@ export const FacultyManagementModule = () => {
 
                               ))}
 
-                            </select>
+                            </CustomSelect>
 
                           </td>
 
@@ -5293,7 +5295,7 @@ export const FacultyManagementModule = () => {
 
                             ) : null}
 
-                            <select 
+                            <CustomSelect 
 
                               className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
 
@@ -5317,7 +5319,7 @@ export const FacultyManagementModule = () => {
 
                               ))}
 
-                            </select>
+                            </CustomSelect>
 
                             {sub.originalFacultyName && <div className="text-xs text-muted-foreground mt-1">Original: {sub.originalFacultyName}</div>}
 

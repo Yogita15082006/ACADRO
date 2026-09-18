@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -226,7 +228,7 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Academic Year</label>
-                  <select 
+                  <CustomSelect 
                     value={formData.year}
                     onChange={(e) => setFormData({...formData, year: e.target.value})}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -236,11 +238,11 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
                     <option value="2nd Year">2nd Year</option>
                     <option value="3rd Year">3rd Year</option>
                     <option value="4th Year">4th Year</option>
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-                  <select 
+                  <CustomSelect 
                     value={formData.semester}
                     onChange={(e) => setFormData({...formData, semester: e.target.value})}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -254,7 +256,7 @@ export const AcademicRecord: React.FC<AcademicRecordProps> = ({ data, readOnly, 
                     <option value="Semester 6">Semester 6</option>
                     <option value="Semester 7">Semester 7</option>
                     <option value="Semester 8">Semester 8</option>
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground">Batch</label>

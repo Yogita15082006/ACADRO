@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -919,18 +921,18 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Academic Year</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('academicYear')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('academicYear')}>
                   <option value="">Select Year</option>
                   <option value="1st Year">1st Year</option>
                   <option value="2nd Year">2nd Year</option>
                   <option value="3rd Year">3rd Year</option>
                   <option value="4th Year">4th Year</option>
-                </select>
+                </CustomSelect>
                 {errors.academicYear && <p className="text-xs text-rose-500">{errors.academicYear.message}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Semester</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('semester')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('semester')}>
                   <option value="">Select Semester</option>
                   <option value="Semester 1">Semester 1</option>
                   <option value="Semester 2">Semester 2</option>
@@ -940,49 +942,49 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
                   <option value="Semester 6">Semester 6</option>
                   <option value="Semester 7">Semester 7</option>
                   <option value="Semester 8">Semester 8</option>
-                </select>
+                </CustomSelect>
                 {errors.semester && <p className="text-xs text-rose-500">{errors.semester.message}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Department</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('department')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('department')}>
                   <option value="">Select Dept</option>
                   <option value="Computer Science">Computer Science</option>
                   <option value="Information Technology">Information Technology</option>
                   <option value="Data Science">Data Science</option>
-                </select>
+                </CustomSelect>
                 {errors.department && <p className="text-xs text-rose-500">{errors.department.message}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Class Name</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('className')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('className')}>
                   <option value="">Select Class</option>
                   <option value="IT-1">IT-1</option>
                   <option value="IT-2">IT-2</option>
                   <option value="DS-1">DS-1</option>
                   <option value="DS-2">DS-2</option>
-                </select>
+                </CustomSelect>
                 {errors.className && <p className="text-xs text-rose-500">{errors.className.message}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Subject</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('subject')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('subject')}>
                   <option value="">Select Subject</option>
                   <option value="Java Programming">Java Programming</option>
                   <option value="Operating Systems">Operating Systems</option>
                   <option value="DBMS">DBMS</option>
                   <option value="Computer Networks">Computer Networks</option>
-                </select>
+                </CustomSelect>
                 {errors.subject && <p className="text-xs text-rose-500">{errors.subject.message}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Lecture Type</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('lectureType')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('lectureType')}>
                   <option value="">Select Type</option>
                   <option value="Lecture">Lecture</option>
                   <option value="Lab">Lab</option>
                   <option value="Tutorial">Tutorial</option>
-                </select>
+                </CustomSelect>
                 {errors.lectureType && <p className="text-xs text-rose-500">{errors.lectureType.message}</p>}
               </div>
               <div className="space-y-2">
@@ -1007,13 +1009,13 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase">Duration</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('duration')}>
+                <CustomSelect className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" {...register('duration')}>
                   <option value="">Select Duration</option>
                   <option value="45 Mins">45 Mins</option>
                   <option value="60 Mins">60 Mins</option>
                   <option value="90 Mins">90 Mins</option>
                   <option value="120 Mins">120 Mins</option>
-                </select>
+                </CustomSelect>
                 {errors.duration && <p className="text-xs text-rose-500">{errors.duration.message}</p>}
               </div>
               <div className="space-y-2">

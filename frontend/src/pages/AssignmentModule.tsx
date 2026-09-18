@@ -1,4 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+import { CustomDatePicker } from "@/components/ui/input";
+
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -159,7 +162,7 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, se
         <div className="flex items-center gap-3 relative z-20 w-full md:w-auto">
         {!workspaceContext && (
         <div className="relative">
-          <select 
+          <CustomSelect 
             value={activeClassId} 
             onChange={e => setActiveClassId(e.target.value)}
             className="appearance-none px-4 py-2 pr-10 h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500/50 outline-none shadow-sm cursor-pointer hover:border-indigo-400:border-indigo-600 transition-all w-full sm:w-64"
@@ -167,7 +170,7 @@ function AdminAssignmentDashboard({ assignments, setAssignments, submissions, se
             {classes.map(cls => (
               <option key={cls.id} value={cls.id} className="font-medium text-slate-700 bg-white">{cls.year} - {cls.name}</option>
             ))}
-          </select>
+          </CustomSelect>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-indigo-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
           </div>
@@ -625,11 +628,10 @@ function EditAssignmentModal({ assignment, onClose, onUpdate }: { assignment: an
         <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1">Due Date & Time</label>
-            <input 
+            <CustomDatePicker 
               type="datetime-local" 
               value={deadline} 
               onChange={(e) => setDeadline(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -1129,7 +1131,7 @@ function AdminSubmissionsModal({ assignment, submissions, onClose, onSubmissionU
                   className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                 />
               </div>
-              <select 
+              <CustomSelect 
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
                 className="w-full sm:w-48 px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none cursor-pointer"
@@ -1138,11 +1140,11 @@ function AdminSubmissionsModal({ assignment, submissions, onClose, onSubmissionU
                 <option value="Submitted">Submitted</option>
                 <option value="Pending">Pending</option>
                 <option value="Late">Late</option>
-              </select>
+              </CustomSelect>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
               <label className="text-sm font-medium text-slate-500 shrink-0">Sort by:</label>
-              <select 
+              <CustomSelect 
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value)}
                 className="w-full md:w-48 px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none cursor-pointer"
@@ -1150,7 +1152,7 @@ function AdminSubmissionsModal({ assignment, submissions, onClose, onSubmissionU
                 <option value="Name">Name</option>
                 <option value="Enrollment Number">Enrollment Number</option>
                 <option value="Submission Time">Submission Time</option>
-              </select>
+              </CustomSelect>
             </div>
         </div>
 
@@ -1701,29 +1703,29 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
                 <>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Subject *</label>
-                    <select {...register('subjectId')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <CustomSelect {...register('subjectId')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                       <option value="">Select Subject</option>
                       {subjects.map(s => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
-                    </select>
+                    </CustomSelect>
                     {errors.subjectId && <p className="text-xs text-rose-500">{errors.subjectId.message}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Academic Year *</label>
-                    <select {...register('academicYear')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <CustomSelect {...register('academicYear')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                       <option value="">Select Year</option>
                       <option value="Second Year">2nd Year</option>
                       <option value="Third Year">3rd Year</option>
                       <option value="Fourth Year">4th Year</option>
-                    </select>
+                    </CustomSelect>
                     {errors.academicYear && <p className="text-xs text-rose-500">{errors.academicYear.message}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Semester *</label>
-                    <select {...register('semester')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <CustomSelect {...register('semester')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                       <option value="">Select Semester</option>
                       <option value="Semester 3">Semester 3</option>
                       <option value="Semester 4">Semester 4</option>
@@ -1731,17 +1733,17 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
                       <option value="Semester 6">Semester 6</option>
                       <option value="Semester 7">Semester 7</option>
                       <option value="Semester 8">Semester 8</option>
-                    </select>
+                    </CustomSelect>
                     {errors.semester && <p className="text-xs text-rose-500">{errors.semester.message}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Department *</label>
-                    <select {...register('department')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <CustomSelect {...register('department')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                       <option value="">Select Department</option>
                       <option value="IT">Information Technology (IT)</option>
                       <option value="DS">Data Science (DS)</option>
-                    </select>
+                    </CustomSelect>
                     {errors.department && <p className="text-xs text-rose-500">{errors.department.message}</p>}
                   </div>
 
@@ -1786,17 +1788,17 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Submission Type *</label>
-                <select {...register('type')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                <CustomSelect {...register('type')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                   <option value="PDF Assignment">PDF Assignment</option>
                   <option value="Document Assignment">Document Assignment</option>
                   <option value="ZIP/File Submission">ZIP/File Submission</option>
                   <option value="Online Assignment">Online Assignment</option>
-                </select>
+                </CustomSelect>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Submission Deadline *</label>
-                <input {...register('deadline')} type="datetime-local" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <CustomDatePicker {...register('deadline')} type="datetime-local" />
                 {errors.deadline && <p className="text-xs text-rose-500">{errors.deadline.message}</p>}
               </div>
               
@@ -1830,12 +1832,12 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Max Upload Size *</label>
-                <select {...register('maxUploadSize')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                <CustomSelect {...register('maxUploadSize')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
                   <option value="5 MB">5 MB</option>
                   <option value="10 MB">10 MB</option>
                   <option value="25 MB">25 MB</option>
                   <option value="50 MB">50 MB</option>
-                </select>
+                </CustomSelect>
               </div>
 
               <div className="space-y-2">

@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -251,18 +253,18 @@ export const CoordinatorsModule = () => {
                         <div className="flex-1 grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <label className="text-[10px] uppercase text-muted-foreground font-semibold">Academic Year</label>
-                            <select 
+                            <CustomSelect 
                               className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                               value={assignment.year}
                               onChange={(e) => updateAssignment(index, 'year', e.target.value)}
                             >
                               <option value="" disabled>Select Year...</option>
                               {availableYears.map(y => <option key={y} value={y}>{formatYear(y)}</option>)}
-                            </select>
+                            </CustomSelect>
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] uppercase text-muted-foreground font-semibold">Class</label>
-                            <select 
+                            <CustomSelect 
                               className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
                               value={assignment.name}
                               onChange={(e) => updateAssignment(index, 'name', e.target.value)}
@@ -270,7 +272,7 @@ export const CoordinatorsModule = () => {
                             >
                               <option value="" disabled>Select Class...</option>
                               {availableClasses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                            </select>
+                            </CustomSelect>
                           </div>
                         </div>
                         <Button 
@@ -316,7 +318,7 @@ export const CoordinatorsModule = () => {
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Note: Subject filter removed as per requirements */}
-          <select 
+          <CustomSelect 
             className="flex h-10 w-full sm:w-auto items-center justify-between rounded-md border border-input bg-muted/20 px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
@@ -324,7 +326,7 @@ export const CoordinatorsModule = () => {
             <option value="name-asc">Sort: Name (A-Z)</option>
             <option value="name-desc">Sort: Name (Z-A)</option>
             <option value="recent">Sort: Recently Added</option>
-          </select>
+          </CustomSelect>
         </div>
       </div>
 

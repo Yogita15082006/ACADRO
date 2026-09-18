@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { useNavigate } from 'react-router-dom';
 import { 
   Bell, Check, Trash2, Search, X, 
@@ -207,7 +209,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, o
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
-          <select 
+          <CustomSelect 
             className="text-xs font-medium bg-muted/40 border border-border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground cursor-pointer transition-colors hover:bg-muted/60"
             value={filterRead}
             onChange={(e) => setFilterRead(e.target.value)}
@@ -215,8 +217,8 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, o
             <option value="All">All Status</option>
             <option value="Unread">Unread</option>
             <option value="Read">Read</option>
-          </select>
-          <select 
+          </CustomSelect>
+          <CustomSelect 
             className="text-xs font-medium bg-muted/40 border border-border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-primary/50 text-foreground cursor-pointer transition-colors hover:bg-muted/60"
             value={filterModule}
             onChange={(e) => setFilterModule(e.target.value)}
@@ -224,7 +226,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, o
             {modules.map(m => (
               <option key={m} value={m}>{m === 'All' ? 'All Modules' : m}</option>
             ))}
-          </select>
+          </CustomSelect>
         </div>
       </div>
 

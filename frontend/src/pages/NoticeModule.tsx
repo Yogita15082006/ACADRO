@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+import { CustomDatePicker } from "@/components/ui/input";
+
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -335,21 +338,21 @@ export const NoticeModule = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-bold">Category</label>
-              <select className="w-full p-3 border border-border rounded-xl bg-background"
+              <CustomSelect className="w-full p-3 border border-border rounded-xl bg-background"
                 value={newNotice.category} onChange={e => setNewNotice({...newNotice, category: e.target.value})}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </CustomSelect>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-bold">Priority</label>
-              <select className="w-full p-3 border border-border rounded-xl bg-background"
+              <CustomSelect className="w-full p-3 border border-border rounded-xl bg-background"
                 value={newNotice.priority} onChange={e => setNewNotice({...newNotice, priority: e.target.value})}>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
                 <option value="URGENT">Urgent</option>
-              </select>
+              </CustomSelect>
             </div>
 
             <div className="md:col-span-2 space-y-2">
@@ -361,7 +364,7 @@ export const NoticeModule = () => {
             
             <div className="space-y-2">
               <label className="text-sm font-bold">Expiry Date <span className="text-rose-500">*</span></label>
-              <input type="date" className="w-full p-3 border border-border rounded-xl bg-background" 
+              <CustomDatePicker 
                 value={newNotice.expiryDate} onChange={e => setNewNotice({...newNotice, expiryDate: e.target.value})} />
               <p className="text-xs text-muted-foreground mt-1">Notice will be hidden from students after this date.</p>
             </div>
@@ -402,7 +405,7 @@ export const NoticeModule = () => {
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 mb-2 block">
                 {loadingBatches ? 'Loading...' : 'Select Batch'}
               </label>
-              <select 
+              <CustomSelect 
                 value={entireBatch} 
                 onChange={e => setEntireBatch(e.target.value)}
                 disabled={loadingBatches}
@@ -410,7 +413,7 @@ export const NoticeModule = () => {
               >
                 <option value="">Select Batch (None)</option>
                 {allBatches.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
+              </CustomSelect>
               {entireBatch && (
                 <p className="mt-3 text-sm font-bold text-primary flex items-center gap-2">
                   <CheckCircle size={16} /> This notice will be sent to all classes under the {entireBatch} batch.

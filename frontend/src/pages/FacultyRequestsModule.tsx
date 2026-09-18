@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -289,24 +291,24 @@ const GrantFacultyAccessModal = ({ request, onClose, onApprove, onReject, onDraf
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Academic Year</label>
-                      <select value={assign.academicYear} onChange={(e) => updateAssignment(assign.id, 'academicYear', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
+                      <CustomSelect value={assign.academicYear} onChange={(e) => updateAssignment(assign.id, 'academicYear', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
                         <option value="" disabled className="text-muted-foreground">Select Year</option>
                         {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-                      </select>
+                      </CustomSelect>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semester</label>
-                      <select value={assign.semester} onChange={(e) => updateAssignment(assign.id, 'semester', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
+                      <CustomSelect value={assign.semester} onChange={(e) => updateAssignment(assign.id, 'semester', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
                         <option value="" disabled className="text-muted-foreground">Select Semester</option>
                         {semOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                      </CustomSelect>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Class</label>
-                      <select value={assign.className} onChange={(e) => updateAssignment(assign.id, 'className', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
+                      <CustomSelect value={assign.className} onChange={(e) => updateAssignment(assign.id, 'className', e.target.value)} className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground">
                         <option value="" disabled className="text-muted-foreground">Select Class</option>
                         {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      </CustomSelect>
                     </div>
                   </div>
                   <div className="space-y-3 pt-2">

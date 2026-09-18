@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -86,46 +88,46 @@ export const AcademicResourceDialog: React.FC<AcademicResourceDialogProps> = ({
         <div className="grid grid-cols-2 gap-4 py-4">
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Department</label>
-            <select value={data.department} onChange={e => setData({...data, department: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+            <CustomSelect value={data.department} onChange={e => setData({...data, department: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
               <option value="">Select</option>
               {departments.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Degree Program</label>
-            <select value={data.degree} onChange={e => setData({...data, degree: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+            <CustomSelect value={data.degree} onChange={e => setData({...data, degree: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
               <option value="">Select</option>
               {degrees.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            </CustomSelect>
           </div>
 
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Batch</label>
-            <select value={data.batch} onChange={e => setData({...data, batch: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+            <CustomSelect value={data.batch} onChange={e => setData({...data, batch: e.target.value})} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
               <option value="">Select</option>
               {batches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Year</label>
-            <select value={data.year} onChange={e => setData({...data, year: e.target.value})} disabled={!data.batch} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+            <CustomSelect value={data.year} onChange={e => setData({...data, year: e.target.value})} disabled={!data.batch} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
               <option value="">Select</option>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Semester</label>
-            <select value={data.semester} onChange={e => setData({...data, semester: e.target.value})} disabled={!data.year} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+            <CustomSelect value={data.semester} onChange={e => setData({...data, semester: e.target.value})} disabled={!data.year} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
               <option value="">Select</option>
               {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">Class</label>
-            <select value={data.className} onChange={e => setData({...data, className: e.target.value})} disabled={!data.semester} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
+            <CustomSelect value={data.className} onChange={e => setData({...data, className: e.target.value})} disabled={!data.semester} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-50">
               <option value="">Select</option>
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           
           <div className="col-span-2">

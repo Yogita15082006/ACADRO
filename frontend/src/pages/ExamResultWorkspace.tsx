@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { CustomSelect } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -1442,8 +1443,8 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                 onChange={e => setResultSearch(e.target.value)}
               />
             </div>
-            <select 
-              className="py-2 px-3 text-sm border border-border rounded-lg bg-background"
+            <CustomSelect 
+              className="py-2 px-3 text-sm min-w-[140px]"
               value={resultStatusFilter}
               onChange={e => setResultStatusFilter(e.target.value)}
             >
@@ -1452,7 +1453,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
               <option value="Draft">Draft</option>
               <option value="Published">Published</option>
               <option value="ABSENT">Absent</option>
-            </select>
+            </CustomSelect>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
             {fullResultList.some(s => s._isDirty) && (
@@ -1609,8 +1610,8 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
 
       return (
         <div className="flex gap-2 items-center flex-wrap">
-          <select
-            className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
+          <CustomSelect
+            className="min-w-[200px]"
             value={subjectCardExamId}
             onChange={(e) => {
               const examId = e.target.value;
@@ -1626,11 +1627,11 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
             {exams.map((ex: any) => (
               <option key={ex.id} value={ex.id}>{ex.name}</option>
             ))}
-          </select>
+          </CustomSelect>
           
           {subjectCardViewMode === 'CREATE_RESULT' && createResultFlowState !== 'SELECT_EXAM' && subjectCardExamId && (
-              <select
-                className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
+              <CustomSelect
+                className="min-w-[150px]"
                 value={resultContextDate}
                 onChange={(e) => {
                     setResultContextDate(e.target.value);
@@ -1643,7 +1644,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                 {availableExamDates.map((date: any) => (
                   <option key={date} value={date}>{date}</option>
                 ))}
-              </select>
+              </CustomSelect>
           )}
         </div>
       );
@@ -1664,8 +1665,8 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
             <div className="flex gap-2 items-center">
               {mode === 'examination' && (
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <select 
-                    className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
+                  <CustomSelect 
+                    className="min-w-[150px]"
                     value={selectedClassInternal}
                     onChange={(e) => {
                       setSelectedClassInternal(e.target.value);
@@ -1680,11 +1681,11 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                     {targetSectionsInternal.map((s: any) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
-                  </select>
+                  </CustomSelect>
                   
                   {selectedClassInternal && (
-                     <select 
-                        className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
+                     <CustomSelect 
+                        className="min-w-[150px]"
                         value={resultContextSubjectId}
                         onChange={(e) => {
                             setResultContextSubjectId(e.target.value);
@@ -1695,12 +1696,12 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                         {sectionSubjects.map((sub: any) => (
                             <option key={sub.id} value={sub.id}>{sub.subjectName || sub.subject?.name || sub.name || sub.className} ({sub.subjectCode || sub.subject?.code || sub.code})</option>
                         ))}
-                     </select>
+                     </CustomSelect>
                   )}
                   
                   {selectedClassInternal && resultContextSubjectId && availableExamDates.length > 0 && (
-                     <select 
-                        className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
+                     <CustomSelect 
+                        className="min-w-[150px]"
                         value={resultContextDate}
                         onChange={(e) => setResultContextDate(e.target.value)}
                      >
@@ -1708,7 +1709,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                         {availableExamDates.map((date: any) => (
                             <option key={date} value={date}>{date}</option>
                         ))}
-                     </select>
+                     </CustomSelect>
                   )}
                   
                   {selectedClassInternal && resultContextSubjectId && resultContextDate && !resultContextSet && (
@@ -1783,7 +1784,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
              <div className="flex gap-2 items-center flex-wrap">
                  {mode === 'examination' && (
                      <>
-                         <select 
+                         <CustomSelect 
                              className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
                              value={resultTargetClassId} 
                              onChange={e => {
@@ -1793,9 +1794,9 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                          >
                              <option value="">-- Select Section --</option>
                              {(targetSectionsInternal || []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                         </select>
+                         </CustomSelect>
                          {resultTargetClassId && (
-                             <select 
+                             <CustomSelect 
                                 className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
                                 value={presentTargetSubjectId}
                                 onChange={(e) => setPresentTargetSubjectId(e.target.value)}
@@ -1804,13 +1805,13 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                                 {presentSectionSubjects.map((sub: any) => (
                                    <option key={sub.id} value={sub.id}>{sub.subjectName || sub.subject?.name || sub.name || sub.className} ({sub.subjectCode || sub.subject?.code || sub.code})</option>
                                 ))}
-                             </select>
+                             </CustomSelect>
                          )}
                      </>
                  )}
                  {mode === 'subject_card' && (
                      <div className="flex gap-2 items-center flex-wrap">
-                        <select
+                        <CustomSelect
                            className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
                            value={presentStudentsExamId}
                            onChange={(e) => {
@@ -1823,9 +1824,9 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                            {exams.map((ex: any) => (
                                <option key={ex.id} value={ex.id}>{ex.name}</option>
                            ))}
-                        </select>
+                        </CustomSelect>
                         {presentStudentsExamId && presentStudentsAvailableDates.length > 0 && (
-                            <select 
+                            <CustomSelect 
                                className="p-2 border border-border rounded-lg bg-background min-w-[150px]"
                                value={presentStudentsDate}
                                onChange={(e) => setPresentStudentsDate(e.target.value)}
@@ -1834,7 +1835,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                                {presentStudentsAvailableDates.map((date: any) => (
                                    <option key={date} value={date}>{date}</option>
                                ))}
-                            </select>
+                            </CustomSelect>
                         )}
                         {presentStudentsExamId && presentStudentsAvailableDates.length === 0 && (
                           <div className="text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-md border border-amber-200">

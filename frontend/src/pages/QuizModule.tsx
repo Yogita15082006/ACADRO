@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Search, Filter, CheckCircle2, 
@@ -669,9 +671,9 @@ function AdminQuizAnalytics({ quiz, allAttempts, onClose }: any) {
       {/* Filters (Mocked visual representation) */}
       <Card className="border-border shadow-sm p-2 bg-muted/20">
          <div className="flex flex-wrap gap-2">
-            <select className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>All Classes</option><option>{quiz.department}-{quiz.academicYear}</option></select>
-            <select className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>All Status</option><option>Passed</option><option>Failed</option></select>
-            <select className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>Marks: All</option><option>Top 25%</option><option>Bottom 25%</option></select>
+            <CustomSelect className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>All Classes</option><option>{quiz.department}-{quiz.academicYear}</option></CustomSelect>
+            <CustomSelect className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>All Status</option><option>Passed</option><option>Failed</option></CustomSelect>
+            <CustomSelect className="bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none"><option>Marks: All</option><option>Top 25%</option><option>Bottom 25%</option></CustomSelect>
             <Button variant="outline" size="sm" className="ml-auto gap-2"><Filter size={14}/> Apply Filters</Button>
          </div>
       </Card>

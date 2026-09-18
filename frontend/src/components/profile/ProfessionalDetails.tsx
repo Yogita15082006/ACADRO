@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -179,7 +181,7 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
                 </div>
                 <div className="space-y-2">
                   <Label>Open to Relocation</Label>
-                  <select 
+                  <CustomSelect 
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={formData.relocation}
                     onChange={(e) => setFormData({ ...formData, relocation: e.target.value })}
@@ -187,7 +189,7 @@ export const ProfessionalDetails: React.FC<ProfessionalDetailsProps> = ({ data, 
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
                     <option value="Depends on opportunity">Depends on opportunity</option>
-                  </select>
+                  </CustomSelect>
                 </div>
               </div>
             </div>

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { CustomSelect } from "@/components/ui/select";
+import { CustomDatePicker } from "@/components/ui/input";
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Wand2, Loader2, 
@@ -77,21 +80,21 @@ export const SpecificAssignmentRow = ({
     <div className="flex flex-col md:flex-row gap-4 items-end bg-accent/20 p-4 rounded-2xl border border-border">
       <div className="flex-1 space-y-2 w-full">
         <label className="text-xs font-bold uppercase text-muted-foreground ml-1">Batch</label>
-        <select 
+        <CustomSelect 
           value={assignment.batch}
           onChange={(e) => onChange(assignment.id, { ...assignment, batch: e.target.value, year: '', semester: '', classSection: '', classId: '' })}
           className="w-full p-3 border border-border rounded-xl bg-background text-sm"
         >
           <option value="">Select Batch</option>
           {allBatches.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
+        </CustomSelect>
       </div>
       
       <div className="flex-1 space-y-2 w-full">
         <label className="text-xs font-bold uppercase text-muted-foreground ml-1">
           {loadingYears ? 'Loading...' : 'Year'}
         </label>
-        <select 
+        <CustomSelect 
           value={assignment.year}
           onChange={(e) => onChange(assignment.id, { ...assignment, year: e.target.value, semester: '', classSection: '', classId: '' })}
           disabled={!assignment.batch || loadingYears}
@@ -103,14 +106,14 @@ export const SpecificAssignmentRow = ({
               "Select Year"}
           </option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
+        </CustomSelect>
       </div>
 
       <div className="flex-1 space-y-2 w-full">
         <label className="text-xs font-bold uppercase text-muted-foreground ml-1">
           {loadingSems ? 'Loading...' : 'Semester'}
         </label>
-        <select 
+        <CustomSelect 
           value={assignment.semester}
           onChange={(e) => onChange(assignment.id, { ...assignment, semester: e.target.value, classSection: '', classId: '' })}
           disabled={!assignment.year || loadingSems}
@@ -122,14 +125,14 @@ export const SpecificAssignmentRow = ({
               "Select Semester"}
           </option>
           {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        </CustomSelect>
       </div>
 
       <div className="flex-1 space-y-2 w-full">
         <label className="text-xs font-bold uppercase text-muted-foreground ml-1">
           {loadingClasses ? 'Loading...' : 'Class / Section'}
         </label>
-        <select 
+        <CustomSelect 
           value={assignment.classId}
           onChange={(e) => {
             const selectedValue = e.target.value;
@@ -157,7 +160,7 @@ export const SpecificAssignmentRow = ({
               <option key={ids.join(',')} value={ids.join(',')}>{label}</option>
             ));
           })()}
-        </select>
+        </CustomSelect>
       </div>
 
       <Button variant="ghost" size="icon" onClick={() => onRemove(assignment.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-xl mb-1 shrink-0">
@@ -516,12 +519,12 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Category <span className="text-rose-500">*</span></label>
-              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 border border-border rounded-2xl bg-background font-medium focus:ring-4 focus:ring-primary/20 transition-all">
+              <CustomSelect value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 border border-border rounded-2xl bg-background font-medium focus:ring-4 focus:ring-primary/20 transition-all">
                 <option value="">Select Category</option>
                 <option>Workshop</option><option>Seminar</option><option>Webinar</option>
                 <option>Hackathon</option><option>Competition</option><option>Cultural</option>
                 <option>Sports</option><option>Technical</option><option>Conference</option><option>Other</option>
-              </select>
+              </CustomSelect>
             </div>
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Description <span className="text-rose-500">*</span></label>
@@ -549,7 +552,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Event Date <span className="text-rose-500">*</span></label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-3 border border-border rounded-xl bg-background font-bold focus:ring-2 focus:ring-primary/20" />
+              <CustomDatePicker value={date} onChange={e => setDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Start Time <span className="text-rose-500">*</span></label>
@@ -565,11 +568,11 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
             
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Mode <span className="text-rose-500">*</span></label>
-              <select value={mode} onChange={e => setMode(e.target.value as any)} className="w-full p-3 border border-border rounded-xl bg-background font-medium focus:ring-2 focus:ring-primary/20">
+              <CustomSelect value={mode} onChange={e => setMode(e.target.value as any)} className="w-full p-3 border border-border rounded-xl bg-background font-medium focus:ring-2 focus:ring-primary/20">
                 <option value="Offline">Offline</option>
                 <option value="Online">Online</option>
                 <option value="Hybrid">Hybrid</option>
-              </select>
+              </CustomSelect>
             </div>
 
             {(mode === 'Offline' || mode === 'Hybrid') && (
@@ -620,7 +623,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
               <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1 mb-2 block">
                 {loadingBatches ? 'Loading...' : 'Select Batch'}
               </label>
-              <select 
+              <CustomSelect 
                 value={entireBatch} 
                 onChange={e => setEntireBatch(e.target.value)}
                 disabled={loadingBatches}
@@ -628,7 +631,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
               >
                 <option value="">Select Batch</option>
                 {allBatches.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
+              </CustomSelect>
               {entireBatch && (
                 <p className="mt-3 text-sm font-bold text-primary flex items-center gap-2">
                   <CheckCircle size={16} /> This event will be available to all classes under the {entireBatch} batch.
@@ -659,11 +662,11 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Registration Start Date</label>
-                    <input type="date" value={regStartDate} onChange={e => setRegStartDate(e.target.value)} className="w-full p-3 border border-border rounded-xl bg-background focus:ring-2 focus:ring-primary/20" />
+                    <CustomDatePicker value={regStartDate} onChange={e => setRegStartDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Registration End Date</label>
-                    <input type="date" value={regEndDate} onChange={e => setRegEndDate(e.target.value)} className="w-full p-3 border border-border rounded-xl bg-background focus:ring-2 focus:ring-primary/20" />
+                    <CustomDatePicker value={regEndDate} onChange={e => setRegEndDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Maximum Participation</label>
@@ -710,10 +713,10 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
                 <div className="space-y-4 border border-border rounded-2xl p-6 bg-accent/10">
                   <div className="space-y-2">
                     <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Registration Method</label>
-                    <select value={registrationMethod} onChange={e => setRegistrationMethod(e.target.value as any)} className="w-full max-w-sm p-3 border border-border rounded-xl bg-background font-medium">
+                    <CustomSelect value={registrationMethod} onChange={e => setRegistrationMethod(e.target.value as any)} className="w-full max-w-sm p-3 border border-border rounded-xl bg-background font-medium">
                       <option value="Manually">Manually</option>
                       <option value="Via AI">Via AI</option>
-                    </select>
+                    </CustomSelect>
                   </div>
 
                   {registrationMethod === 'Manually' ? (
@@ -868,7 +871,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
                             setAiCustomFields(newF);
                           }} className="flex-1 p-2 border border-border rounded-lg bg-background text-sm font-bold" />
                           
-                          <select value={field.type} onChange={e => {
+                          <CustomSelect value={field.type} onChange={e => {
                             const newF = [...aiCustomFields];
                             newF[idx].type = e.target.value;
                             setAiCustomFields(newF);
@@ -881,7 +884,7 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
                             <option value="select">Dropdown</option>
                             <option value="checkbox">Checkbox</option>
                             <option value="file">File Upload</option>
-                          </select>
+                          </CustomSelect>
                           
                           <label className="flex items-center gap-2 cursor-pointer text-sm font-bold">
                             <input type="checkbox" checked={field.required} onChange={e => {
