@@ -33,8 +33,8 @@ export const NoticeModule = () => {
   const [newNotice, setNewNotice] = useState({
     title: '',
     description: '',
-    category: 'General',
-    priority: 'MEDIUM',
+    category: '',
+    priority: '',
     expiryDate: ''
   });
   const [noticeFile, setNoticeFile] = useState<File | null>(null);
@@ -190,7 +190,7 @@ export const NoticeModule = () => {
       setCurrentView('dashboard');
       fetchNotices();
       // Reset form
-      setNewNotice({ title: '', description: '', category: 'General', priority: 'MEDIUM', expiryDate: '' });
+      setNewNotice({ title: '', description: '', category: '', priority: '', expiryDate: '' });
       setNoticeFile(null);
       setSpecificAssignments([]);
       setEntireBatch('');
@@ -339,7 +339,9 @@ export const NoticeModule = () => {
             <div className="space-y-2">
               <label className="text-sm font-bold">Category</label>
               <CustomSelect className="w-full p-3 border border-border rounded-xl bg-background"
+                placeholder="Select Category..."
                 value={newNotice.category} onChange={e => setNewNotice({...newNotice, category: e.target.value})}>
+                <option value="">Select Category...</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </CustomSelect>
             </div>
@@ -347,7 +349,9 @@ export const NoticeModule = () => {
             <div className="space-y-2">
               <label className="text-sm font-bold">Priority</label>
               <CustomSelect className="w-full p-3 border border-border rounded-xl bg-background"
+                placeholder="Select Priority..."
                 value={newNotice.priority} onChange={e => setNewNotice({...newNotice, priority: e.target.value})}>
+                <option value="">Select Priority...</option>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>

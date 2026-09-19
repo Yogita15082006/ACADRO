@@ -344,7 +344,7 @@ export const CoordinatorsModule = () => {
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary flex items-center justify-center font-bold text-xl shadow-inner border border-primary/10">
-                  {coordinator.name.split(' ').slice(0,2).map((n: string) => n[0]).join('')}
+                  {((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(coordinator.name.trim().split(/\s+/))}
                 </div>
                 <div>
                   <CardTitle className="text-lg font-bold text-foreground">{coordinator.name}</CardTitle>

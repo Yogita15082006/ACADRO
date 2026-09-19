@@ -56,7 +56,7 @@ export const AdminDashboard = ({ previewUser }: { previewUser?: any }) => {
         </div>
         <div className="flex items-center gap-4">
           <img 
-            src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || user?.firstName || 'User')}&background=4F46E5&color=fff`} 
+            src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'User'))}&background=4F46E5&color=fff`} 
             alt="Profile" 
             className="w-16 h-16 rounded-full border-[3px] border-primary/20 object-cover shadow-sm"
           />

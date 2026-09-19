@@ -23,6 +23,7 @@ export const Layout = () => {
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const fetchUnreadCount = async () => {
     try {
@@ -90,19 +91,38 @@ export const Layout = () => {
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
       {/* Sidebar - Premium Enterprise */}
-      <aside className="w-[240px] flex-shrink-0 bg-sidebar flex flex-col z-20 transition-all duration-300 border-r border-border print:hidden">
-        <div className="flex items-center gap-3 px-5 h-16 border-b border-border flex-shrink-0">
-          <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center shadow-sm overflow-hidden shrink-0 border border-border/50">
-            <img src={dashboardLogo} alt="ACADRO Logo" className="w-full h-full object-contain" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <h2 className="text-lg tracking-tight flex items-center leading-none mb-0.5">
-              <span className="text-blue-600 font-bold">AC</span>
-              <span className="text-foreground font-normal">AD</span>
-              <span className="text-blue-600 font-bold">RO</span>
-            </h2>
-            <p className="text-[9px] text-muted-foreground font-medium leading-tight truncate">Academic & Department<br/>Management System</p>
-          </div>
+      <aside className={cn(
+        "flex-shrink-0 bg-sidebar flex flex-col z-20 transition-all duration-300 border-r border-border print:hidden",
+        isSidebarCollapsed ? "w-[70px]" : "w-[240px]"
+      )}>
+        <div className={cn(
+          "flex items-center justify-between h-16 border-b border-border flex-shrink-0",
+          isSidebarCollapsed ? "justify-center px-2" : "px-4"
+        )}>
+          {!isSidebarCollapsed && (
+            <div className="flex items-center gap-3 overflow-hidden min-w-0">
+              <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center shadow-sm overflow-hidden shrink-0 border border-border/50">
+                <img src={dashboardLogo} alt="ACADRO Logo" className="w-full h-full object-contain" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h2 className="text-lg tracking-tight flex items-center leading-none mb-0.5">
+                  <span className="text-blue-600 font-bold">AC</span>
+                  <span className="text-foreground font-normal">AD</span>
+                  <span className="text-blue-600 font-bold">RO</span>
+                </h2>
+                <p className="text-[9px] text-muted-foreground font-medium leading-tight truncate">Academic & Department<br/>Management System</p>
+              </div>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent/40 rounded-md transition-colors shrink-0"
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            <Menu size={18} />
+          </Button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5 custom-scrollbar">
@@ -111,8 +131,10 @@ export const Layout = () => {
               key={link.to}
               to={link.to}
               end={link.to === '/admin' || link.to === '/student'}
+              title={isSidebarCollapsed ? link.label : undefined}
               className={({ isActive }) => cn(
                 "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all duration-150 group",
+                isSidebarCollapsed && "justify-center px-2",
                 isActive
                   ? "bg-accent/50 text-foreground font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
@@ -121,13 +143,13 @@ export const Layout = () => {
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    "transition-colors",
+                    "transition-colors shrink-0",
                     "group-hover:text-foreground",
                     isActive ? "text-foreground" : "text-muted-foreground"
                   )}>
                     {link.icon}
                   </div>
-                  {link.label}
+                  {!isSidebarCollapsed && <span className="truncate">{link.label}</span>}
                 </>
               )}
             </NavLink>
@@ -135,32 +157,42 @@ export const Layout = () => {
         </nav>
 
         <div className="p-3 border-t border-border bg-sidebar">
-          <div className="flex items-center gap-2 p-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer mb-1" onClick={() => navigate(isStaff ? '/admin/profile' : '/student/profile')}>
+          <div
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer mb-1",
+              isSidebarCollapsed && "justify-center p-1"
+            )}
+            onClick={() => navigate(isStaff ? '/admin/profile' : '/student/profile')}
+            title={isSidebarCollapsed ? (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User')) : undefined}
+          >
             <img
               src={user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || (user?.firstName ? (user.firstName + ' ' + (user.lastName || '')) : 'Student'))}&background=4F46E5&color=fff`}
               alt="Profile"
-              className="w-8 h-8 rounded-full ring-1 ring-border object-cover"
+              className="w-8 h-8 rounded-full ring-1 ring-border object-cover shrink-0"
             />
-            <div className="overflow-hidden flex-1">
-              <p className="text-xs font-semibold truncate text-foreground">
-                {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User')}
-              </p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {role === 'hod' ? 'Head of Department' :
-                  role === 'both' ? 'Coordinator / Faculty' :
-                    role === 'coordinator' ? 'Coordinator' :
-                      role === 'faculty' ? 'Faculty' :
-                        role === 'student' ? 'Student' : 'Administrator'}
-              </p>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="overflow-hidden flex-1 min-w-0">
+                <p className="text-xs font-semibold truncate text-foreground">
+                  {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || 'User')}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {role === 'hod' ? 'Head of Department' :
+                    role === 'both' ? 'Coordinator / Faculty' :
+                      role === 'coordinator' ? 'Coordinator' :
+                        role === 'faculty' ? 'Faculty' :
+                          role === 'student' ? 'Student' : 'Administrator'}
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="flex gap-1 px-2">
+          <div className={cn("flex gap-1 px-2", isSidebarCollapsed && "px-0 justify-center")}>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleLogout}
-              className="h-7 w-full flex rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+              title="Logout"
+              className="h-7 w-full flex rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors justify-center"
             >
               <LogOut size={14} />
             </Button>
@@ -175,9 +207,6 @@ export const Layout = () => {
         {/* Sticky Top Header */}
         <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden hover:bg-accent/30 text-muted-foreground hover:text-foreground">
-              <Menu size={18} />
-            </Button>
             <h1 className="text-lg font-semibold text-foreground tracking-tight">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-3">

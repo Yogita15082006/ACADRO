@@ -1617,7 +1617,7 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
       semester: workspaceContext?.semester || '',
       department: defaultDepartment,
       subjectId: workspaceContext?.subjectId || '',
-      type: 'PDF Assignment'
+      type: ''
     }
   });
 
@@ -1788,12 +1788,14 @@ function CreateAssignmentModal({ onClose, onSuccess, activeClassId, workspaceCon
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Submission Type *</label>
-                <CustomSelect {...register('type')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                <CustomSelect {...register('type')} placeholder="Select Submission Type..." className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="">Select Submission Type...</option>
                   <option value="PDF Assignment">PDF Assignment</option>
                   <option value="Document Assignment">Document Assignment</option>
                   <option value="ZIP/File Submission">ZIP/File Submission</option>
                   <option value="Online Assignment">Online Assignment</option>
                 </CustomSelect>
+                {errors.type && <p className="text-xs text-rose-500">{errors.type.message}</p>}
               </div>
 
               <div className="space-y-2">

@@ -59,7 +59,7 @@ export const ClassesModule = () => {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementContent, setAnnouncementContent] = useState('');
-  const [announcementPriority, setAnnouncementPriority] = useState('Normal');
+  const [announcementPriority, setAnnouncementPriority] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<string | null>(null);
 
@@ -90,8 +90,8 @@ export const ClassesModule = () => {
   }, [activeWorkspace, activeTab]);
 
   const handlePostAnnouncement = async () => {
-    if (!announcementTitle.trim() || !announcementContent.trim()) {
-      alert("Please fill in both title and content for the announcement.");
+    if (!announcementTitle.trim() || !announcementContent.trim() || !announcementPriority) {
+      alert("Please fill in title, priority, and content for the announcement.");
       return;
     }
     try {
@@ -103,7 +103,7 @@ export const ClassesModule = () => {
       await api.post(`/v1/subject-announcements/subject/${activeWorkspace}`, payload);
       setAnnouncementTitle('');
       setAnnouncementContent('');
-      setAnnouncementPriority('Normal');
+      setAnnouncementPriority('');
       setIsPostAnnouncementOpen(false);
       fetchAnnouncements();
     } catch (e: any) {
@@ -409,7 +409,12 @@ export const ClassesModule = () => {
                   <p className="text-sm text-muted-foreground">Stay updated with the latest news for this subject.</p>
                 </div>
                 {canManageWorkspace && (
-                  <Button onClick={() => setIsPostAnnouncementOpen(true)} className="shadow-sm">
+                  <Button onClick={() => {
+                    setAnnouncementTitle('');
+                    setAnnouncementContent('');
+                    setAnnouncementPriority('');
+                    setIsPostAnnouncementOpen(true);
+                  }} className="shadow-sm">
                     <MessageSquare className="w-4 h-4 mr-2" /> Post Announcement
                   </Button>
                 )}
@@ -615,7 +620,14 @@ export const ClassesModule = () => {
         </Dialog>
         
         {/* Post Announcement Modal */}
-        <Dialog open={isPostAnnouncementOpen} onOpenChange={setIsPostAnnouncementOpen}>
+        <Dialog open={isPostAnnouncementOpen} onOpenChange={(open) => {
+          setIsPostAnnouncementOpen(open);
+          if (!open) {
+            setAnnouncementTitle('');
+            setAnnouncementContent('');
+            setAnnouncementPriority('');
+          }
+        }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Post Announcement</DialogTitle>
@@ -623,13 +635,13 @@ export const ClassesModule = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label>Announcement Title</Label>
+                <Label>Announcement Title <span className="text-destructive">*</span></Label>
                 <Input placeholder="Enter title..." value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Priority</Label>
+                <Label>Priority <span className="text-destructive">*</span></Label>
                 <Select value={announcementPriority} onValueChange={setAnnouncementPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select Priority..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Normal">Normal</SelectItem>
                     <SelectItem value="Important">Important</SelectItem>

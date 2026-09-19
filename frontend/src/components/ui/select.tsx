@@ -356,7 +356,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(
                 left: `${menuCoords.left}px`,
                 width: `${menuCoords.width}px`,
               }}
-              className="z-[9999] max-h-60 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl shadow-black/10 custom-scrollbar outline-none animate-in fade-in-0 zoom-in-95 duration-100"
+              className="z-[9999] max-h-60 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl shadow-black/10 custom-scrollbar outline-none"
             >
               {parsedOptions.length === 0 ? (
                 <div className="py-3 px-2 text-center text-xs text-muted-foreground">
@@ -487,9 +487,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-[9999] max-h-60 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl shadow-black/10 custom-scrollbar p-1.5 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin]",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+        "relative z-[9999] max-h-60 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl shadow-black/10 custom-scrollbar p-1.5",
         className
       )}
       position={position}

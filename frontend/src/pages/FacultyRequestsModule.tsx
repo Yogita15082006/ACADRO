@@ -40,7 +40,7 @@ const ViewFacultyDetailsModal = ({ request, onClose }: any) => {
         <div className="flex items-center justify-between p-6 border-b border-border bg-card sticky top-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg shrink-0">
-              {request.name.split(' ').map((n: string) => n[0]).join('')}
+              {((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(request.name.trim().split(/\s+/))}
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground">Faculty Details: {request.name}</h2>
@@ -237,7 +237,7 @@ const GrantFacultyAccessModal = ({ request, onClose, onApprove, onReject, onDraf
         <div className="flex items-center justify-between p-6 border-b border-border bg-card sticky top-0 z-20">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg shrink-0">
-              {request.name.split(' ').map((n: string) => n[0]).join('')}
+              {((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(request.name.trim().split(/\s+/))}
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground">{request.status === 'Approved' ? 'Edit Access:' : 'Grant Access:'} {request.name}</h2>
@@ -482,7 +482,7 @@ export const FacultyRequestsModule = () => {
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
-                  {req.name.split(' ').map(n => n[0]).join('')}
+                  {((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(req.name.trim().split(/\s+/))}
                 </div>
                 <div>
                   <CardTitle className="text-base font-semibold">{req.name}</CardTitle>

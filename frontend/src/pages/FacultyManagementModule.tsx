@@ -523,7 +523,7 @@ const EditFacultyForm = ({ faculty, departmentsList, onClose, onSave }: any) => 
 
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl shrink-0">
 
-          {name ? name.split(' ').map((n: string) => n[0]).join('') : 'F'}
+          {name ? ((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(name.trim().split(/\s+/)) : 'F'}
 
         </div>
 
@@ -2857,7 +2857,7 @@ export const FacultyManagementModule = () => {
 
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
 
-                              {f.name ? f.name.split(' ').map((n: string) => n[0]).join('') : 'U'}
+                              {f.name ? ((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(f.name.trim().split(/\s+/)) : 'U'}
 
                             </div>
 
@@ -3081,7 +3081,7 @@ export const FacultyManagementModule = () => {
 
                           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/5">
 
-                            {f.name ? f.name.split(' ').map((n: string) => n[0]).join('') : 'U'}
+                            {f.name ? ((w) => ((w[0]?.[0] || '') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase())(f.name.trim().split(/\s+/)) : 'U'}
 
                           </div>
 

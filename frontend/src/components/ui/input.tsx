@@ -69,6 +69,25 @@ function formatDateString(date: Date, isDateTime = false, timeStr = "12:00"): st
   return datePart;
 }
 
+function parseTime12(time24Str: string): { hour12: number; minute: number; ampm: "AM" | "PM" } {
+  if (!time24Str) return { hour12: 12, minute: 0, ampm: "AM" };
+  const parts = time24Str.split(":");
+  let h = parseInt(parts[0], 10);
+  let m = parseInt(parts[1], 10);
+  if (isNaN(h)) h = 12;
+  if (isNaN(m)) m = 0;
+  const ampm: "AM" | "PM" = h >= 12 ? "PM" : "AM";
+  let hour12 = h % 12;
+  if (hour12 === 0) hour12 = 12;
+  return { hour12, minute: m, ampm };
+}
+
+function formatTime24(hour12: number, minute: number, ampm: "AM" | "PM"): string {
+  let h24 = hour12 % 12;
+  if (ampm === "PM") h24 += 12;
+  return `${formatZero(h24)}:${formatZero(minute)}`;
+}
+
 function formatDisplayString(valStr?: string, isDateTime = false): string {
   const { date, timeStr } = parseDateString(valStr);
   if (!date) return "";
@@ -76,7 +95,8 @@ function formatDisplayString(valStr?: string, isDateTime = false): string {
   const day = date.getDate();
   const year = date.getFullYear();
   if (isDateTime) {
-    return `${monthName} ${day}, ${year} ${timeStr}`;
+    const { hour12, minute, ampm } = parseTime12(timeStr);
+    return `${monthName} ${day}, ${year} ${formatZero(hour12)}:${formatZero(minute)} ${ampm}`;
   }
   return `${monthName} ${day}, ${year}`;
 }
@@ -120,6 +140,7 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
     });
 
     const [isOpen, setIsOpen] = useState(false);
+    const [isTimePanelOpen, setIsTimePanelOpen] = useState(false);
     
     const { date: selectedDateObj, timeStr: selectedTimeStr } = parseDateString(currentValue);
     const [timeVal, setTimeVal] = useState<string>(selectedTimeStr || "12:00");
@@ -431,7 +452,7 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
                 left: `${menuCoords.left}px`,
                 width: `${menuCoords.width}px`,
               }}
-              className="z-[9999] rounded-xl border border-border bg-popover text-popover-foreground p-3.5 shadow-xl shadow-black/10 outline-none animate-in fade-in-0 zoom-in-95 duration-100 select-none"
+              className="z-[9999] rounded-xl border border-border bg-popover text-popover-foreground p-3.5 shadow-xl shadow-black/10 outline-none select-none"
             >
               {/* Header Navigation */}
               <div className="flex items-center justify-between mb-3 px-1">
@@ -495,7 +516,7 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
                       disabled={cell.disabled}
                       onClick={() => handleSelectDay(cell.day)}
                       className={cn(
-                        "h-8 w-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-all",
+                        "h-8 w-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-colors",
                         cell.disabled && "opacity-30 cursor-not-allowed hover:bg-transparent",
                         !cell.disabled && !isSelected && "text-popover-foreground hover:bg-accent hover:text-accent-foreground",
                         isSelected && "bg-accent text-accent-foreground font-bold shadow-xs",
@@ -509,17 +530,112 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
               </div>
 
               {/* DateTime Time Selector (if type=datetime-local) */}
-              {isDateTime && (
-                <div className="mt-3 pt-3 border-t border-border flex items-center justify-between px-1">
-                  <label className="text-xs font-medium text-muted-foreground">Time:</label>
-                  <input
-                    type="time"
-                    value={timeVal}
-                    onChange={(e) => handleTimeChange(e.target.value)}
-                    className="px-2 py-1 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:border-accent"
-                  />
-                </div>
-              )}
+              {isDateTime && (() => {
+                const { hour12, minute: curMin, ampm: curAmpm } = parseTime12(timeVal);
+
+                const setTimePart = (h: number, m: number, a: "AM" | "PM") => {
+                  const new24 = formatTime24(h, m, a);
+                  handleTimeChange(new24);
+                };
+
+                const hoursList = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+                const minutesList = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+                return (
+                  <div className="mt-3 pt-3 border-t border-border flex items-center justify-between px-1 relative">
+                    {/* Time Display Trigger Button */}
+                    <span className="text-xs font-medium text-muted-foreground">Time:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTimePanelOpen((prev) => !prev)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border border-border bg-popover text-popover-foreground hover:border-accent transition-colors cursor-pointer shadow-2xs",
+                        isTimePanelOpen && "border-accent ring-1 ring-accent/25 text-accent"
+                      )}
+                    >
+                      <span>{formatZero(hour12)}:{formatZero(curMin)} {curAmpm}</span>
+                      <span className="text-[10px] text-muted-foreground">{isTimePanelOpen ? "▲" : "▼"}</span>
+                    </button>
+
+                    {/* Floating Time Selector Overlay Dropdown - Positioned floating over calendar without increasing container height */}
+                    {isTimePanelOpen && (
+                      <div className="absolute bottom-full right-0 mb-1.5 w-64 max-h-48 overflow-y-auto custom-scrollbar p-2.5 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-30 space-y-2.5 outline-none">
+                        {/* AM / PM Segment Buttons */}
+                        <div className="flex justify-center gap-1 p-0.5 rounded-lg border border-border bg-muted/40">
+                          <button
+                            type="button"
+                            onClick={() => setTimePart(hour12, curMin, "AM")}
+                            className={cn(
+                              "flex-1 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer text-center",
+                              curAmpm === "AM"
+                                ? "bg-accent text-accent-foreground shadow-2xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            AM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTimePart(hour12, curMin, "PM")}
+                            className={cn(
+                              "flex-1 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer text-center",
+                              curAmpm === "PM"
+                                ? "bg-accent text-accent-foreground shadow-2xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            PM
+                          </button>
+                        </div>
+
+                        {/* Hours Grid */}
+                        <div>
+                          <div className="text-[10px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Hour</div>
+                          <div className="grid grid-cols-6 gap-1 text-center">
+                            {hoursList.map((h) => (
+                              <button
+                                type="button"
+                                key={`h-${h}`}
+                                onClick={() => setTimePart(h, curMin, curAmpm)}
+                                className={cn(
+                                  "py-1 text-xs font-medium rounded-md transition-colors cursor-pointer",
+                                  h === hour12
+                                    ? "bg-accent text-accent-foreground font-bold shadow-2xs"
+                                    : "text-popover-foreground hover:bg-accent/20 hover:text-accent-foreground"
+                                )}
+                              >
+                                {formatZero(h)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Minutes Grid */}
+                        <div>
+                          <div className="text-[10px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Minute</div>
+                          <div className="grid grid-cols-6 gap-1 text-center">
+                            {minutesList.map((m) => (
+                              <button
+                                type="button"
+                                key={`m-${m}`}
+                                onClick={() => setTimePart(hour12, m, curAmpm)}
+                                className={cn(
+                                  "py-1 text-xs font-medium rounded-md transition-colors cursor-pointer",
+                                  m === curMin
+                                    ? "bg-accent text-accent-foreground font-bold shadow-2xs"
+                                    : "text-popover-foreground hover:bg-accent/20 hover:text-accent-foreground"
+                                )}
+                              >
+                                {formatZero(m)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Footer Actions */}
               <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between px-1 text-xs font-medium">
