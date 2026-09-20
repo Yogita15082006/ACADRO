@@ -492,7 +492,7 @@ public class DashboardServiceImpl implements DashboardService {
             
             totalSchemes += academicSchemeRepository.countByDepartmentIgnoreCase(subDeptName);
             totalSyllabus += academicSyllabusRepository.countByDepartmentIgnoreCase(subDeptName);
-            totalLectureMaterials += timetableRepository.countByAcroClassDepartmentId(subId);
+            totalLectureMaterials += timetableRepository.countByAcroClassDepartmentIdAndIsActiveTrue(subId);
 
             Double attPct = 0.0;
             Object attRes = studentAttendanceRepository.getDepartmentOverallAttendance(subId);

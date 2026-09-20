@@ -35,7 +35,7 @@ export const StudentDashboard = () => {
           eventService.getAvailableEvents()
         ]);
         if (dashRes.data?.data) setData(dashRes.data.data);
-        if (eventRes.data?.data) setEvents(eventRes.data.data);
+        if (eventRes.success && eventRes.data) setEvents(eventRes.data);
       } catch (err) {
         console.error('Failed to fetch student dashboard data', err);
       } finally {
@@ -54,7 +54,28 @@ export const StudentDashboard = () => {
     return <div className="p-8 text-center text-muted-foreground">Unable to load dashboard data.</div>;
   }
 
-  const overallAttendance = Math.round(data.attendanceOverview?.attendancePercentage || 0);
+  let zoneLabel = 'No Data';
+  let zoneColor = 'bg-muted/50 text-muted-foreground';
+  
+  if (data.attendanceOverview && 
+      data.attendanceOverview.attendancePercentage !== null && 
+      data.attendanceOverview.attendancePercentage !== undefined && 
+      typeof data.attendanceOverview.attendancePercentage === 'number' && 
+      data.attendanceOverview.totalClasses > 0) {
+    
+    const percentage = data.attendanceOverview.attendancePercentage;
+    if (percentage >= 75) {
+      zoneLabel = '🟢 GREEN';
+      zoneColor = 'bg-emerald-500/10 text-emerald-600';
+    } else if (percentage >= 50) {
+      zoneLabel = '🟡 YELLOW';
+      zoneColor = 'bg-yellow-500/10 text-yellow-600';
+    } else {
+      zoneLabel = '🔴 RED';
+      zoneColor = 'bg-rose-500/10 text-rose-600';
+    }
+  }
+
   const pendingAssignmentsCount = data.pendingAssignments?.length || 0;
   const upcomingQuizzesCount = data.upcomingQuizzes?.length || 0;
   const unreadNoticesCount = data.latestNotices?.length || 0;
@@ -86,7 +107,7 @@ export const StudentDashboard = () => {
   ].slice(0, 5);
 
   const summaryCards = [
-    { title: 'Overall Attendance', value: `${overallAttendance}%`, icon: <CheckCircle />, color: overallAttendance >= 75 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500' },
+    { title: 'Attendance Zone', value: zoneLabel, icon: <CheckCircle />, color: zoneColor },
     { title: 'Pending Assignments', value: pendingAssignmentsCount, icon: <FileText />, color: 'bg-amber-500/10 text-amber-500' },
     { title: 'Upcoming Quizzes', value: upcomingQuizzesCount, icon: <Target />, color: 'bg-indigo-500/10 text-indigo-500' },
     { title: 'Upcoming Events', value: upcomingEventsCount, icon: <Activity />, color: 'bg-purple-500/10 text-purple-500' },
@@ -138,69 +159,7 @@ export const StudentDashboard = () => {
         {/* Left Column */}
         <div className="xl:col-span-2 space-y-6">
           
-          {/* Subject Overview Table */}
-          <Card className="border border-border/50 shadow-sm overflow-hidden">
-            <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-primary" /> Subject Overview & Attendance
-              </CardTitle>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/10 border-b border-border/50">
-                  <tr>
-                    <th className="px-5 py-3 font-semibold">Subject</th>
-                    <th className="px-5 py-3 font-semibold">Total Classes</th>
-                    <th className="px-5 py-3 font-semibold">Attended</th>
-                    <th className="px-5 py-3 font-semibold">Percentage</th>
-                    <th className="px-5 py-3 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {data.subjectAttendance?.map((subject: any, idx: number) => {
-                    const percentage = Math.round(subject.percentage || 0);
-                    const status = percentage >= 75 ? 'Safe' : percentage >= 65 ? 'Warning' : 'Danger';
-                    return (
-                      <tr key={idx} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-5 py-3 text-foreground font-medium">
-                          {subject.subjectName}
-                        </td>
-                        <td className="px-5 py-3 text-foreground">{subject.totalClasses}</td>
-                        <td className="px-5 py-3 text-foreground">{subject.classesAttended}</td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-full bg-muted rounded-full h-1.5 max-w-[60px]">
-                              <div 
-                                className={`h-1.5 rounded-full ${percentage >= 75 ? 'bg-success' : percentage >= 65 ? 'bg-warning' : 'bg-destructive'}`}
-                                style={{ width: `${percentage}%` }}
-                              ></div>
-                            </div>
-                            <span className="font-semibold text-foreground text-xs">{percentage}%</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3">
-                          <Badge variant="outline" className={
-                            status === 'Safe' ? 'text-success border-success/30 bg-success/10' :
-                            status === 'Warning' ? 'text-warning border-warning/30 bg-warning/10' :
-                            'text-destructive border-destructive/30 bg-destructive/10'
-                          }>
-                            {status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {(!data.subjectAttendance || data.subjectAttendance.length === 0) && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-6 text-center text-muted-foreground">
-                        No subject attendance data available.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          {/* Subject Overview Table Removed per request */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <RecentNoticesCard notices={data.latestNotices || []} basePath="/student" />

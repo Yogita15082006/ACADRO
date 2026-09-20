@@ -9,7 +9,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Plus, Calendar, Clock, Users, ArrowLeft, XCircle, ClipboardCheck, History, Pause, Play, Square, Copy, Eye, Activity, Save, Trash2, FileText, CheckCircle2, UserPlus, AlertTriangle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { attendanceService } from '../services/attendanceService';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const FacultyAttendancePanel = ({ workspaceContext }: { workspaceContext: any }) => {
   const { user } = useAuth();

@@ -68,7 +68,6 @@ export const Layout = () => {
     { to: '/student', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
     { to: '/student/classes', icon: <Library size={18} />, label: 'Classes' },
     { to: '/student/academic-resources', icon: <FolderOpen size={18} />, label: 'Academic Resources' },
-    { to: '/student/attendance', icon: <Users size={18} />, label: 'Attendance' },
     { to: '/student/examinations', icon: <GraduationCap size={18} />, label: 'Examinations' },
     { to: '/student/events', icon: <Calendar size={18} />, label: 'Events' },
     { to: '/student/notice', icon: <Bell size={18} />, label: 'Notices' },

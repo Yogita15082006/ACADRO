@@ -16,11 +16,23 @@ public class SubjectAnalyticsDTO {
         private AssignmentMetricsDTO assignments;
         private QuizMetricsDTO quizzes;
         private AttendanceMetricsDTO attendance;
+        private java.util.List<ExaminationMetricsDTO> examinations;
         private int overallScore;
         private String badge;
         private String badgeColor;
         private String grade;
         private String feedback;
+    }
+
+    @Data
+    public static class ExaminationMetricsDTO {
+        private UUID examinationId;
+        private UUID examResultId;
+        private String name;
+        private java.math.BigDecimal obtainedMarks;
+        private java.math.BigDecimal maxMarks;
+        private java.time.LocalDate examDate;
+        private Boolean isPublished;
     }
 
     @Data

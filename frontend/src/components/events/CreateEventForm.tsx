@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { eventService } from '../../services/eventService';
 import api from '../../services/api';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 // --- Interfaces ---
 export interface SpecificAssignment {
@@ -250,8 +250,9 @@ export const CreateEventForm = ({ onCancel, onSave }: { onCancel: () => void, on
       } else {
         toast.error("Could not find enough event information to fill the form.");
       }
-    } catch (error) {
-      toast.error("Error parsing event data.");
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || "Error parsing event data.";
+      toast.error(errorMsg);
     } finally {
       setIsParsingPaste(false);
     }

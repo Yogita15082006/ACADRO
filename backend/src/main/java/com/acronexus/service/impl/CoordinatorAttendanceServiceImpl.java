@@ -90,11 +90,13 @@ public class CoordinatorAttendanceServiceImpl implements CoordinatorAttendanceSe
         UUID semesterId = null;
         
         if (!matchedStudents.isEmpty()) {
-            Student firstStudent = matchedStudents.get(0);
-            java.util.Optional<com.acronexus.entity.StudentEnrollment> enrOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(firstStudent.getId());
-            if (enrOpt.isPresent()) {
-                if (enrOpt.get().getAcademicYear() != null) academicYearId = enrOpt.get().getAcademicYear().getId();
-                if (enrOpt.get().getSemester() != null) semesterId = enrOpt.get().getSemester().getId();
+            for (Student student : matchedStudents) {
+                java.util.Optional<com.acronexus.entity.StudentEnrollment> enrOpt = studentEnrollmentRepository.findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(student.getId());
+                if (enrOpt.isPresent()) {
+                    if (enrOpt.get().getAcademicYear() != null) academicYearId = enrOpt.get().getAcademicYear().getId();
+                    if (enrOpt.get().getSemester() != null) semesterId = enrOpt.get().getSemester().getId();
+                    if (academicYearId != null && semesterId != null) break;
+                }
             }
         }
         

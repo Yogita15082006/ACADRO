@@ -669,11 +669,18 @@ public class StudentService {
         jdbcTemplate.update("DELETE FROM resource_downloads WHERE student_id = ?", id);
         jdbcTemplate.update("DELETE FROM academic_records WHERE student_id = ?", id);
         jdbcTemplate.update("DELETE FROM student_enrollments WHERE student_id = ?", id);
+        jdbcTemplate.update("DELETE FROM examination_attendance WHERE student_id = ?", id);
         
         // Delete User-specific child records since we will delete the User account
         jdbcTemplate.update("DELETE FROM user_notifications WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM address_details WHERE user_id = ?", id);
         jdbcTemplate.update("DELETE FROM family_details WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM seating_arrangement_room_invigilators WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_by = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_faculty_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_by_id = ?", id);
+
         
         // Nullify uploadedBy/createdBy where the student might have created records
         jdbcTemplate.update("UPDATE file_storage SET uploaded_by = NULL WHERE uploaded_by = ?", id);
@@ -702,11 +709,18 @@ public class StudentService {
         jdbcTemplate.update("DELETE FROM resource_downloads");
         jdbcTemplate.update("DELETE FROM academic_records");
         jdbcTemplate.update("DELETE FROM student_enrollments");
+        jdbcTemplate.update("DELETE FROM examination_attendance");
         
         // Delete User-specific child records for all students
         jdbcTemplate.update("DELETE FROM user_notifications WHERE user_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
         jdbcTemplate.update("DELETE FROM address_details WHERE user_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
         jdbcTemplate.update("DELETE FROM family_details WHERE user_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
+        jdbcTemplate.update("DELETE FROM seating_arrangement_room_invigilators WHERE user_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_user_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_by IN (SELECT id FROM users WHERE role = 'STUDENT')");
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_faculty_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_by_id IN (SELECT id FROM users WHERE role = 'STUDENT')");
+
         
         // Nullify uploadedBy/createdBy where the students might have created records
         jdbcTemplate.update("UPDATE file_storage SET uploaded_by = NULL WHERE uploaded_by IN (SELECT id FROM users WHERE role = 'STUDENT')");

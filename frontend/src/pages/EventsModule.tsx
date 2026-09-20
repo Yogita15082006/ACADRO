@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 import { eventService } from '../services/eventService';
 import { CreateEventForm } from '../components/events/CreateEventForm';
 import { useAuth } from '../context/AuthContext';

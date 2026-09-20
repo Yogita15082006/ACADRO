@@ -13,6 +13,7 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, UUID> {
     java.util.List<ExamResult> findByExaminationIdAndClassName(@org.springframework.data.repository.query.Param("examinationId") UUID examinationId, @org.springframework.data.repository.query.Param("className") String className);
     
     java.util.List<ExamResult> findByExaminationId(UUID examinationId);
+    java.util.List<ExamResult> findByClassSubjectId(UUID classSubjectId);
     
     java.util.List<ExamResult> findByStudentId(UUID studentId);
     java.util.List<ExamResult> findByStudentIdAndIsPublishedTrue(UUID studentId);
