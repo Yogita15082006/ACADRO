@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from 'sonner';
 import { Users, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search, Brain, Shield, Sparkles, Plus, FileUp, Loader2, Edit2, UserPlus, GraduationCap, Eye, AlertTriangle, RefreshCcw, Trash2, Download, File } from 'lucide-react';
 import { Label } from '../components/ui/label';
+import * as XLSX from 'xlsx';
 
 import { ChevronLeft } from 'lucide-react';
 import { AcademicResourceDialog } from '../components/modals/AcademicResourceDialog';
@@ -779,6 +780,42 @@ export const FacultyManagementModule = () => {
   };
 
 
+  const handleDownloadTemplate = () => {
+    const columns = [
+      "Faculty Name", "Employee ID", "College Email", "Gender", "Role", 
+      "Department", "Mobile Number", "Joining Date", "Qualification", "Experience"
+    ];
+    const instructions = [
+      ["Faculty Bulk Upload Instructions"],
+      [],
+      ["Required Columns", "Expected Format", "Example Value", "Notes"],
+      ["Faculty Name", "Text", "Jane Doe", "Must be full name"],
+      ["Employee ID", "Text/Alphanumeric", "EMP001", "Unique employee identifier"],
+      ["College Email", "Email format", "jane.doe@college.edu", "Must be a valid email"],
+      ["Gender", "Text (Male/Female/Other)", "Female", "Optional but recommended"],
+      ["Role", "Text (HOD/FACULTY/COORDINATOR)", "FACULTY", "Must match standard roles"],
+      ["Department", "Text", "Computer Science", "Must match an existing department"],
+      ["Mobile Number", "Numeric/Text", "1234567890", "10-digit number"],
+      ["Joining Date", "YYYY-MM-DD", "2023-08-01", "Use ISO format for dates"],
+      ["Qualification", "Text", "Ph.D.", "Highest degree"],
+      ["Experience", "Text/Numeric", "5 Years", "Years of experience"],
+      [],
+      ["CRITICAL RULES:"],
+      ["- Do NOT rename, delete, or reorder the columns in the 'Faculty Template' sheet."],
+      ["- Ensure dates are formatted correctly."],
+      ["- All emails must be unique in the system."]
+    ];
+    const templateData = [columns];
+    const wb = XLSX.utils.book_new();
+    const wsTemplate = XLSX.utils.aoa_to_sheet(templateData);
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
+    wsTemplate['!cols'] = columns.map(() => ({ wch: 20 }));
+    wsInstructions['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, wsTemplate, "Faculty Template");
+    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+    XLSX.writeFile(wb, "ACADRO_Faculty_Upload_Template.xlsx");
+  };
+
   const handleUploadValidate = async () => {
     if (!uploadFile) return;
     setIsUploading(true);
@@ -1227,10 +1264,14 @@ export const FacultyManagementModule = () => {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input placeholder="Search master list..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
 
                 <Button variant="outline" className="gap-2 w-full sm:w-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setShowDeleteAll(true)}>
                   <Trash2 size={16} /> Delete All Faculty
+                </Button>
+
+                <Button variant="outline" className="gap-2 w-full sm:w-auto border-primary/30 text-primary hover:bg-primary/5" onClick={handleDownloadTemplate}>
+                  <Download size={16} /> Download Format
                 </Button>
 
                 <Button variant="outline" className="gap-2 w-full sm:w-auto border-primary/30 text-primary hover:bg-primary/5" onClick={() => document.getElementById('faculty-upload')?.click()}>
