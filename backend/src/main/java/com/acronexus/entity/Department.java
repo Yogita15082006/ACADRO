@@ -18,4 +18,9 @@ public class Department extends BaseAuditableEntity {
     private String description;
     private Boolean isActive = true;
     private Boolean isDeleted = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hod_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private User hod;
 }

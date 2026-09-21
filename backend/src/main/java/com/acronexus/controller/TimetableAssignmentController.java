@@ -23,7 +23,7 @@ public class TimetableAssignmentController {
     private final TimetableAssignmentService assignmentService;
 
     @PostMapping("/{id}/ai-match")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Perform AI Match on Timetable", description = "Extracts entity mappings using AI.")
     public ResponseEntity<ApiResponse<TimetableReviewReportDto>> aiMatch(
             @PathVariable UUID id,
@@ -34,7 +34,7 @@ public class TimetableAssignmentController {
     }
 
     @PostMapping("/{id}/confirm-assignments")
-    @PreAuthorize("hasAnyRole('ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     @Operation(summary = "Confirm Timetable Assignments", description = "Saves ClassSubject and Coordinator mappings and triggers semester promotion.")
     public ResponseEntity<ApiResponse<Void>> confirmAssignments(
             @PathVariable UUID id,

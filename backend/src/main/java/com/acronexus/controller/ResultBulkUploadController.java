@@ -19,8 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
-import com.acronexus.repository.SubjectRepository;
-import com.acronexus.repository.BulkUploadRepository;
 
 @RestController
 @RequestMapping("/api/v1/bulk-upload/results")
@@ -29,19 +27,6 @@ import com.acronexus.repository.BulkUploadRepository;
 public class ResultBulkUploadController {
 
     private final ResultBulkUploadService resultBulkUploadService;
-    private final SubjectRepository subjectRepository;
-    private final BulkUploadRepository bulkUploadRepository;
-
-    @GetMapping("/debug")
-    public ResponseEntity<java.util.Map<String, Object>> getDebugInfo() {
-        java.util.Map<String, Object> map = new java.util.HashMap<>();
-        map.put("subjects", subjectRepository.findAll());
-        var uploads = bulkUploadRepository.findAll();
-        if (!uploads.isEmpty()) {
-            map.put("last_upload", uploads.get(uploads.size() - 1));
-        }
-        return ResponseEntity.ok(map);
-    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
@@ -61,9 +46,12 @@ public class ResultBulkUploadController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "examinationId", required = false) UUID examinationId,
             @RequestParam(value = "className", required = false) String className,
+            @RequestParam(value = "examDate", required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(value = "classSubjectId", required = false) UUID classSubjectId,
+            @RequestParam(value = "previewOnly", required = false, defaultValue = "false") boolean previewOnly,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId(), examinationId, className);
+        BulkUploadResponseDto response = resultBulkUploadService.uploadResultList(file, userDetails.getId(), examinationId, className, examDate, classSubjectId, previewOnly);
         return ResponseEntity.ok(response);
     }
 

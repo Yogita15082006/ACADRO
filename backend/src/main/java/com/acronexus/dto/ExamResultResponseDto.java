@@ -15,6 +15,9 @@ public class ExamResultResponseDto {
     private UUID subjectId;
     private String subjectName;
     private String subjectCode;
+    
+    private UUID classSubjectId;
+    private java.time.LocalDate examDate;
     private BigDecimal marksObtained;
     private BigDecimal maxMarks;
     private String grade;
@@ -24,4 +27,8 @@ public class ExamResultResponseDto {
     private Boolean isPublished;
     
     private String className;
+    
+    private String attendanceStatus;
+    private String status; // "Pending", "Published", "Draft", etc.
+    private String aiFeedback;
 }

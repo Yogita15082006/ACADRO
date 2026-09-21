@@ -29,9 +29,18 @@ public class SeatingArrangementRoom extends BaseEntity {
     @Column(name = "max_per_bench")
     private Integer maxPerBench;
 
+    @Column(name = "row_config")
+    private String rowConfig;
+
     private Integer allocated;
 
     private String classes;
+
+    @Column(name = "start_time")
+    private String startTime;
+
+    @Column(name = "end_time")
+    private String endTime;
 
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SeatingArrangementStudent> students = new ArrayList<>();

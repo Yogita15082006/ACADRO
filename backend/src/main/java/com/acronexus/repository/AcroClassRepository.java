@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface AcroClassRepository extends JpaRepository<AcroClass, java.util.UUID> {
     Optional<AcroClass> findByNameIgnoreCaseAndSectionIgnoreCase(String name, String section);
     java.util.List<AcroClass> findByName(String name);
+    @org.springframework.data.jpa.repository.Query("SELECT c FROM AcroClass c WHERE c.name = :nameOrSection OR c.section = :nameOrSection")
+    java.util.List<AcroClass> findByNameOrSection(@org.springframework.data.repository.query.Param("nameOrSection") String nameOrSection);
     long countByDepartmentId(java.util.UUID departmentId);
     java.util.List<AcroClass> findByDepartmentId(java.util.UUID departmentId);
 

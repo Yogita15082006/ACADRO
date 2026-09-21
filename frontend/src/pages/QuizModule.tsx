@@ -1402,7 +1402,7 @@ function StudentResultModal({ quiz, onClose }: any) {
                     <div className="p-4 border border-indigo-500/30 rounded-xl bg-background/70 space-y-3">
                       <div>
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase font-extrabold mb-1 flex items-center gap-1.5"><BookOpen size={15}/> Actionable Study Recommendations</p>
-                        <p className="text-xs text-foreground font-medium leading-relaxed">{ai.learningRecommendations || `Revisit course notes and lecture materials for ${analysis.subjectName} with timed self-evaluations.`}</p>
+                        <p className="text-xs text-foreground font-medium leading-relaxed">{ai.learningRecommendations || `Revisit course notes and resources for ${analysis.subjectName} with timed self-evaluations.`}</p>
                       </div>
                       <div className="pt-2 border-t border-indigo-500/10">
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase font-extrabold mb-1 flex items-center gap-1.5"><Target size={15}/> Recommended Revision Strategy</p>

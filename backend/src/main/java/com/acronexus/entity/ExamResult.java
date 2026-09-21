@@ -17,8 +17,15 @@ public class ExamResult extends BaseAuditableEntity {
     private Student student;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "subject_id", nullable = false)
+    @JoinColumn(name = "subject_id", nullable = true)
     private Subject subject;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_subject_id", nullable = true)
+    private ClassSubject classSubject;
+
+    @Column(name = "exam_date")
+    private java.time.LocalDate examDate;
 
     @Column(precision = 5, scale = 2)
     private java.math.BigDecimal marksObtained;

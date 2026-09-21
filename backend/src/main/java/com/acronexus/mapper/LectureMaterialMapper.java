@@ -36,7 +36,7 @@ public class LectureMaterialMapper {
                 dto.setSubjectCode(entity.getClassSubject().getSubject().getCode());
             }
             if (entity.getClassSubject().getAcroClass() != null) {
-                dto.setAcroClassName(entity.getClassSubject().getAcroClass().getName());
+                dto.setAcroClassName(entity.getClassSubject().getAcroClass().getFunctionalClassName());
             }
         }
         

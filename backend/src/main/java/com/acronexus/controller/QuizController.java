@@ -32,27 +32,27 @@ public class QuizController {
     // ==========================================
 
     @PostMapping("/faculty")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<QuizDto.Response>> createQuiz(@Valid @RequestBody QuizDto.CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Quiz created successfully", quizService.createQuiz(request)));
     }
 
     @PutMapping("/faculty/{quizId}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<QuizDto.Response>> updateQuiz(@PathVariable UUID quizId, @Valid @RequestBody QuizDto.UpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Quiz updated successfully", quizService.updateQuiz(quizId, request)));
     }
 
     @DeleteMapping("/faculty/{quizId}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteQuiz(@PathVariable UUID quizId) {
         quizService.deleteQuiz(quizId);
         return ResponseEntity.ok(ApiResponse.success("Quiz deleted successfully", null));
     }
 
     @GetMapping("/faculty")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<QuizDto.Response>>> getFacultyQuizzes() {
         return ResponseEntity.ok(ApiResponse.success("Quizzes fetched successfully", quizService.getFacultyQuizzes()));
     }
@@ -60,7 +60,7 @@ public class QuizController {
     // --- Question Management ---
 
     @PostMapping("/faculty/{quizId}/questions")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<QuizQuestionDto.Response>> addQuestion(
             @PathVariable UUID quizId, 
             @Valid @RequestBody QuizQuestionDto.CreateRequest request) {
@@ -70,7 +70,7 @@ public class QuizController {
     }
 
     @PutMapping("/faculty/questions/{questionId}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<QuizQuestionDto.Response>> updateQuestion(
             @PathVariable UUID questionId, 
             @Valid @RequestBody QuizQuestionDto.UpdateRequest request) {
@@ -78,7 +78,7 @@ public class QuizController {
     }
 
     @DeleteMapping("/faculty/questions/{questionId}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteQuestion(@PathVariable UUID questionId) {
         questionService.deleteQuestion(questionId);
         return ResponseEntity.ok(ApiResponse.success("Question deleted successfully", null));
@@ -99,19 +99,19 @@ public class QuizController {
 
     // --- AI Analytics APIs (Faculty) ---
     @GetMapping("/faculty/{quizId}/ai/difficulty")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AiInsightDto>> getDifficultyAnalysis(@PathVariable UUID quizId) {
         return ResponseEntity.ok(ApiResponse.success("Quiz difficulty analysis generated", quizService.getQuizDifficultyAnalysis(quizId)));
     }
 
     @GetMapping("/faculty/questions/{questionId}/ai/quality")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AiInsightDto>> getQuestionQualityAnalysis(@PathVariable UUID questionId) {
         return ResponseEntity.ok(ApiResponse.success("Question quality analysis generated", quizService.getQuestionQualityAnalysis(questionId)));
     }
 
     @GetMapping("/faculty/subjects/{classSubjectId}/ai/generate-questions")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AiInsightDto>> generateQuestions(
             @PathVariable UUID classSubjectId,
             @RequestParam String topic,
@@ -183,20 +183,20 @@ public class QuizController {
     }
 
     @PostMapping("/faculty/{quizId}/grade")
-    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> evaluateQuiz(@PathVariable UUID quizId, @RequestBody(required = false) java.util.Map<UUID, String> answerKeyUpdates) {
         quizService.evaluateQuiz(quizId, answerKeyUpdates);
         return ResponseEntity.ok(ApiResponse.success("Quiz evaluated and graded successfully", null));
     }
 
     @GetMapping("/faculty/{quizId}/ai/generate-answer-key")
-    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AiInsightDto>> generateAnswerKey(@PathVariable UUID quizId) {
         return ResponseEntity.ok(ApiResponse.success("Answer key generated via AI", quizService.generateAnswerKey(quizId)));
     }
 
     @GetMapping("/faculty/subjects/{classSubjectId}/ai/generate-questions-advanced")
-    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AiInsightDto>> generateQuestionsAdvanced(
             @PathVariable UUID classSubjectId,
             @RequestParam String topic,
@@ -210,7 +210,7 @@ public class QuizController {
     }
 
     @PostMapping(value = "/faculty/extract-source")
-    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'HOD')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<QuizQuestionDto.CreateRequest>>> extractFromSource(
             @RequestParam(required = false) String sourceType,
             @RequestParam(required = false) String sourceUrl) {

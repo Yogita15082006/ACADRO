@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acronexus.entity.User;
+import com.acronexus.security.UserDetailsImpl;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @RestController
 @RequestMapping({"/api/users", "/api/v1/users"})
 @RequiredArgsConstructor
@@ -39,6 +43,14 @@ public class UserController {
     public ResponseEntity<ApiResponse<List<UserResponseDto>>> getAllUsers() {
         List<UserResponseDto> users = userService.getAllUsers();
         return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", users));
+    }
+
+    @GetMapping("/faculty/hod-scope")
+    @PreAuthorize("hasAnyRole('HOD', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<UserResponseDto>>> getFacultyForHodScope() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<UserResponseDto> scopedUsers = userService.getFacultyForHodScope(userDetails.getId());
+        return ResponseEntity.ok(ApiResponse.success("Faculty for HOD scope fetched successfully", scopedUsers));
     }
 
     @GetMapping("/invigilators")

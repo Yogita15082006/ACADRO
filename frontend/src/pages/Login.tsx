@@ -413,7 +413,7 @@ export const Login = () => {
                   </>
                 )}
 
-                {currentRole === 'faculty' && (
+                {(currentRole === 'faculty' || currentRole === 'coordinator') && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground block mb-2">Assigned Classes & Subjects</span>
                     {assignedSubjects.length > 0 ? (

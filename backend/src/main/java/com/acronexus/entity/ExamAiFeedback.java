@@ -25,6 +25,13 @@ public class ExamAiFeedback {
     @JoinColumn(name = "subject_id", nullable = true)
     private Subject subject;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_subject_id", nullable = true)
+    private ClassSubject classSubject;
+
+    @Column(name = "exam_date")
+    private java.time.LocalDate examDate;
+
     @Column(columnDefinition = "TEXT")
     private String overallPerformance;
 

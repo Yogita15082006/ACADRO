@@ -62,7 +62,7 @@ public class AttendanceSessionService {
             
             String batch = "-";
             if (cs.getAcroClass() != null) {
-                List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName());
+                List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName());
                 if (!assignments.isEmpty() && assignments.get(0).getBatch() != null) {
                     batch = assignments.get(0).getBatch();
                 }
@@ -70,7 +70,7 @@ public class AttendanceSessionService {
             
             String year = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear().replace("YEAR_", "") : "-";
             String semester = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : "-";
-            String className = cs.getAcroClass() != null ? cs.getAcroClass().getName() : "-";
+            String className = cs.getAcroClass() != null ? cs.getAcroClass().getFunctionalClassName() : "-";
             String subjectName = cs.getSubject() != null ? cs.getSubject().getName() : "-";
             
             return TeachingHistoryDTO.builder()
@@ -482,7 +482,7 @@ public class AttendanceSessionService {
         dto.setFacultyName(session.getFaculty() != null && session.getFaculty().getUser() != null ? session.getFaculty().getUser().getFirstName() + " " + session.getFaculty().getUser().getLastName() : "");
         dto.setAcademicYear(session.getClassSubject() != null && session.getClassSubject().getAcademicYear() != null ? session.getClassSubject().getAcademicYear().getYear() : "");
         dto.setDepartment(session.getClassSubject() != null && session.getClassSubject().getAcroClass() != null && session.getClassSubject().getAcroClass().getDepartment() != null ? session.getClassSubject().getAcroClass().getDepartment().getName() : "");
-        dto.setClassName(session.getClassSubject() != null && session.getClassSubject().getAcroClass() != null ? session.getClassSubject().getAcroClass().getName() : "");
+        dto.setClassName(session.getClassSubject() != null && session.getClassSubject().getAcroClass() != null ? session.getClassSubject().getAcroClass().getFunctionalClassName() : "");
         dto.setType(session.getType());
         dto.setLectureNumber(session.getLectureNumber());
         dto.setTopic(session.getTopic());
@@ -528,68 +528,93 @@ public class AttendanceSessionService {
         attendanceRepository.save(attendance);
         sessionRepository.save(session);
     }
-    @Transactional
-    public void bulkApproveText(UUID sessionId, String text) {
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.BulkReviewResponse bulkApproveText(UUID sessionId, String text) {
         AttendanceSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
-                
+        return resolveEnrollments(session.getClassSubject(), text);
+    }
+
+    @Transactional(readOnly = true)
+    public com.acronexus.dto.BulkReviewResponse previewBulkText(UUID classSubjectId, String text, UUID requestingUserId, boolean hasAdminRole) {
+        ClassSubject classSubject = classSubjectRepository.findById(classSubjectId)
+                .orElseThrow(() -> new RuntimeException("ClassSubject not found"));
+        
+        if (!hasAdminRole && !classSubject.getFaculty().getId().equals(requestingUserId)) {
+            throw new RuntimeException("You are not authorized to preview attendance for this class subject");
+        }
+        
+        return resolveEnrollments(classSubject, text);
+    }
+
+    private com.acronexus.dto.BulkReviewResponse resolveEnrollments(ClassSubject classSubject, String text) {
         java.util.Set<String> matchedEnrollments = new java.util.HashSet<>();
+        java.util.List<String> duplicateValidationEntries = new java.util.ArrayList<>();
+        
         if (text != null) {
             java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\b[a-zA-Z0-9]{10,14}\\b").matcher(text);
             while (matcher.find()) {
-                matchedEnrollments.add(matcher.group().toUpperCase());
+                String enroll = matcher.group().toUpperCase();
+                if (matchedEnrollments.contains(enroll)) {
+                    duplicateValidationEntries.add(enroll);
+                }
+                matchedEnrollments.add(enroll);
             }
         }
 
-        List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId());
-        List<StudentAttendance> currentAttendances = attendanceRepository.findBySessionId(sessionId);
-        
-        int presentCount = 0;
+        UUID targetAcademicYearId = classSubject.getAcademicYear() != null ? classSubject.getAcademicYear().getId() : null;
+        UUID targetSemesterId = classSubject.getSemester() != null ? classSubject.getSemester().getId() : null;
+
+        List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && targetAcademicYearId != null && targetSemesterId != null
+                        && e.getAcademicYear().getId().equals(targetAcademicYearId)
+                        && e.getSemester().getId().equals(targetSemesterId))
+                .collect(Collectors.toList());
+                
+        List<com.acronexus.dto.StudentAttendanceRecordDTO> matched = new java.util.ArrayList<>();
+        List<com.acronexus.dto.StudentAttendanceRecordDTO> unmatched = new java.util.ArrayList<>();
         
         for (StudentEnrollment enrollment : enrollments) {
             String enrollNo = enrollment.getStudent().getEnrollmentNo().toUpperCase();
-            
-            StudentAttendance attendance = currentAttendances.stream()
-                    .filter(a -> a.getStudent().getId().equals(enrollment.getStudent().getId()))
-                    .findFirst()
-                    .orElse(null);
-                    
-            boolean isMatched = matchedEnrollments.contains(enrollNo);
-            
-            if (attendance == null) {
-                attendance = new StudentAttendance();
-                attendance.setSession(session);
-                attendance.setStudent(enrollment.getStudent());
-                attendance.setClassSubject(session.getClassSubject());
-                attendance.setDate(session.getDate());
-                
-                if (isMatched) {
-                    attendance.setStatus(AttendanceStatus.PRESENT);
-                    presentCount++;
-                } else {
-                    attendance.setStatus(AttendanceStatus.ABSENT);
+            if (matchedEnrollments.contains(enrollNo)) {
+                com.acronexus.dto.StudentAttendanceRecordDTO dto = new com.acronexus.dto.StudentAttendanceRecordDTO();
+                dto.setId(enrollment.getStudent().getId()); // Use Student ID for validation backend
+                dto.setStudentId(enrollment.getStudent().getId());
+                dto.setEnrollmentNumber(enrollment.getStudent().getEnrollmentNo());
+                dto.setName(enrollment.getStudent().getUser().getFirstName() + " " + enrollment.getStudent().getUser().getLastName());
+                if (enrollment.getStudent().getUser().getProfilePictureUrl() != null) {
+                    dto.setAvatar(enrollment.getStudent().getUser().getProfilePictureUrl());
                 }
-                attendanceRepository.save(attendance);
-            } else {
-                if (isMatched) {
-                    attendance.setStatus(AttendanceStatus.PRESENT);
-                    presentCount++;
-                } else {
-                    if (attendance.getStatus() == AttendanceStatus.PENDING) {
-                        attendance.setStatus(AttendanceStatus.REJECTED);
-                    } else if (attendance.getStatus() != AttendanceStatus.PRESENT) {
-                        attendance.setStatus(AttendanceStatus.ABSENT);
-                    } else {
-                        presentCount++;
-                    }
-                }
-                attendanceRepository.save(attendance);
+                matched.add(dto);
             }
         }
         
-        session.setPresentCount(presentCount);
-        session.setAbsentCount(enrollments.size() - presentCount);
-        sessionRepository.save(session);
+        // Add unmatched pasted text (invalid or not in scope)
+        java.util.Set<String> validEnrolledSet = enrollments.stream().map(e -> e.getStudent().getEnrollmentNo().toUpperCase()).collect(Collectors.toSet());
+        for (String parsed : matchedEnrollments) {
+            if (!validEnrolledSet.contains(parsed)) {
+                com.acronexus.dto.StudentAttendanceRecordDTO dto = new com.acronexus.dto.StudentAttendanceRecordDTO();
+                dto.setId(UUID.randomUUID());
+                dto.setEnrollmentNumber(parsed);
+                dto.setName("NOT IN SCOPE / INVALID");
+                unmatched.add(dto);
+            }
+        }
+        
+        for (String dup : duplicateValidationEntries) {
+            com.acronexus.dto.StudentAttendanceRecordDTO dto = new com.acronexus.dto.StudentAttendanceRecordDTO();
+            dto.setId(UUID.randomUUID());
+            dto.setEnrollmentNumber(dup);
+            dto.setName("DUPLICATE");
+            unmatched.add(dto);
+        }
+
+        com.acronexus.dto.BulkReviewResponse response = new com.acronexus.dto.BulkReviewResponse();
+        response.setMatched(matched);
+        response.setUnmatched(unmatched);
+        return response;
     }
 
     @Transactional
@@ -625,6 +650,114 @@ public class AttendanceSessionService {
     }
 
     public String debugDbCheck() { return "ok"; }
-    public void bulkApplyReview(java.util.UUID sessionId, com.acronexus.dto.BulkApplyReviewRequest request) {}
+    @Transactional
+    public void bulkApplyReview(java.util.UUID sessionId, com.acronexus.dto.BulkApplyReviewRequest request) {
+        AttendanceSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+                
+        UUID targetAcademicYearId = session.getClassSubject().getAcademicYear() != null ? session.getClassSubject().getAcademicYear().getId() : null;
+        UUID targetSemesterId = session.getClassSubject().getSemester() != null ? session.getClassSubject().getSemester().getId() : null;
+
+        List<StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(session.getClassSubject().getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && targetAcademicYearId != null && targetSemesterId != null
+                        && e.getAcademicYear().getId().equals(targetAcademicYearId)
+                        && e.getSemester().getId().equals(targetSemesterId))
+                .collect(Collectors.toList());
+                
+        List<StudentAttendance> currentAttendances = attendanceRepository.findBySessionId(sessionId);
+        
+        java.util.Set<UUID> approveSet = request.getApproveIds() != null ? new java.util.HashSet<>(request.getApproveIds()) : new java.util.HashSet<>();
+        
+        for (StudentEnrollment enrollment : enrollments) {
+            StudentAttendance attendance = currentAttendances.stream()
+                    .filter(a -> a.getStudent().getId().equals(enrollment.getStudent().getId()))
+                    .findFirst()
+                    .orElse(null);
+                    
+            boolean isApproved = approveSet.contains(enrollment.getStudent().getId());
+            
+            if (attendance == null) {
+                attendance = new StudentAttendance();
+                attendance.setSession(session);
+                attendance.setStudent(enrollment.getStudent());
+                attendance.setClassSubject(session.getClassSubject());
+                attendance.setDate(session.getDate());
+                attendance.setSubmissionTime(java.time.LocalTime.now());
+            }
+            
+            if (isApproved) {
+                attendance.setStatus(AttendanceStatus.PRESENT);
+            } else {
+                if (attendance.getStatus() == AttendanceStatus.PENDING) {
+                    attendance.setStatus(AttendanceStatus.REJECTED);
+                } else if (attendance.getStatus() != AttendanceStatus.PRESENT) {
+                    attendance.setStatus(AttendanceStatus.ABSENT);
+                }
+            }
+            attendanceRepository.save(attendance);
+        }
+        
+        int presentCount = (int) attendanceRepository.findBySessionId(sessionId).stream().filter(a -> a.getStatus() == AttendanceStatus.PRESENT).count();
+        
+        session.setPresentCount(presentCount);
+        session.setAbsentCount(enrollments.size() - presentCount);
+        session.setTotalStudents(enrollments.size());
+        sessionRepository.save(session);
+    }
+    
+    @Transactional
+    public AttendanceSessionDTO createAutomateSession(UUID facultyId, com.acronexus.dto.CreateAutomateSessionRequest request, UUID requestingUserId, boolean hasAdminRole) {
+        Faculty faculty = facultyRepository.findById(facultyId)
+                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+
+        ClassSubject classSubject = classSubjectRepository.findById(request.getClassSubjectId())
+                .orElseThrow(() -> new RuntimeException("Class Subject not found"));
+
+        if (!hasAdminRole && !classSubject.getFaculty().getId().equals(requestingUserId)) {
+            throw new RuntimeException("You are not authorized to create an attendance session for this class subject");
+        }
+
+        AttendanceSession session = new AttendanceSession();
+        session.setFaculty(faculty);
+        session.setClassSubject(classSubject);
+        session.setType("FACULTY_AUTOMATED");
+        session.setLectureNumber(request.getLectureNumber());
+        session.setTopic(request.getTopic());
+        session.setDate(request.getDate());
+        session.setStartTime(request.getStartTime());
+        session.setEndTime(request.getEndTime());
+        session.setDuration(request.getDuration());
+        
+        session.setCode(request.getCode() != null ? request.getCode() : String.format("%06d", new java.util.Random().nextInt(999999)));
+        session.setRequireVerification(request.getRequireVerification() != null ? request.getRequireVerification() : false);
+        session.setVerificationQuestion(request.getVerificationQuestion());
+        session.setExpectedAnswer(request.getExpectedAnswer());
+        session.setUniqueCodeCount(request.getUniqueCodeCount() != null ? request.getUniqueCodeCount() : 0);
+        
+        session.setStatus(AttendanceSessionStatus.SAVED); // Automatically save the automated session
+        session.setIsSystemGenerated(false); // Counts normally as conducted lecture
+        
+        int totalStudents = (int) studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId())
+                .stream()
+                .filter(e -> e.getAcademicYear() != null && e.getSemester() != null
+                        && classSubject.getAcademicYear() != null && classSubject.getSemester() != null
+                        && e.getAcademicYear().getId().equals(classSubject.getAcademicYear().getId())
+                        && e.getSemester().getId().equals(classSubject.getSemester().getId()))
+                .count();
+        session.setTotalStudents(totalStudents);
+        session.setPresentCount(0);
+        session.setAbsentCount(totalStudents);
+
+        session = sessionRepository.save(session);
+        
+        com.acronexus.dto.BulkApplyReviewRequest applyRequest = new com.acronexus.dto.BulkApplyReviewRequest();
+        applyRequest.setApproveIds(request.getApproveIds());
+        bulkApplyReview(session.getId(), applyRequest);
+
+        session = sessionRepository.findById(session.getId()).orElse(session);
+        return mapToDTO(session);
+    }
     public void bulkRespondToRequests(java.util.UUID sessionId, com.acronexus.dto.BulkRespondRequest request) {}
 }

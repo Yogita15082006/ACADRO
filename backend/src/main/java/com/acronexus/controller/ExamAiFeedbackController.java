@@ -47,8 +47,11 @@ public class ExamAiFeedbackController {
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<ExamAiFeedbackResponseDto>>> generate(
             @RequestParam UUID examinationId, 
-            @RequestParam(required = false) String className) {
-        List<ExamAiFeedbackResponseDto> list = service.generateFeedbackForClass(examinationId, className);
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId,
+            @RequestBody(required = false) List<com.acronexus.dto.ExamResultContextRowDto> unsavedRows) {
+        List<ExamAiFeedbackResponseDto> list = service.generateFeedbackForClass(examinationId, className, examDate, classSubjectId, unsavedRows);
         return ResponseEntity.ok(ApiResponse.success("AI feedback generated successfully", list));
     }
     
@@ -56,8 +59,10 @@ public class ExamAiFeedbackController {
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY', 'STUDENT')")
     public ResponseEntity<ApiResponse<List<ExamAiFeedbackResponseDto>>> search(
             @RequestParam UUID examinationId, 
-            @RequestParam(required = false) String className) {
-        List<ExamAiFeedbackResponseDto> list = service.searchFeedback(examinationId, className);
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId) {
+        List<ExamAiFeedbackResponseDto> list = service.searchFeedback(examinationId, className, examDate, classSubjectId);
         return ResponseEntity.ok(ApiResponse.success("AI feedback fetched successfully", list));
     }
     

@@ -9,7 +9,8 @@ import {
   Award, BarChart3, 
   Users, AlertTriangle, ChevronRight, CalendarDays, DownloadCloud, 
   FileSpreadsheet, Save, X, FileIcon,
-  RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock, List
+  RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock, List,
+  Loader2, CheckSquare, Check, Download
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,22 @@ const setPersistentData = (key: string, value: any) => {
 export const ExaminationModule = () => {
   const { role, user } = useAuth();
   
+  // Capabilities State
+  const [examCapabilities, setExamCapabilities] = useState<{
+    canCreateExamination: boolean;
+    canAssignExamCoordinator: boolean;
+    activeCoordinatorAssignments: any[];
+  } | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [departmentAssignments, setDepartmentAssignments] = useState<any[]>([]);
+  const [eligibleFaculty, setEligibleFaculty] = useState<any[]>([]);
+  
+  // Assign Coordinator Form States
+  const [assignFacultyId, setAssignFacultyId] = useState('');
+  const [assignExamPurpose, setAssignExamPurpose] = useState('');
+  const [assignValidUntil, setAssignValidUntil] = useState('');
+  const [isAssigningCoordinator, setIsAssigningCoordinator] = useState(false);
+
   // Real States
   const [exams, setExams] = useState<any[]>([]);
     const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -71,13 +88,32 @@ export const ExaminationModule = () => {
     const fetchData = async () => {
     setIsLoadingData(true);
     try {
-      const [examsRes, batchesRes] = await Promise.all([
+      const fetchPromises: any[] = [
         api.get('/examinations'),
         api.get('/v1/metadata/batches')
-      ]);
+      ];
+
+      if (['hod', 'coordinator', 'faculty'].includes(role)) {
+        fetchPromises.push(api.get('/exam-coordinator-assignments/capabilities'));
+      }
+
+      if (role === 'hod') {
+        fetchPromises.push(api.get('/exam-coordinator-assignments'));
+        fetchPromises.push(api.get('/exam-coordinator-assignments/eligible-faculty'));
+      }
+
+      const results = await Promise.all(fetchPromises);
+      const examsRes = results[0];
+      const batchesRes = results[1];
+      const capsRes = results.length > 2 && ['hod', 'coordinator', 'faculty'].includes(role) ? results[2] : null;
+      const deptAssignmentsRes = role === 'hod' ? results[results.length - 2] : null;
+      const facultyRes = role === 'hod' ? results[results.length - 1] : null;
       
       if (examsRes.data.success) setExams(examsRes.data.data);
       if (batchesRes.data.success) setBatches(batchesRes.data.data);
+      if (capsRes && capsRes.data.success) setExamCapabilities(capsRes.data.data);
+      if (deptAssignmentsRes && deptAssignmentsRes.data.success) setDepartmentAssignments(deptAssignmentsRes.data.data);
+      if (facultyRes && facultyRes.data.success) setEligibleFaculty(facultyRes.data.data);
     } catch (error) {
       console.error("Error fetching examination initial data:", error);
       toast.error("Failed to load examination data");
@@ -86,7 +122,7 @@ export const ExaminationModule = () => {
     }
   };
     fetchData();
-  }, []);
+  }, [role]);
 
 
   // Publish Notice State
@@ -119,8 +155,8 @@ export const ExaminationModule = () => {
   const [createStartDate, setCreateStartDate] = useState('');
   const [createEndDate, setCreateEndDate] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-
-  // Cascading logic
+  const [createTimetableFile, setCreateTimetableFile] = useState<File | null>(null);
+  const [createCoordinatorAssignmentId, setCreateCoordinatorAssignmentId] = useState('');
   useEffect(() => {
     if (createBatch) {
       api.get(`/academic-years?batch=${createBatch}`)
@@ -160,10 +196,79 @@ export const ExaminationModule = () => {
     }
   }, [createBatch, createYear, createSemester]);
 
-  const [createTimetableFile, setCreateTimetableFile] = useState<File | null>(null);
+  
   
   // Results Management (Admin)
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClassSubject, setSelectedClassSubject] = useState<string>('');
+  const [selectedExamDate, setSelectedExamDate] = useState<string>('');
+  const [availableSubjects, setAvailableSubjects] = useState<any[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [isSubjectsLoading, setIsSubjectsLoading] = useState(false);
+  const [isDatesLoading, setIsDatesLoading] = useState(false);
+  
+  useEffect(() => {
+    if (selectedExam?.id) {
+       setSelectedClass('');
+       setSelectedClassSubject('');
+       setSelectedExamDate('');
+       setAvailableSubjects([]);
+       setAvailableDates([]);
+       setResultUploadMethod(null);
+       setUploadedFile(null);
+       setUploadStatus('idle');
+       setResultTargetClassId('');
+       setPresentStudentsForSection(null);
+    }
+  }, [selectedExam?.id]);
+
+  useEffect(() => {
+    if (selectedClass && selectedExam) {
+      setIsSubjectsLoading(true);
+      api.get(`/v1/class-subjects/class/${selectedClass}`)
+        .then(res => {
+          let subjects = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+          if (selectedExam.semesterName || selectedExam.semester) {
+             const expectedSem1 = String(selectedExam.semesterName || selectedExam.semester);
+             const expectedSem2 = `Semester ${expectedSem1}`;
+             subjects = subjects.filter((s: any) => !s.semester || String(s.semester) === expectedSem1 || String(s.semester) === expectedSem2);
+          }
+          if (selectedExam.batch) {
+             subjects = subjects.filter((s: any) => !s.batch || s.batch === selectedExam.batch);
+          }
+          if (selectedExam.academicYearName) {
+             subjects = subjects.filter((s: any) => !s.year || s.year === selectedExam.academicYearName);
+          }
+          setAvailableSubjects(subjects);
+        })
+        .catch(err => console.error(err))
+        .finally(() => setIsSubjectsLoading(false));
+    } else {
+      setAvailableSubjects([]);
+    }
+  }, [selectedClass, selectedExam]);
+
+  useEffect(() => {
+    if (selectedClassSubject && selectedExam) {
+      setIsDatesLoading(true);
+      api.get(`/examinations/${selectedExam.id}/attendance?subjectIds=${selectedClassSubject}`)
+        .then(res => {
+          if (res.data && res.data.success && res.data.data) {
+            const dates = Array.from(new Set(res.data.data.map((a: any) => a.examDate))).filter(Boolean);
+            setAvailableDates(dates as string[]);
+          } else {
+            setAvailableDates([]);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          setAvailableDates([]);
+        })
+        .finally(() => setIsDatesLoading(false));
+    } else {
+      setAvailableDates([]);
+    }
+  }, [selectedClassSubject, selectedExam]);
   const [enteringMarksForStudent, setEnteringMarksForStudent] = useState<any>(null);
   const [savedResults, setSavedResults] = useState<any[]>([]);
   const [resultViewMode, setResultViewMode] = useState<'saved' | 'create' | 'view'>('saved');
@@ -173,6 +278,11 @@ export const ExaminationModule = () => {
   const [resultUploadMethod, setResultUploadMethod] = useState<'upload' | 'manual' | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'reading' | 'extracting' | 'completed' | 'error'>('idle');
+  const [resultTargetClassId, setResultTargetClassId] = useState<string>('');
+  const [presentStudentsForSection, setPresentStudentsForSection] = useState<any[] | null>(null);
+  const [isPresentStudentsLoading, setIsPresentStudentsLoading] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [presentStudentsError, setPresentStudentsError] = useState<string | null>(null);
   const [, setIsUploading] = useState(false);
   const [uploadedMarks, setUploadedMarks] = useState<any[]>([]);
   const [resultSearch, setResultSearch] = useState('');
@@ -261,11 +371,11 @@ export const ExaminationModule = () => {
   }, [selectedExam, resultViewMode]);
 
   const handleGenerateAIFeedback = async () => {
-    if (uploadedMarks.length === 0 || !selectedExam || !selectedClass) return;
+    if (uploadedMarks.length === 0 || !selectedExam || !selectedClassSubject || !selectedExamDate) return;
     setIsGeneratingAIFeedback(true);
     setAiFeedbackStep('Initializing AI & generating feedback...');
     try {
-      const res = await examResultService.generateAIFeedback(selectedExam.id, selectedClass);
+      const res = await examResultService.generateAIFeedback(selectedExam.id, undefined, selectedExamDate, selectedClassSubject);
       if (res.success) {
          toast.success('AI feedback generated successfully for all students.');
       }
@@ -277,19 +387,70 @@ export const ExaminationModule = () => {
     }
   };
   
+  const fetchPresentStudents = async () => {
+    if (!selectedClassSubject || !selectedExamDate || !selectedExam) return;
+    setIsPresentStudentsLoading(true);
+    setPresentStudentsError(null);
+    try {
+      const res = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students?examDate=${selectedExamDate}&classSubjectId=${selectedClassSubject}`);
+      setPresentStudentsForSection(res.data.data);
+    } catch (err: any) {
+      setPresentStudentsError(err.response?.data?.message || "Failed to load present students");
+      setPresentStudentsForSection(null);
+    } finally {
+      setIsPresentStudentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedClassSubject && selectedExamDate) {
+      fetchPresentStudents();
+    } else {
+      setPresentStudentsForSection(null);
+      setPresentStudentsError(null);
+    }
+  }, [selectedClassSubject, selectedExamDate, selectedExam?.id]);
+
+  const handleDownloadPresentStudentsExcel = async () => {
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
+    setIsExporting(true);
+    try {
+        const response = await api.get(`/exam-results/examinations/${selectedExam.id}/present-students/export?examDate=${selectedExamDate}&classSubjectId=${selectedClassSubject}`, {
+            responseType: 'blob'
+        });
+        const safeExamName = selectedExam.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        const subjectName = availableSubjects.find((s: any) => s.id === selectedClassSubject)?.subjectName || 'Subject';
+        const safeSubjectName = subjectName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${safeExamName}_${safeSubjectName}_${selectedExamDate}_Present_Students.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.success("Excel downloaded successfully");
+    } catch (err: any) {
+        toast.error("Failed to download Excel");
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
   const [isPublishing, setIsPublishing] = useState(false);
 
   const handlePublishAll = async () => {
-    if (!selectedExam || !selectedClass) return;
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
     setIsPublishing(true);
     try {
-      const res = await examResultService.publishResults(selectedExam.id, selectedClass);
+      const res = await examResultService.publishResults(selectedExam.id, selectedExamDate, selectedClassSubject);
       if (res.success) {
         const count = res.data || 0;
         toast.success(`${count} result${count === 1 ? '' : 's'} published successfully`);
         
         // Refresh the 'uploadedMarks' (Draft View) from the actual DB state
-        const dbRes = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+        const dbRes = await examResultService.getResultsByContext(selectedExam.id, selectedExamDate, selectedClassSubject);
         if (dbRes.success && dbRes.data) {
              const grouped = dbRes.data.reduce((acc: any, row: any) => {
                  if (!acc[row.studentId]) {
@@ -345,9 +506,9 @@ export const ExaminationModule = () => {
   };
 
   const handlePublishResult = async (studentId: string) => {
-    if (!selectedExam) return;
+    if (!selectedExam || !selectedClassSubject || !selectedExamDate) return;
     try {
-      const res = await examResultService.publishResults(selectedExam.id, undefined, studentId);
+      const res = await examResultService.publishResults(selectedExam.id, selectedExamDate, selectedClassSubject, studentId);
       if (res.success) {
         toast.success('Student result published!');
         setUploadedMarks(prev => prev.map(m => m.id === studentId ? { ...m, status: 'Published' } : m));
@@ -363,8 +524,8 @@ export const ExaminationModule = () => {
   const handleOpenStudentResult = async (student: any) => {
       setEnteringMarksForStudent(student);
       try {
-         if (selectedExam) {
-             const aiFeedback = await examResultService.getAIFeedback(selectedExam.id, student.className || selectedClass);
+         if (selectedExam && selectedClassSubject && selectedExamDate) {
+             const aiFeedback = await examResultService.getAIFeedback(selectedExam.id, undefined, selectedExamDate, selectedClassSubject);
              if (aiFeedback && aiFeedback.data) {
                  const studentFeedback = aiFeedback.data.find((f: any) => f.studentId === student.id || f.studentId === student.studentId);
                  if (studentFeedback) {
@@ -441,12 +602,193 @@ export const ExaminationModule = () => {
   const [seatingSaved, setSeatingSaved] = useState(false);
   const [savedSeatingLists, setSavedSeatingLists] = useState<any[]>(() => getPersistentData('acronexus_seating', []));
   const [seatingViewMode, setSeatingViewMode] = useState<'saved' | 'create' | 'view'>('saved');
-  
 
+  // Examination Attendance (Admin)
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'>>({});
+  const [persistedAttendanceMap, setPersistedAttendanceMap] = useState<Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'>>({});
+  const [attendanceLoaded, setAttendanceLoaded] = useState(false);
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [activeContext, setActiveContext] = useState<any>(null);
+  const [availableContexts, setAvailableContexts] = useState<any[]>([]);
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState<any[]>([]);
+  const [attendanceViewMode, setAttendanceViewMode] = useState<'cards' | 'detail' | 'setup' | 'saved'>('cards');
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [savedAttendanceContexts, setSavedAttendanceContexts] = useState<any[]>([]);
+  const [attendanceSetupDate, setAttendanceSetupDate] = useState<string>('');
+  const [attendanceSetupSubjectMap, setAttendanceSetupSubjectMap] = useState<Record<string, string>>({});
+  const [availableSubjectsMap, setAvailableSubjectsMap] = useState<Record<string, any[]>>({});
+  const [isFetchingSubjects, setIsFetchingSubjects] = useState(false);
+  const [selectedAttendanceRoomId, setSelectedAttendanceRoomId] = useState<string | null>(null);
+
+  // Modal States
+  const [showDiscardAttendanceModal, setShowDiscardAttendanceModal] = useState(false);
+  const [showUnmarkedAttendanceModal, setShowUnmarkedAttendanceModal] = useState(false);
+  const [showDeleteSeatingModal, setShowDeleteSeatingModal] = useState(false);
+  const [isDeletingSeating, setIsDeletingSeating] = useState(false);
 
   useEffect(() => {
     setPersistentData('acronexus_seating', savedSeatingLists);
   }, [savedSeatingLists]);
+
+  useEffect(() => {
+    // Reset temporary setup state when switching exams
+    setAttendanceSetupDate('');
+    setAttendanceSetupSubjectMap({});
+    setAvailableSubjectsMap({});
+    setIsFetchingSubjects(false);
+    setActiveContext(null);
+    setAttendanceViewMode('cards');
+    setSelectedAttendanceRoomId(null);
+    setAttendanceMap({});
+    setPersistedAttendanceMap({});
+    setAttendanceLoaded(false);
+  }, [selectedExam?.id]);
+
+
+  useEffect(() => {
+    const fetchSeatingPlan = async () => {
+      if ((activeTab !== 'seating' && activeTab !== 'attendance') || !selectedExam) return;
+      
+      setIsLoadingData(true);
+      try {
+        const res = await api.get(`/examinations/${selectedExam.id}/seating`);
+        if (res.data.success && res.data.data) {
+           setSeatingGenerated(res.data.data);
+           setSeatingSaved(true);
+           setSeatingViewMode('saved');
+        } else {
+           setSeatingGenerated(null);
+           setSeatingSaved(false);
+           setSeatingViewMode('create');
+        }
+      } catch (err: any) {
+        if (err.response?.status === 404 || err.response?.status === 400) {
+           setSeatingGenerated(null);
+           setSeatingSaved(false);
+           setSeatingViewMode('create');
+        } else {
+           toast.error(err.response?.data?.message || "Failed to fetch seating plan");
+        }
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+    fetchSeatingPlan();
+  }, [activeTab, selectedExam]);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (activeTab !== 'attendance' || !selectedExam || !seatingSaved) return;
+
+      setIsLoadingData(true);
+      try {
+        const res = await api.get(`/examinations/${selectedExam.id}/attendance`);
+        if (res.data.success && res.data.data) {
+           setAllAttendanceRecords(res.data.data);
+        } else {
+           setAllAttendanceRecords([]);
+        }
+      } catch (err: any) {
+        console.error("Failed to load attendance", err);
+        setAllAttendanceRecords([]);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+    fetchAttendance();
+  }, [activeTab, selectedExam, seatingSaved]);
+
+  useEffect(() => {
+    const map: Record<string, 'UNMARKED' | 'PRESENT' | 'ABSENT'> = {};
+    let subset = allAttendanceRecords;
+
+    if (activeContext) {
+      if (activeContext.isSavedView) {
+          subset = allAttendanceRecords.filter((a: any) => 
+              a.examDate === activeContext.examDate && a.classSubjectId === activeContext.classSubjectId
+          );
+      } else if (activeContext.examDate && activeContext.sectionSubjectMap) {
+          const mappedSubjects = Object.values(activeContext.sectionSubjectMap);
+          subset = allAttendanceRecords.filter((a: any) => 
+              a.examDate === activeContext.examDate && mappedSubjects.includes(a.classSubjectId)
+          );
+      }
+    }
+    
+    subset.forEach((a: any) => {
+        map[a.studentId] = a.isPresent ? 'PRESENT' : 'ABSENT';
+    });
+    setAttendanceMap(map);
+    setPersistedAttendanceMap(map);
+    setAttendanceLoaded(true);
+  }, [allAttendanceRecords, activeContext]);
+
+  useEffect(() => {
+    if (attendanceViewMode !== 'saved' || !selectedExam) return;
+
+    const buildSavedContexts = async () => {
+       const contextsMap = new Map<string, any>();
+       
+       allAttendanceRecords.forEach(a => {
+           if (!a.examDate || !a.classSubjectId) return;
+           const key = `${a.examDate}_${a.classSubjectId}`;
+           if (!contextsMap.has(key)) {
+               contextsMap.set(key, {
+                   examDate: a.examDate,
+                   classSubjectId: a.classSubjectId,
+                   isSavedView: true,
+                   presentCount: 0,
+                   absentCount: 0,
+                   records: []
+               });
+           }
+           const ctx = contextsMap.get(key);
+           ctx.records.push(a);
+           if (a.isPresent) ctx.presentCount++;
+           else ctx.absentCount++;
+       });
+
+       const subjectNameMap = new Map<string, string>();
+       const classInfoMap = new Map<string, { className: string, classId: string }>();
+
+       if (selectedExam.classIds) {
+           await Promise.all(selectedExam.classIds.map((classId: string) => 
+               api.get(`/v1/class-subjects/class/${classId}`).then((r: any) => {
+                   const arr = Array.isArray(r.data) ? r.data : (r.data?.data || []);
+                   arr.forEach((s: any) => {
+                       subjectNameMap.set(s.id, s.subjectName || s.subject?.name || 'Unknown');
+                       if (s.classId) {
+                           classInfoMap.set(s.id, { className: s.classSection || s.className, classId: s.classId });
+                       } else if (s.acroClass) {
+                           classInfoMap.set(s.id, { className: s.acroClass.section || s.acroClass.name, classId: s.acroClass.id });
+                       }
+                   });
+               }).catch(() => {})
+           ));
+       }
+
+       const finalContexts: any[] = [];
+       contextsMap.forEach(ctx => {
+           const name = subjectNameMap.get(ctx.classSubjectId) || 'Unknown Subject';
+           const classInfo = classInfoMap.get(ctx.classSubjectId) || { className: 'Unknown Class', classId: '' };
+           finalContexts.push({
+               ...ctx,
+               subjectName: name,
+               className: classInfo.className,
+               functionalClassId: classInfo.classId
+           });
+       });
+       
+       finalContexts.sort((a, b) => {
+           if (a.examDate !== b.examDate) return a.examDate.localeCompare(b.examDate);
+           return a.className.localeCompare(b.className);
+       });
+
+       setSavedAttendanceContexts(finalContexts);
+    };
+
+    buildSavedContexts();
+  }, [attendanceViewMode, selectedExam, allAttendanceRecords]);
 
   useEffect(() => {
     const fetchInvigilators = async () => {
@@ -466,6 +808,8 @@ export const ExaminationModule = () => {
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomNumber, setNewRoomNumber] = useState('');
   const [newRoomBenches, setNewRoomBenches] = useState('');
+  const [newRoomNumRows, setNewRoomNumRows] = useState('');
+  const [newRoomRowConfig, setNewRoomRowConfig] = useState<any[]>([]);
   const [newRoomMaxPerBench, setNewRoomMaxPerBench] = useState('2');
   const [newRoomInvigilators, setNewRoomInvigilators] = useState<string[]>([]);
   const [invigilatorsList, setInvigilatorsList] = useState<any[]>([]);
@@ -502,6 +846,39 @@ export const ExaminationModule = () => {
     }
   }, [selectedClass]);
 
+  useEffect(() => {
+    if (attendanceViewMode === 'setup' && selectedExam?.classIds) {
+      setIsFetchingSubjects(true);
+      
+      const fetchAllSubjects = async () => {
+        const newMap: Record<string, any[]> = {};
+        
+        await Promise.all(
+          selectedExam.classIds.map(async (classId: string) => {
+            try {
+              const res = await api.get(`/v1/class-subjects/class/${classId}`);
+              if (Array.isArray(res.data)) {
+                newMap[classId] = res.data;
+              } else if (res.data && res.data.data) {
+                newMap[classId] = res.data.data;
+              } else {
+                newMap[classId] = [];
+              }
+            } catch (err) {
+              console.error(`Failed to fetch class subjects for class ${classId}`, err);
+              newMap[classId] = [];
+            }
+          })
+        );
+        
+        setAvailableSubjectsMap(newMap);
+        setIsFetchingSubjects(false);
+      };
+      
+      fetchAllSubjects();
+    }
+  }, [attendanceViewMode, selectedExam?.id, selectedExam?.classIds]);
+
   const openCreateForm = (exam: any = null) => {
     if (exam) {
       setEditingExamId(exam.id);
@@ -515,6 +892,7 @@ export const ExaminationModule = () => {
       setCreateEndDate(exam.endDate);
       setCreateDescription(exam.description || '');
       setCreateTimetableFile(null);
+      setCreateCoordinatorAssignmentId(exam.coordinatorAssignmentId || '');
     } else {
       setEditingExamId(null);
       setCreateExamName('');
@@ -528,6 +906,12 @@ export const ExaminationModule = () => {
       setCreateEndDate('');
       setCreateDescription('');
       setCreateTimetableFile(null);
+      setCreateCoordinatorAssignmentId('');
+      
+      // Auto-select if non-hod and exactly 1 active assignment
+      if (role !== 'hod' && examCapabilities?.activeCoordinatorAssignments?.length === 1) {
+          setCreateCoordinatorAssignmentId(examCapabilities.activeCoordinatorAssignments[0].id);
+      }
     }
     setIsCreatingExam(true);
   };
@@ -538,11 +922,15 @@ export const ExaminationModule = () => {
       return;
     }
 
+    if (role !== 'hod' && !createCoordinatorAssignmentId) {
+      toast.error("Please select the coordinator assignment you are fulfilling.");
+      return;
+    }
+
     if (new Date(createEndDate) < new Date(createStartDate)) {
       toast.error("End Date cannot be before Start Date.");
       return;
     }
-    
     // Prepare DTO
     const requestDto = {
       name: createExamName,
@@ -555,7 +943,8 @@ export const ExaminationModule = () => {
       description: createDescription,
       startDate: createStartDate,
       endDate: createEndDate,
-      timetableFileId: null 
+      timetableFileId: null,
+      coordinatorAssignmentId: createCoordinatorAssignmentId || null
     };
 
     try {
@@ -596,6 +985,46 @@ export const ExaminationModule = () => {
     }
   };
   
+  const handleAssignCoordinator = async () => {
+    if (!assignFacultyId || !assignExamPurpose || !assignValidUntil) {
+      toast.error("Please fill all required fields.");
+      return;
+    }
+    
+    setIsAssigningCoordinator(true);
+    try {
+      const payload = {
+        assignedUserId: assignFacultyId,
+        examPurpose: assignExamPurpose,
+        validUntil: assignValidUntil
+      };
+      const res = await api.post('/exam-coordinator-assignments', payload);
+      if (res.data.success) {
+        toast.success("Exam coordinator assigned successfully");
+        setDepartmentAssignments([res.data.data, ...departmentAssignments]);
+        setAssignFacultyId('');
+        setAssignExamPurpose('');
+        setAssignValidUntil('');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to assign exam coordinator");
+    } finally {
+      setIsAssigningCoordinator(false);
+    }
+  };
+
+  const handleRevokeCoordinator = async (id: string) => {
+    try {
+      const res = await api.patch(`/exam-coordinator-assignments/${id}/revoke`);
+      if (res.data.success) {
+        toast.success("Assignment revoked successfully");
+        setDepartmentAssignments(departmentAssignments.map(a => a.id === id ? { ...a, isActive: false } : a));
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to revoke assignment");
+    }
+  };
+
   const handleDeleteExam = (id: string) => {
     setExamToDelete(id);
   };
@@ -887,20 +1316,25 @@ export const ExaminationModule = () => {
           <h2 className="text-2xl font-black tracking-tight text-foreground">Examination Module</h2>
           <p className="text-muted-foreground mt-1 text-sm font-medium">Manage and view official examinations</p>
         </div>
-        {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {examCapabilities?.canAssignExamCoordinator && (
+            <Button onClick={() => setShowAssignModal(true)} variant="outline" className="gap-2">
+              <Plus size={16} /> Assign Exam Coordinator
+            </Button>
+          )}
+          {examCapabilities?.canCreateExamination && (
             <Button onClick={() => openCreateForm()} className="bg-primary text-primary-foreground gap-2">
               <Plus size={16} /> Create New Examination
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {exams.map(exam => (
           <div 
             key={exam.id} 
-            onClick={() => { setSelectedExam(exam); setActiveTab('timetable'); }}
+            onClick={() => { setSelectedExam(exam); setActiveTab('timetable'); setAttendanceViewMode('cards'); setSelectedAttendanceRoomId(null); setAttendanceMap({}); setPersistedAttendanceMap({}); setAttendanceLoaded(false); }}
             className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md hover:border-primary/50 transition-all cursor-pointer group flex flex-col h-full"
           >
             <div className="flex justify-between items-start mb-4">
@@ -959,6 +1393,17 @@ export const ExaminationModule = () => {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-sm p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {role !== 'hod' && examCapabilities?.activeCoordinatorAssignments && examCapabilities.activeCoordinatorAssignments.length > 0 && (
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">Fulfilling Assignment *</label>
+              <select className="w-full p-2 border border-border rounded-lg bg-background" value={createCoordinatorAssignmentId} onChange={e => setCreateCoordinatorAssignmentId(e.target.value)}>
+                <option value="">Select active assignment...</option>
+                {examCapabilities.activeCoordinatorAssignments.map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.examPurpose} (Valid until {new Date(a.validUntil).toLocaleDateString()})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Examination Name *</label>
             <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Mid Semester Examination" value={createExamName} onChange={e => setCreateExamName(e.target.value)} />
@@ -1111,6 +1556,7 @@ export const ExaminationModule = () => {
           { id: 'timetable', label: 'Timetable', icon: <CalendarDays size={16} /> },
           { id: 'eligibility', label: 'Eligible Students', icon: <Users size={16} /> },
           { id: 'seating', label: 'Seating Arrangement', icon: <LayoutGrid size={16} /> },
+          { id: 'attendance', label: 'Attendance', icon: <CheckCircle size={16} /> },
           { id: 'results', label: 'Result Management', icon: <Award size={16} /> },
           { id: 'info', label: 'Examination Information', icon: <FileText size={16} /> }
         ]
@@ -1158,6 +1604,7 @@ export const ExaminationModule = () => {
             {activeTab === 'timetable' && renderTimetable()}
             {activeTab === 'eligibility' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && renderEligibilityGenerator()}
             {activeTab === 'seating' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && renderSeatingGenerator()}
+            {activeTab === 'attendance' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && renderAttendanceTab()}
             {activeTab === 'results' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && renderResultManagement()}
             {activeTab === 'results' && role === 'student' && renderStudentResults()}
             {activeTab === 'analytics' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && renderResultAnalytics()}
@@ -1302,7 +1749,7 @@ export const ExaminationModule = () => {
     
     try {
       setUploadStatus('extracting');
-      const response = await examResultService.uploadResults(file, selectedExam?.id, selectedClass);
+      const response = await examResultService.uploadResults(file, selectedExam?.id, undefined, selectedExamDate, selectedClassSubject);
       
       if (response && response.processingStatus === 'COMPLETED' || response.processingStatus === 'PARTIAL_SUCCESS') {
          toast.success(`Upload processed. Inserted: ${response.successfullyInserted || 0}, Updated: ${response.updatedRecords || 0}`);
@@ -1316,8 +1763,8 @@ export const ExaminationModule = () => {
       setUploadStatus('completed');
       setIsUploading(false);
       
-      if (selectedExam && selectedClass) {
-         const res = await examResultService.getResultsByExamAndClass(selectedExam.id, selectedClass);
+      if (selectedExam && selectedClassSubject && selectedExamDate) {
+         const res = await examResultService.getResultsByContext(selectedExam.id, selectedExamDate, selectedClassSubject);
          if (res.success && res.data) {
              const grouped = res.data.reduce((acc: any, row: any) => {
                  if (!acc[row.studentId]) {
@@ -1647,58 +2094,182 @@ export const ExaminationModule = () => {
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
-          <div>
-            <h3 className="font-bold">Result Management</h3>
-            <p className="text-sm text-muted-foreground">Select a class to upload or manage results for {selectedExam?.name}</p>
+        <div className="flex flex-col gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="font-bold">Result Management</h3>
+              <p className="text-sm text-muted-foreground">Select a context to upload or manage results for {selectedExam?.name}</p>
+            </div>
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+              <Button 
+                 variant={resultViewMode === 'saved' ? 'default' : 'outline'}
+                 onClick={() => {
+                   setResultViewMode('saved');
+                   setUploadStatus('idle');
+                   setUploadedMarks([]);
+                   setResultUploadMethod(null);
+                   setResultSaved(false);
+                 }}
+                 className="gap-2"
+              >
+                 <FolderOpen size={16}/> Saved Results
+              </Button>
+              <Button 
+                 variant={resultViewMode === 'create' ? 'default' : 'outline'}
+                 onClick={() => {
+                   setResultViewMode('create');
+                   setUploadStatus('idle');
+                   setUploadedMarks([]);
+                   setResultUploadMethod(null);
+                   setResultSaved(false);
+                 }}
+                 className="gap-2"
+                 disabled={!selectedClassSubject || !selectedExamDate}
+              >
+                 <Plus size={16}/> Create Result
+              </Button>
+              {resultViewMode === 'view' && (
+                  <Button variant="default" className="gap-2 bg-indigo-600 hover:bg-indigo-700 pointer-events-none">
+                    <Eye size={16}/> Viewing Saved Result
+                  </Button>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <Button 
-               variant={resultViewMode === 'saved' ? 'default' : 'outline'}
-               onClick={() => {
-                 setResultViewMode('saved');
-                 setUploadStatus('idle');
-                 setUploadedMarks([]);
-                 setResultUploadMethod(null);
-                 setResultSaved(false);
-               }}
-               className="gap-2"
-            >
-               <FolderOpen size={16}/> Saved Results
-            </Button>
-            <Button 
-               variant={resultViewMode === 'create' ? 'default' : 'outline'}
-               onClick={() => {
-                 setResultViewMode('create');
-                 setUploadStatus('idle');
-                 setUploadedMarks([]);
-                 setResultUploadMethod(null);
-                 setResultSaved(false);
-               }}
-               className="gap-2"
-            >
-               <Plus size={16}/> Create Result
-            </Button>
-            {resultViewMode === 'view' && (
-                <Button variant="default" className="gap-2 bg-indigo-600 hover:bg-indigo-700 pointer-events-none">
-                  <Eye size={16}/> Viewing Saved Result
-                </Button>
-            )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-3 rounded-lg border border-border/50">
             <select 
-              className="p-2 border border-border rounded-lg bg-background min-w-[200px]"
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
               value={selectedClass}
               onChange={(e) => {
                 setSelectedClass(e.target.value);
+                setSelectedClassSubject('');
+                setSelectedExamDate('');
                 setResultUploadMethod(null);
                 setUploadedFile(null);
                 setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
                 if (resultViewMode === 'view') setResultViewMode('create');
               }}
             >
               <option value="">-- Select Class --</option>
-              {examClasses.map((c: string) => <option key={c} value={c}>{c}</option>)}
+              {selectedExam?.classIds?.map((id: string, idx: number) => <option key={id} value={id}>{selectedExam.classNames[idx]}</option>)}
+            </select>
+            <select 
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+              value={selectedClassSubject}
+              onChange={(e) => {
+                setSelectedClassSubject(e.target.value);
+                setSelectedExamDate('');
+                setResultUploadMethod(null);
+                setUploadedFile(null);
+                setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
+                if (resultViewMode === 'view') setResultViewMode('create');
+              }}
+              disabled={!selectedClass || isSubjectsLoading}
+            >
+              <option value="">
+                {isSubjectsLoading ? 'Loading Subjects...' : (availableSubjects.length === 0 && selectedClass ? 'No subjects found for this class.' : '-- Select Subject --')}
+              </option>
+              {availableSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.subjectName || s.subject?.name}</option>)}
+            </select>
+            <select 
+              className="flex-1 p-2 border border-border rounded-lg bg-background min-w-0"
+              value={selectedExamDate}
+              onChange={(e) => {
+                setSelectedExamDate(e.target.value);
+                setResultUploadMethod(null);
+                setUploadedFile(null);
+                setUploadStatus('idle');
+                setUploadedMarks([]);
+                setAiFeedbackStep('');
+                if (resultViewMode === 'view') setResultViewMode('create');
+              }}
+              disabled={!selectedClassSubject || isDatesLoading}
+            >
+              <option value="">
+                 {!selectedClassSubject ? '-- Select Subject First --' : (isDatesLoading ? 'Loading Dates...' : (availableDates.length === 0 ? 'No saved attendance found for this subject.' : '-- Select Date --'))}
+              </option>
+              {availableDates.map((d: string) => {
+                 const parts = d.split('-');
+                 const display = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : d;
+                 return <option key={d} value={d}>{display}</option>;
+              })}
             </select>
           </div>
+        </div>
+
+        <div className="bg-card border border-border p-4 rounded-xl shadow-sm flex flex-col gap-4 mt-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+             <div>
+                <h4 className="font-bold">Present Students</h4>
+                <p className="text-sm text-muted-foreground">Download present students list for marks preparation.</p>
+             </div>
+             <div className="flex gap-2 items-center">
+                 <Button disabled={!selectedClassSubject || !selectedExamDate || isExporting} onClick={handleDownloadPresentStudentsExcel}>
+                    {isExporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <Download size={16} className="mr-2"/>}
+                    Download Excel
+                 </Button>
+             </div>
+          </div>
+          
+          {selectedClass && selectedClassSubject && (
+             <div className="p-3 bg-muted/30 border-b border-border flex gap-6 text-sm rounded-lg mb-2 border">
+                <span><span className="font-semibold text-muted-foreground mr-1">Class:</span> {selectedExam?.classNames?.[selectedExam?.classIds?.indexOf(selectedClass)] || 'Unknown'}</span>
+                <span><span className="font-semibold text-muted-foreground mr-1">Subject:</span> {availableSubjects.find((s:any) => s.id === selectedClassSubject)?.subjectName || 'Unknown'}</span>
+                <span><span className="font-semibold text-muted-foreground mr-1">Date:</span> {selectedExamDate ? new Date(selectedExamDate).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Not selected'}</span>
+             </div>
+          )}
+
+          {isPresentStudentsLoading && (
+              <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 size={32} className="animate-spin text-primary" />
+                  <p>Loading present students...</p>
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && presentStudentsError && (
+              <div className="p-4 bg-rose-50 text-rose-600 rounded-lg border border-rose-200">
+                  {presentStudentsError}
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && selectedClassSubject && selectedExamDate && presentStudentsForSection && presentStudentsForSection.length === 0 && (
+              <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
+                  <p>No present students found. Examination attendance may not have been recorded for this section yet.</p>
+              </div>
+          )}
+          
+          {!isPresentStudentsLoading && presentStudentsForSection && presentStudentsForSection.length > 0 && (
+             <div className="overflow-x-auto rounded-lg border border-border mt-2">
+                 <table className="w-full text-sm text-left">
+                     <thead className="text-xs uppercase bg-muted/50 border-b border-border">
+                         <tr>
+                             <th className="px-4 py-3 font-semibold">S.No.</th>
+                             <th className="px-4 py-3 font-semibold">Enrollment No</th>
+                             <th className="px-4 py-3 font-semibold">Student Name</th>
+                             <th className="px-4 py-3 font-semibold">Section</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-border">
+                         {presentStudentsForSection.map((student: any, idx: number) => (
+                             <tr key={student.enrollmentNo} className="hover:bg-accent/20">
+                                 <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                                 <td className="px-4 py-3 font-medium">{student.enrollmentNo}</td>
+                                 <td className="px-4 py-3">{student.studentName}</td>
+                                 <td className="px-4 py-3">
+                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                         {student.section}
+                                     </span>
+                                 </td>
+                             </tr>
+                         ))}
+                     </tbody>
+                 </table>
+             </div>
+          )}
         </div>
 
         {resultViewMode === 'saved' && (
@@ -1727,17 +2298,21 @@ export const ExaminationModule = () => {
                  
                  <div className="flex gap-2">
                    <Button variant="outline" className="flex-1 gap-2" onClick={() => {
-                     setSelectedClass(res.className);
-                     setUploadedMarks(res.marks);
-                     setUploadStatus('completed');
-                     setResultUploadMethod('upload');
-                     setResultViewMode('view');
-                   }}>
+                      const classIdx = selectedExam?.classNames?.indexOf(res.className);
+                      const classIdToSet = (classIdx !== undefined && classIdx >= 0) ? selectedExam?.classIds?.[classIdx] : res.className;
+                      setSelectedClass(classIdToSet || '');
+                      setSelectedClassSubject(res.classSubjectId);
+                      setSelectedExamDate(res.examDate);
+                      setUploadedMarks(res.marks);
+                      setUploadStatus('completed');
+                      setResultUploadMethod('upload');
+                      setResultViewMode('view');
+                    }}>
                      <Eye size={16}/> View
                    </Button>
                    <Button variant="outline" className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 gap-2 px-3" onClick={async () => {
                        try {
-                         await examResultService.deleteResultsForClass(selectedExam.id, res.className);
+                         await examResultService.deleteResultsForClass(selectedExam.id, undefined, res.examDate, res.classSubjectId);
                          setSavedResults(savedResults.filter(r => r.id !== res.id));
                          toast.success("Saved result and published data deleted successfully");
                        } catch (e: any) {
@@ -2933,16 +3508,19 @@ export const ExaminationModule = () => {
         return invig ? `${invig.firstName} ${invig.lastName || ''}`.trim() : '';
       }),
       startTime: newRoomStartTime,
-      endTime: newRoomEndTime
+      endTime: newRoomEndTime,
+      rowConfig: newRoomRowConfig.length > 0 && newRoomNumRows ? newRoomRowConfig.slice(0, parseInt(newRoomNumRows)).map(v => parseInt(v) || 0) : undefined
     }]);
     setNewRoomName('');
     setNewRoomBenches('');
+    setNewRoomNumRows('');
+    setNewRoomRowConfig([]);
     setNewRoomInvigilators([]);
   };
 
 
 
-  const handleGenerateSeatingClick = () => {
+  const handleGenerateSeatingClick = async () => {
     const totalCapacity = seatRooms.reduce((acc, r) => acc + (r.benches * (r.maxPerBench || seatingConfig.maxPerBench)), 0);
     // 1. Fetch Eligibility List if not loaded
     let studentsForSeating = elgGeneratedList;
@@ -2972,58 +3550,823 @@ export const ExaminationModule = () => {
        return;
     }
     
-    // Basic allocation logic based on eligible students
-    let studentIndex = 0;
-    const roomAllocations = seatRooms.map((r) => {
-       const capacity = r.benches * (r.maxPerBench || seatingConfig.maxPerBench);
-       const studentsInRoom: any[] = [];
-       
-       let rNum = 1;
-       let bNum = 1;
-       let sNum = 0; // 0=LEFT, 1=RIGHT
-       
-       for (let i = 0; i < capacity && studentIndex < eligibleStudents.length; i++) {
-           const st = eligibleStudents[studentIndex++];
-           studentsInRoom.push({
-              ...st,
-              rowNum: `R${rNum}`,
-              benchNum: `B${bNum}`,
-              seatPosition: sNum === 0 ? 'LEFT' : 'RIGHT'
-           });
-           
-           sNum++;
-           if (sNum > 1) {
-               sNum = 0;
-               bNum++;
-               if (bNum > (r.maxPerBench || seatingConfig.maxPerBench)) { // Assuming basic layout
-                   rNum++;
-               }
-           }
-       }
-       
-       return {
-          id: r.id,
-          name: r.name,
-          number: r.number,
-          benches: r.benches,
-          maxPerBench: r.maxPerBench,
-          allocated: studentsInRoom.length,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          invigilatorNames: r.invigilatorNames,
-          students: studentsInRoom
-       };
-    });
-    
-    setSeatingGenerated({
-       totalStudents,
-       roomsUtilized: seatRooms.length,
-       totalCapacity,
-       unallocatedStudents: 0,
-       roomAllocations
-    });
-    setSeatingViewMode('view');
+    try {
+        const payload = {
+            rooms: seatRooms.map(r => ({
+                id: r.id,
+                name: r.name,
+                number: r.number,
+                benches: r.benches,
+                maxPerBench: r.maxPerBench || seatingConfig.maxPerBench,
+                invigilatorIds: r.invigilatorIds,
+                rowConfig: r.rowConfig
+            })),
+            eligibleEnrollments: eligibleStudents.map((s:any) => s.enrollment)
+        };
+        const res = await api.post(`/examinations/${selectedExam.id}/seating/generate`, payload);
+        if (res.data.success) {
+            setSeatingGenerated(res.data.data);
+            setSeatingViewMode('view');
+            toast.success("Seating plan generated successfully");
+        }
+    } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to generate seating plan on backend");
+    }
   };
+
+  // --- RENDER: DISCARD ATTENDANCE MODAL ---
+  const renderDiscardAttendanceModal = () => (
+    <AnimatePresence>
+      {showDiscardAttendanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full overflow-hidden"
+          >
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-foreground">Discard unsaved attendance changes?</h3>
+              <p className="text-sm text-muted-foreground">
+                You have unsaved changes in this room. If you go back, these changes will be lost.
+              </p>
+            </div>
+            <div className="flex border-t border-border bg-accent/30 p-4 gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowDiscardAttendanceModal(false)}>Continue Editing</Button>
+              <Button className="flex-1 bg-amber-600 text-white hover:bg-amber-700" onClick={() => {
+                setShowDiscardAttendanceModal(false);
+                setAttendanceMap(persistedAttendanceMap);
+                setAttendanceViewMode('cards');
+                setSelectedAttendanceRoomId(null);
+              }}>Discard Changes</Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+
+  // --- RENDER: UNMARKED ATTENDANCE MODAL ---
+  const renderUnmarkedAttendanceModal = () => {
+    const room = seatingGenerated?.roomAllocations?.find((r: any) => r.id === selectedAttendanceRoomId);
+    const roomName = room ? (room.roomNumber || room.number) : '';
+    
+    return (
+      <AnimatePresence>
+        {showUnmarkedAttendanceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full overflow-hidden"
+            >
+              <div className="p-6 text-center space-y-4">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Unmarked Students</h3>
+                <p className="text-sm text-muted-foreground">
+                  Some students in Room {roomName} are still unmarked. Only marked students will be saved. Continue?
+                </p>
+              </div>
+              <div className="flex border-t border-border bg-accent/30 p-4 gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowUnmarkedAttendanceModal(false)}>Cancel</Button>
+                <Button className="flex-1 bg-primary text-primary-foreground" onClick={() => {
+                  setShowUnmarkedAttendanceModal(false);
+                  executeSaveAttendance();
+                }}>Save Marked Students</Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
+  const executeSaveAttendance = async () => {
+    let studentsToSave: { studentId: string, isPresent: boolean }[] = [];
+    let payload: any = { attendanceList: [] };
+
+    if (!selectedAttendanceRoomId || !seatingGenerated) return;
+    const room = seatingGenerated.roomAllocations.find((r: any) => r.id === selectedAttendanceRoomId);
+    if (!room || !room.students) return;
+
+    room.students.forEach((studentInfo: any) => {
+      const sId = studentInfo.studentId;
+      if (!sId) return;
+      
+      const isOutsideContext = activeContext?.isSavedView && 
+                               activeContext.className && 
+                               studentInfo.className && 
+                               studentInfo.className !== activeContext.className;
+      if (isOutsideContext) return;
+      
+      const status = attendanceMap[sId];
+      if (status === 'PRESENT' || status === 'ABSENT') {
+        studentsToSave.push({
+          studentId: sId,
+          isPresent: status === 'PRESENT'
+        });
+      }
+    });
+
+    if (activeContext) {
+      const sectionSubjectMap = activeContext.sectionSubjectMap || 
+         (activeContext.functionalClassId && activeContext.classSubjectId ? 
+            { [activeContext.functionalClassId]: activeContext.classSubjectId } : undefined);
+            
+      payload = {
+          examDate: activeContext.examDate,
+          sectionSubjectMap: sectionSubjectMap,
+          attendanceList: studentsToSave
+      };
+    } else {
+      payload = { attendanceList: studentsToSave };
+    }
+
+    if (studentsToSave.length === 0) return;
+
+    setIsSavingAttendance(true);
+    try {
+      const res = await api.post(`/examinations/${selectedExam.id}/attendance`, payload);
+      if (res.data.success) {
+        toast.success("Attendance saved successfully");
+        const res2 = await api.get(`/examinations/${selectedExam.id}/attendance`);
+        if (res2.data.success && res2.data.data) {
+           setAllAttendanceRecords(res2.data.data);
+        }
+        setAttendanceViewMode('cards');
+        setSelectedAttendanceRoomId(null);
+        setActiveContext(null);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to save attendance");
+    } finally {
+      setIsSavingAttendance(false);
+    }
+  };
+
+  // --- RENDER: ATTENDANCE TAB ---
+  const renderAttendanceTab = () => {
+    if (!seatingSaved || !seatingGenerated) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-border rounded-xl">
+          <CheckCircle size={48} className="text-muted-foreground mb-4 opacity-20" />
+          <h3 className="text-lg font-bold text-foreground">No Saved Seating Arrangement</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+            Attendance can only be marked after a seating arrangement has been generated and saved. Please go to the Seating Arrangement tab, generate a plan, and save it first.
+          </p>
+        </div>
+      );
+    }
+
+    const checkDirty = () => {
+      if (!selectedAttendanceRoomId) return false;
+      const room = seatingGenerated.roomAllocations.find((r: any) => r.id === selectedAttendanceRoomId);
+      if (!room || !room.students) return false;
+      
+      let isDirty = false;
+      room.students.forEach((s: any) => {
+        if (!s.studentId) return;
+        if (attendanceMap[s.studentId] !== persistedAttendanceMap[s.studentId]) {
+          isDirty = true;
+        }
+      });
+      return isDirty;
+    };
+
+    const handleBackToCards = () => {
+      if (checkDirty()) {
+        setShowDiscardAttendanceModal(true);
+      } else {
+        setAttendanceViewMode('cards');
+        setSelectedAttendanceRoomId(null);
+      }
+    };
+
+    const handleMarkAllPresent = (roomId: string) => {
+      const room = seatingGenerated.roomAllocations.find((r: any) => r.id === roomId);
+      if (!room || !room.students) return;
+
+      setAttendanceMap(prev => {
+        const newMap = { ...prev };
+        room.students.forEach((studentInfo: any) => {
+          if (studentInfo.studentId) {
+            newMap[studentInfo.studentId] = 'PRESENT';
+          }
+        });
+        return newMap;
+      });
+    };
+
+    const toggleStudentAttendance = (studentId: string) => {
+      setAttendanceMap(prev => {
+        const current = prev[studentId] || 'UNMARKED';
+        return {
+          ...prev,
+          [studentId]: current === 'PRESENT' ? 'ABSENT' : 'PRESENT'
+        };
+      });
+    };
+
+    const handleSaveAttendanceClick = () => {
+      if (!selectedAttendanceRoomId) return;
+      const room = seatingGenerated.roomAllocations.find((r: any) => r.id === selectedAttendanceRoomId);
+      if (!room || !room.students) return;
+
+      let hasUnmarked = false;
+      room.students.forEach((studentInfo: any) => {
+        const sId = studentInfo.studentId;
+        if (!sId) return;
+        const status = attendanceMap[sId];
+        if (!status || status === 'UNMARKED') {
+          hasUnmarked = true;
+        }
+      });
+
+      if (hasUnmarked) {
+        setShowUnmarkedAttendanceModal(true);
+      } else {
+        executeSaveAttendance();
+      }
+    };
+
+    const renderAttendanceSetup = () => {
+      const targetClasses = selectedExam?.classIds?.map((id: string, index: number) => ({
+        id: id,
+        name: selectedExam?.classNames?.[index] || 'Class'
+      })) || [];
+
+      const handleContinue = () => {
+        const finalSectionSubjectMap: Record<string, string> = {};
+        
+        Object.keys(attendanceSetupSubjectMap).forEach(parentId => {
+            const subjectId = attendanceSetupSubjectMap[parentId];
+            if (!subjectId) return;
+            
+            const classSubjects = availableSubjectsMap[parentId] || [];
+            const subjectObj = classSubjects.find((s: any) => s.id === subjectId);
+            
+            if (subjectObj && subjectObj.classId) {
+                finalSectionSubjectMap[subjectObj.classId] = subjectId;
+            } else if (subjectObj && subjectObj.acroClass && subjectObj.acroClass.id) {
+                finalSectionSubjectMap[subjectObj.acroClass.id] = subjectId;
+            } else {
+                finalSectionSubjectMap[parentId] = subjectId;
+            }
+        });
+
+        setActiveContext({
+            examinationId: selectedExam.id,
+            examDate: attendanceSetupDate,
+            sectionSubjectMap: finalSectionSubjectMap
+        });
+        setAttendanceViewMode('cards');
+      };
+
+      const isContinueDisabled = !attendanceSetupDate || 
+        targetClasses.length === 0 || 
+        !targetClasses.every((c: any) => Boolean(attendanceSetupSubjectMap[c.id]));
+
+      return (
+        <div className="space-y-6 max-w-4xl mx-auto mt-4">
+          <div className="bg-card border border-border rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-bold text-foreground mb-4">Setup New Attendance</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium mb-1">Step 1: Select Exam Date</label>
+                <input 
+                  type="date" 
+                  value={attendanceSetupDate} 
+                  onChange={(e) => setAttendanceSetupDate(e.target.value)}
+                  className="w-full p-2 border border-border rounded-md bg-background max-w-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-3">Step 2: Assign Subjects to Sections</label>
+                <div className="space-y-4">
+                  {targetClasses.map((c: any) => {
+                    const classSubjects = availableSubjectsMap[c.id] || [];
+                    return (
+                      <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-border rounded-lg bg-accent/30">
+                        <div className="sm:w-1/3 font-medium">
+                          {c.name}
+                        </div>
+                        <div className="sm:w-2/3">
+                          <select 
+                            className="w-full p-2 border border-border rounded-md bg-background"
+                            value={attendanceSetupSubjectMap[c.id] || ''}
+                            onChange={(e) => {
+                                setAttendanceSetupSubjectMap(prev => ({
+                                  ...prev,
+                                  [c.id]: e.target.value
+                                }));
+                            }}
+                            disabled={isFetchingSubjects}
+                          >
+                            <option value="">
+                              {isFetchingSubjects ? 'Loading Subjects...' : 
+                               (classSubjects.length === 0 ? 'No subjects assigned for this class' : '-- Select Subject --')}
+                            </option>
+                            {classSubjects.map((sub: any) => (
+                              <option key={sub.id} value={sub.id}>{sub.subjectName || sub.subject?.name || sub.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {targetClasses.length === 0 && (
+                    <div className="text-sm text-muted-foreground p-4 border border-border border-dashed rounded-lg text-center">
+                      No target classes found for this examination.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setAttendanceViewMode('cards')}>
+                  Cancel
+                </Button>
+                <Button onClick={handleContinue} disabled={isContinueDisabled}>
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+  const renderSavedAttendance = () => {
+    const groupedByDate: Record<string, any[]> = {};
+    savedAttendanceContexts.forEach(ctx => {
+        if (!groupedByDate[ctx.examDate]) groupedByDate[ctx.examDate] = [];
+        groupedByDate[ctx.examDate].push(ctx);
+    });
+
+    return (
+        <div className="space-y-6">
+           <div className="flex justify-between items-center">
+             <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                 <CheckCircle size={20} className="text-primary"/> Saved Attendance History
+             </h2>
+             <Button onClick={() => { setActiveContext(null); setAttendanceViewMode('cards'); }} variant="outline" className="shadow-sm hover:shadow-md transition-all font-medium">
+                 Back to Cards
+             </Button>
+           </div>
+           
+           {Object.keys(groupedByDate).length === 0 ? (
+               <div className="p-12 text-center text-muted-foreground bg-card border border-border rounded-xl shadow-sm">
+                   <div className="w-16 h-16 bg-muted text-muted-foreground rounded-full flex items-center justify-center mx-auto mb-4">
+                       <CheckCircle size={32} />
+                   </div>
+                   <h3 className="text-lg font-bold text-foreground mb-1">No Saved Attendance</h3>
+                   <p className="text-sm">Attendance records for this examination will appear here.</p>
+               </div>
+           ) : (
+               Object.keys(groupedByDate).sort().map(date => (
+                   <div key={date} className="space-y-4">
+                       <h3 className="text-lg font-bold border-b border-border pb-2 text-foreground">{date}</h3>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                           {groupedByDate[date].map(ctx => (
+                               <div key={ctx.classSubjectId} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col justify-between hover:border-primary/30 transition-colors">
+                                   <div>
+                                       <div className="flex justify-between items-start mb-3">
+                                           <h4 className="font-bold text-lg text-foreground line-clamp-2">{ctx.subjectName}</h4>
+                                           <span className="bg-primary/10 text-primary font-bold text-xs px-2.5 py-1 rounded-full">{ctx.className}</span>
+                                       </div>
+                                       <div className="flex gap-4 mt-4 bg-muted/30 p-3 rounded-lg border border-border/50">
+                                           <div className="flex-1 text-center">
+                                              <span className="block text-xl font-bold text-emerald-600 dark:text-emerald-400">{ctx.presentCount}</span>
+                                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Present</span>
+                                           </div>
+                                           <div className="w-px bg-border my-1"></div>
+                                           <div className="flex-1 text-center">
+                                              <span className="block text-xl font-bold text-rose-600 dark:text-rose-400">{ctx.absentCount}</span>
+                                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Absent</span>
+                                           </div>
+                                       </div>
+                                   </div>
+                                   <div className="flex gap-3 mt-5 pt-4 border-t border-border">
+                                       <Button 
+                                          variant="outline" 
+                                          className="flex-1 text-sm font-semibold border-primary/20 hover:bg-primary/5 text-primary" 
+                                          onClick={() => {
+                                              setActiveContext({
+                                                  isSavedView: true,
+                                                  examDate: ctx.examDate,
+                                                  classSubjectId: ctx.classSubjectId,
+                                                  functionalClassId: ctx.functionalClassId,
+                                                  className: ctx.className,
+                                                  label: `${ctx.examDate} - ${ctx.subjectName} (${ctx.className})`
+                                              });
+                                              setAttendanceViewMode('cards');
+                                          }}
+                                       >
+                                           View Attendance
+                                       </Button>
+                                       <Button 
+                                          variant="ghost" 
+                                          className="px-3 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                          onClick={() => {
+                                              setActiveContext({
+                                                  examDate: ctx.examDate,
+                                                  classSubjectId: ctx.classSubjectId,
+                                                  label: `Date: ${ctx.examDate}, Class: ${ctx.className}, Subject: ${ctx.subjectName}`
+                                              });
+                                              setShowDeleteAttendanceModal(true);
+                                          }}
+                                       >
+                                           <Trash2 size={18} />
+                                       </Button>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
+               ))
+           )}
+        </div>
+    );
+  };
+
+    if (attendanceViewMode === 'saved') {
+      return renderSavedAttendance();
+    }
+
+    if (attendanceViewMode === 'setup') {
+      return renderAttendanceSetup();
+    }
+
+    if (attendanceViewMode === 'cards') {
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                <CheckCircle size={20} className="text-primary"/> Examination Attendance
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">Select a room to view or mark student attendance.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setAttendanceViewMode('saved')} variant="outline" className="shadow-sm hover:shadow-md transition-all font-semibold">
+                Saved Attendance
+              </Button>
+              <Button 
+                onClick={() => {
+                  setAttendanceViewMode('setup');
+                  setAttendanceSetupSubjectMap({});
+                  setAttendanceSetupDate('');
+                  setActiveContext(null);
+                }} 
+className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transition-all gap-2 font-semibold">
+                <Plus size={16} /> Take New Attendance
+              </Button>
+            </div>
+          </div>
+          
+          {activeContext && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/50 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                <CheckCircle size={18} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Active Attendance Setup</h4>
+                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                  You are actively marking attendance for <strong>{activeContext.examDate}</strong>. 
+                  All saved attendance will be linked to the subjects mapped in your setup. 
+                  Click a room to mark students.
+                </p>
+                <Button 
+                   variant="link" 
+                   className="text-blue-600 dark:text-blue-400 p-0 h-auto text-xs mt-2"
+                   onClick={() => setActiveContext(null)}
+                >
+                  Clear Setup / View Historical Attendance
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {seatingGenerated.roomAllocations.map((room: any) => {
+              const studentList = room.students || [];
+              let presentCount = 0;
+              let absentCount = 0;
+              let unmarkedCount = 0;
+
+              studentList.forEach((s: any) => {
+                if (!s.studentId) return;
+                const status = attendanceMap[s.studentId] || 'UNMARKED';
+                if (status === 'PRESENT') presentCount++;
+                else if (status === 'ABSENT') absentCount++;
+                else unmarkedCount++;
+              });
+
+              return (
+                <div key={room.id} className="bg-card border border-border rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col h-full">
+                  <div className="p-5 border-b border-border bg-muted/20">
+                    <h3 className="text-lg font-bold text-foreground">Room {room.roomNumber || room.number}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Total Students: {studentList.length}</p>
+                  </div>
+                  <div className="p-5 flex-grow">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
+                        <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">{presentCount}</span>
+                        <span className="text-xs font-medium text-muted-foreground uppercase">Present</span>
+                      </div>
+                      <div className="bg-rose-50 dark:bg-rose-900/10 p-3 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                        <span className="block text-2xl font-bold text-rose-600 dark:text-rose-400">{absentCount}</span>
+                        <span className="text-xs font-medium text-muted-foreground uppercase">Absent</span>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <span className="block text-2xl font-bold text-gray-600 dark:text-gray-400">{unmarkedCount}</span>
+                        <span className="text-xs font-medium text-muted-foreground uppercase">Unmarked</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 border-t border-border">
+                    <Button 
+                      className="w-full bg-primary/10 text-primary hover:bg-primary/20"
+                      onClick={() => {
+                        setSelectedAttendanceRoomId(room.id);
+                        setRoomSearchQuery('');
+                        setAttendanceViewMode('detail');
+                      }}
+                    >
+                      {unmarkedCount === studentList.length && !attendanceLoaded ? 'Mark Attendance' : 'View / Edit Attendance'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // Detail View
+    let studentList: any[] = [];
+    let viewTitle = "";
+
+    const room = seatingGenerated?.roomAllocations?.find((r: any) => r.id === selectedAttendanceRoomId);
+    if (!room) return null;
+    viewTitle = `Room ${room.roomNumber || room.number} Attendance`;
+    studentList = room.students || [];
+
+    let presentCount = 0;
+    let absentCount = 0;
+    let unmarkedCount = 0;
+    let relevantStudentCount = 0;
+
+    studentList.forEach((studentInfo: any) => {
+      const isOutsideContext = activeContext?.isSavedView && 
+                               activeContext.className && 
+                               studentInfo.className && 
+                               studentInfo.className !== activeContext.className;
+      if (isOutsideContext) return;
+      
+      relevantStudentCount++;
+      const sId = studentInfo.studentId;
+      const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
+      if (status === 'PRESENT') presentCount++;
+      else if (status === 'ABSENT') absentCount++;
+      else unmarkedCount++;
+    });
+
+    const handleMarkAllPresentContext = () => {
+      setAttendanceMap(prev => {
+        const newMap = { ...prev };
+        studentList.forEach((studentInfo: any) => {
+          const isOutsideContext = activeContext?.isSavedView && 
+                                   activeContext.className && 
+                                   studentInfo.className && 
+                                   studentInfo.className !== activeContext.className;
+          if (isOutsideContext) return;
+          if (studentInfo.studentId) {
+            newMap[studentInfo.studentId] = 'PRESENT';
+          }
+        });
+        return newMap;
+      });
+    };
+
+    const handleSaveDetailAttendance = () => {
+      let unmarkedCountCheck = 0;
+      studentList.forEach((studentInfo: any) => {
+        const isOutsideContext = activeContext?.isSavedView && 
+                                 activeContext.className && 
+                                 studentInfo.className && 
+                                 studentInfo.className !== activeContext.className;
+        if (isOutsideContext) return;
+        
+        const sId = studentInfo.studentId;
+        const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
+        if (status === 'UNMARKED') unmarkedCountCheck++;
+      });
+
+      if (unmarkedCountCheck > 0) {
+        setShowUnmarkedAttendanceModal(true);
+      } else {
+        executeSaveAttendance();
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <Button variant="ghost" size="sm" onClick={() => { handleBackToCards(); setRoomSearchQuery(''); }} className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
+              <ChevronRight className="rotate-180 mr-1" size={16} /> Back to Room Cards
+            </Button>
+            <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+              <CheckCircle size={20} className="text-primary"/> {viewTitle}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+               Mark student attendance based on the saved seating arrangement.
+            </p>
+          </div>
+          <Button 
+            className="bg-primary text-primary-foreground gap-2" 
+            onClick={handleSaveDetailAttendance}
+            disabled={isSavingAttendance}
+          >
+            {isSavingAttendance ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
+            Save Attendance
+          </Button>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6">
+          <div className="bg-muted/30 p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-foreground">{viewTitle}</h3>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 text-sm text-muted-foreground font-medium">
+                <span>Total: <span className="text-foreground">{relevantStudentCount}</span></span>
+                <span className="text-emerald-600 dark:text-emerald-400">Present: {presentCount}</span>
+                <span className="text-rose-600 dark:text-rose-400">Absent: {absentCount}</span>
+                <span>Unmarked: {unmarkedCount}</span>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleMarkAllPresentContext}
+              className="whitespace-nowrap"
+            >
+              <CheckSquare size={16} className="mr-2 text-emerald-500" />
+              Mark All Present
+            </Button>
+          </div>
+          
+          <div className="p-3 border-b border-border bg-muted/10 flex items-center">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <input
+                type="text"
+                placeholder="Search student by name or enrollment..."
+                className="w-full pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                value={roomSearchQuery}
+                onChange={(e) => setRoomSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto hide-scrollbar">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted text-muted-foreground text-xs uppercase font-bold tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">Enrollment</th>
+                  <th className="px-6 py-4">Student Name</th>
+                  <th className="px-6 py-4">Class</th>
+                  <th className="px-6 py-4 text-center">Row</th>
+                  <th className="px-6 py-4 text-center">Bench</th>
+                  <th className="px-6 py-4 text-center">Seat</th>
+                  <th className="px-6 py-4 text-center">Attendance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {studentList.length === 0 ? (
+                  <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No students allocated.</td></tr>
+                ) : (
+                  (() => {
+                    const filteredList = studentList.filter((studentInfo: any) => {
+                      if (!roomSearchQuery) return true;
+                      const q = roomSearchQuery.toLowerCase();
+                      const nameMatch = studentInfo.name?.toLowerCase().includes(q);
+                      const enrollMatch = studentInfo.enrollment?.toLowerCase().includes(q);
+                      return nameMatch || enrollMatch;
+                    });
+                    
+                    if (filteredList.length === 0 && roomSearchQuery) {
+                       return <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No students found.</td></tr>;
+                    }
+
+                    return filteredList.map((studentInfo: any) => {
+                      const sId = studentInfo.studentId;
+                      const status = sId ? (attendanceMap[sId] || 'UNMARKED') : 'UNMARKED';
+                      
+                      const isOutsideContext = activeContext?.isSavedView && 
+                                               activeContext.className && 
+                                               studentInfo.className && 
+                                               studentInfo.className !== activeContext.className;
+
+                      return (
+                        <tr key={sId || studentInfo.id} className={cn("hover:bg-muted/50 transition-colors", isOutsideContext && "opacity-50")}>
+                          <td className="px-6 py-3 font-medium">{studentInfo.enrollment}</td>
+                          <td className="px-6 py-3">{studentInfo.name}</td>
+                          <td className="px-6 py-3">{studentInfo.className || 'N/A'}</td>
+                          <td className="px-6 py-3 text-center">{studentInfo.row || '-'}</td>
+                          <td className="px-6 py-3 text-center">{studentInfo.bench || '-'}</td>
+                          <td className="px-6 py-3 text-center">
+                            {studentInfo.seat === 1 || String(studentInfo.seat) === '1' ? 'Left' : (studentInfo.seat === 2 || String(studentInfo.seat) === '2' ? 'Right' : (studentInfo.seat || '-'))}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            {isOutsideContext ? (
+                                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded border border-border">Other Class</span>
+                            ) : (
+                                <button
+                                  onClick={() => { if (sId) toggleStudentAttendance(sId); }}
+                                  className={cn(
+                                    "inline-flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors",
+                                    status === 'PRESENT' ? "bg-emerald-500 border-emerald-500 text-white" : 
+                                    status === 'ABSENT' ? "bg-rose-500 border-rose-500 text-white" : 
+                                    "bg-transparent border-gray-300 dark:border-gray-600 hover:border-gray-400"
+                                  )}
+                                >
+                                  {status === 'PRESENT' && <Check size={16} className="stroke-[3]" />}
+                                  {status === 'ABSENT' && <X size={16} className="stroke-[3]" />}
+                                </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
+  // --- RENDER: DELETE SEATING MODAL ---
+  const renderDeleteSeatingModal = () => (
+    <AnimatePresence>
+      {showDeleteSeatingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full overflow-hidden"
+          >
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-foreground">Delete Seating Arrangement?</h3>
+              <p className="text-sm text-muted-foreground">
+                This will permanently delete the saved seating arrangement for this examination. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex border-t border-border bg-accent/30 p-4 gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowDeleteSeatingModal(false)} disabled={isDeletingSeating}>Cancel</Button>
+              <Button className="flex-1 bg-red-600 text-white hover:bg-red-700" disabled={isDeletingSeating} onClick={async () => {
+                setIsDeletingSeating(true);
+                try {
+                  const res = await api.delete(`/examinations/${selectedExam.id}/seating`);
+                  if (res.data.success) {
+                    setSeatingSaved(false);
+                    setSeatingGenerated(null);
+                    setSeatingViewMode('create');
+                    toast.success("Seating Arrangement deleted successfully.");
+                    setShowDeleteSeatingModal(false);
+                  }
+                } catch (err: any) {
+                  toast.error(err.response?.data?.message || "Failed to delete seating arrangement");
+                } finally {
+                  setIsDeletingSeating(false);
+                }
+              }}>
+                {isDeletingSeating ? <Loader2 className="animate-spin mr-2" size={16}/> : null}
+                Delete
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
 
   const renderSeatingGenerator = () => {
     if (seatingViewMode === 'saved') {
@@ -3032,80 +4375,72 @@ export const ExaminationModule = () => {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-black text-foreground flex items-center gap-2">
-                <FolderOpen className="text-primary"/> Saved Arrangements
+                <LayoutGrid className="text-primary"/> Seating Arrangements
               </h2>
-              <p className="text-sm text-muted-foreground">Manage and generate examination seating plans</p>
+              <p className="text-sm text-muted-foreground">Manage generated examination seating plans</p>
             </div>
-            <Button className="bg-primary text-primary-foreground gap-2" onClick={() => { setSeatingViewMode('create'); setSeatingGenerated(null); setSeatingSaved(false); setSeatRooms([]); }}>
-              <Plus size={16}/> Create New Arrangement
-            </Button>
+            {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+              <Button className="bg-primary text-primary-foreground gap-2" onClick={() => { setSeatingViewMode('create'); }}>
+                <Plus size={16}/> Regenerate Seating
+              </Button>
+            )}
           </div>
 
-          {savedSeatingLists.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {savedSeatingLists.map(list => (
-                <div key={list.id} className="group relative bg-card border border-border/60 hover:border-primary/40 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
-                  <div className="bg-primary/5 border-b border-border/50 px-5 py-4 flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{list.exam?.type || 'Mid Semester'}</span>
-                        <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{list.exam?.academicYear || 'All'} - {list.exam?.semester || 'All'}</span>
-                      </div>
-                      <h4 className="font-extrabold text-foreground text-lg leading-tight line-clamp-1">{list.exam?.name || 'Seating Arrangement'}</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {seatingGenerated && seatingSaved ? (
+              <div className="group relative bg-card border border-border/60 hover:border-primary/40 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
+                <div className="bg-primary/5 border-b border-border/50 px-5 py-4 flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{seatingGenerated?.batch || selectedExam?.batch || 'All'}</span>
+                      <span className="bg-secondary text-secondary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{seatingGenerated?.academicYear || selectedExam?.academicYearName || 'All'} - {seatingGenerated?.semester || selectedExam?.semesterName || 'All'}</span>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                       <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border", "bg-emerald-500/10 text-emerald-600 border-emerald-500/20")}>Published</span>
-                       <span className="text-xs text-muted-foreground font-medium flex items-center gap-1"><CalendarIcon size={12}/> {list.date}</span>
+                    <h4 className="font-extrabold text-foreground text-lg leading-tight line-clamp-1">{selectedExam?.name || 'Seating Arrangement'}</h4>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Saved</span>
+                  </div>
+                </div>
+                
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-background rounded-lg p-3 border border-border">
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">Total Students</div>
+                      <div className="text-xl font-black text-foreground">{seatingGenerated?.totalStudents || 0}</div>
+                    </div>
+                    <div className="bg-background rounded-lg p-3 border border-border">
+                      <div className="text-xs font-semibold text-muted-foreground mb-1">Rooms Utilized</div>
+                      <div className="text-xl font-black text-foreground">{seatingGenerated?.roomsUtilized || 0}</div>
                     </div>
                   </div>
                   
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div className="grid grid-cols-2 gap-4 mb-5">
-                      <div className="bg-background rounded-lg p-3 border border-border">
-                        <div className="text-xs font-semibold text-muted-foreground mb-1">Total Students</div>
-                        <div className="text-xl font-black text-foreground">{list.list?.totalStudents || 0}</div>
-                      </div>
-                      <div className="bg-background rounded-lg p-3 border border-border">
-                        <div className="text-xs font-semibold text-muted-foreground mb-1">Rooms Utilized</div>
-                        <div className="text-xl font-black text-foreground">{list.list?.roomsUtilized || 0}</div>
-                      </div>
-                    </div>
+                  <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
+                    <div className="flex items-center"><Clock size={12} className="mr-1.5 opacity-70"/> <span className="font-medium text-foreground mr-1">Time:</span> {seatingGenerated?.roomAllocations?.[0]?.startTime || '10:00 AM'} - {seatingGenerated?.roomAllocations?.[0]?.endTime || '12:00 PM'}</div>
+                    <div className="flex items-center"><Users size={12} className="mr-1.5 opacity-70"/> <span className="font-medium text-foreground mr-1">Invigilators:</span> {seatingGenerated?.roomAllocations?.reduce((acc: number, r: any) => acc + (r.invigilatorNames?.length || 0), 0) || 0} assigned</div>
+                    <div className="flex items-center text-foreground font-medium"><CalendarIcon size={12} className="mr-1.5 opacity-70 text-muted-foreground"/> Date: {selectedExam?.startDate || 'Scheduled Date'}</div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2 mt-auto pt-4 border-t border-border/50">
+                    <Button variant="outline" className="flex-1 min-w-[80px] text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground border-primary/20 hover:border-primary transition-colors" onClick={() => setSeatingViewMode('view')}>
+                      <Eye size={16} className="mr-1.5"/> View
+                    </Button>
                     
-                    <div className="flex items-center gap-2 mt-auto pt-4 border-t border-border/50">
-                      <Button variant="outline" className="flex-1 text-sm font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground border-primary/20 hover:border-primary transition-colors" onClick={() => {
-                        setSeatingGenerated(list.list);
-                        setSeatingSaved(true);
-                        setSeatingViewMode('view');
-                      }}>
-                        <Eye size={16} className="mr-2"/> View
+                    {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+                      <Button variant="outline" className="w-full text-sm font-semibold rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200" onClick={() => setShowDeleteSeatingModal(true)}>
+                        <Trash2 size={16} className="mr-1.5"/> Delete
                       </Button>
-                      <Button variant="outline" className="flex-1 text-sm font-semibold rounded-lg hover:bg-emerald-600 hover:text-white border-emerald-200 hover:border-emerald-600 transition-colors" onClick={() => {
-                        setSeatingGenerated(list.list);
-                        setSeatingSaved(true);
-                        setSeatingViewMode('view');
-                        setTimeout(() => window.print(), 100);
-                      }}>
-                        <Printer size={16} className="mr-2"/> Print
-                      </Button>
-                      <Button variant="ghost" size="icon" className="rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50 dark:hover:text-rose-400" onClick={() => {
-                        setSavedSeatingLists((prev: any[]) => prev.filter(l => l.id !== list.id));
-                      }}>
-                        <Trash2 size={16}/>
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center p-12 border border-dashed border-border rounded-xl bg-accent/10 mt-6">
-              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4 text-muted-foreground">
-                <LayoutGrid size={24}/>
               </div>
-              <p className="text-sm font-semibold text-foreground mb-1">No arrangements generated yet</p>
-              <p className="text-xs text-muted-foreground">Create a new seating arrangement to get started</p>
-            </div>
-          )}
+            ) : (
+              <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-accent/50">
+                <LayoutGrid className="mx-auto text-muted-foreground mb-4" size={48} opacity={0.5}/>
+                <h4 className="font-bold text-lg mb-2">No Seating Arrangement Available</h4>
+                <p className="text-muted-foreground">A seating arrangement for this examination has not been saved yet.</p>
+              </div>
+            )}
+          </div>
         </motion.div>
       );
     }
@@ -3166,10 +4501,24 @@ export const ExaminationModule = () => {
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 {!seatingSaved && (
-                  <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={() => { 
-                    setSeatingSaved(true); 
-                    setSavedSeatingLists((prev: any[]) => [...prev, { id: Date.now(), exam: selectedExam, list: seatingGenerated, date: new Date().toLocaleDateString() }]);
-                    toast.success("Seating Arrangement Saved successfully!"); 
+                  <Button className="gap-2 flex-1 sm:flex-none bg-primary text-primary-foreground" onClick={async () => { 
+                    setIsLoadingData(true);
+                    try {
+                      const res = await api.post(`/examinations/${selectedExam.id}/seating/save`, seatingGenerated);
+                      if (res.data.success) {
+                        const fetchRes = await api.get(`/examinations/${selectedExam.id}/seating`);
+                        if (fetchRes.data.success && fetchRes.data.data) {
+                          setSeatingGenerated(fetchRes.data.data);
+                          setSeatingSaved(true);
+                          setSeatingViewMode('saved');
+                          toast.success("Seating Arrangement Saved successfully!");
+                        }
+                      }
+                    } catch (err: any) {
+                      toast.error(err.response?.data?.message || "Failed to save seating plan");
+                    } finally {
+                      setIsLoadingData(false);
+                    }
                   }}>
                     <CheckCircle size={16}/> Save Seating
                   </Button>
@@ -3230,10 +4579,10 @@ export const ExaminationModule = () => {
                           <td className="border border-gray-300 print:border-gray-500 px-4 py-2 text-center print:color-adjust-exact">
                             <span className={cn(
                               "px-2 py-1 rounded font-bold text-xs print:border print:color-adjust-exact",
-                              (student.seatPosition || student.seat) === 'LEFT' ? "bg-purple-100 text-purple-800 print:border-purple-300" : 
-                              (student.seatPosition || student.seat) === 'RIGHT' ? "bg-amber-100 text-amber-800 print:border-amber-300" : "bg-gray-200 text-gray-800 print:border-gray-300"
+                              (student.seatPosition || (String(student.seat) === '1' ? 'LEFT' : String(student.seat) === '2' ? 'RIGHT' : student.seat)) === 'LEFT' ? "bg-purple-100 text-purple-800 print:border-purple-300" : 
+                              (student.seatPosition || (String(student.seat) === '1' ? 'LEFT' : String(student.seat) === '2' ? 'RIGHT' : student.seat)) === 'RIGHT' ? "bg-amber-100 text-amber-800 print:border-amber-300" : "bg-gray-200 text-gray-800 print:border-gray-300"
                             )}>
-                              {student.seatPosition || student.seat}
+                              {student.seatPosition || (String(student.seat) === '1' ? 'LEFT' : String(student.seat) === '2' ? 'RIGHT' : student.seat)}
                             </span>
                           </td>
                         </tr>
@@ -3292,6 +4641,18 @@ export const ExaminationModule = () => {
                   <input type="number" placeholder="e.g. 30" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomBenches} onChange={e => setNewRoomBenches(e.target.value)} />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs font-semibold">Number of Rows</label>
+                  <input type="number" placeholder="e.g. 3" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomNumRows} onChange={e => {
+                    setNewRoomNumRows(e.target.value);
+                    const rows = parseInt(e.target.value);
+                    if (!isNaN(rows) && rows > 0) {
+                      setNewRoomRowConfig(Array(rows).fill(''));
+                    } else {
+                      setNewRoomRowConfig([]);
+                    }
+                  }} />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-semibold">Max Students Per Bench</label>
                   <input type="number" placeholder="e.g. 2" className="w-full p-2.5 text-sm border border-border rounded-lg bg-background" value={newRoomMaxPerBench} onChange={e => setNewRoomMaxPerBench(e.target.value)} />
                 </div>
@@ -3326,8 +4687,51 @@ export const ExaminationModule = () => {
                       ))}
                     </div>
                   </div>
+                  
+                {newRoomNumRows && parseInt(newRoomNumRows) > 0 && (
+                  <div className="lg:col-span-3 space-y-2 bg-muted/30 p-4 rounded-lg border border-border mt-1">
+                    <label className="text-xs font-semibold">Row Bench Configuration</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {Array.from({ length: parseInt(newRoomNumRows) }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-xs whitespace-nowrap font-medium text-muted-foreground">Row {i + 1}</span>
+                          <input 
+                            type="number" 
+                            min="1"
+                            placeholder="benches" 
+                            className="w-full p-1.5 text-sm border border-border rounded bg-background" 
+                            value={newRoomRowConfig[i] === undefined ? '' : newRoomRowConfig[i]}
+                            onChange={e => {
+                              const newConfig = [...newRoomRowConfig];
+                              newConfig[i] = e.target.value === '' ? '' : parseInt(e.target.value);
+                              setNewRoomRowConfig(newConfig);
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {(() => {
+                      const totalNeeded = parseInt(newRoomBenches) || 0;
+                      const currentSum = newRoomRowConfig.slice(0, parseInt(newRoomNumRows)).reduce((acc, val) => acc + (parseInt(val) || 0), 0);
+                      if (currentSum !== totalNeeded) {
+                        return <p className="text-xs text-rose-500 mt-2 font-medium">Row bench total ({currentSum}) must equal Total Benches ({totalNeeded}).</p>;
+                      }
+                      return <p className="text-xs text-emerald-600 mt-2 font-medium">Row bench total matches Total Benches.</p>;
+                    })()}
+                  </div>
+                )}
+                
                 <div className="flex items-end lg:col-span-1">
-                  <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" onClick={handleAddRoom} disabled={!newRoomName || !newRoomBenches}>
+                  <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" onClick={handleAddRoom} disabled={(() => {
+                    if (!newRoomName || !newRoomBenches) return true;
+                    const rows = parseInt(newRoomNumRows);
+                    if (!isNaN(rows) && rows > 0) {
+                        const sum = newRoomRowConfig.slice(0, rows).reduce((acc, val) => acc + (parseInt(val) || 0), 0);
+                        if (sum !== parseInt(newRoomBenches)) return true;
+                        if (newRoomRowConfig.slice(0, rows).some(val => !val || parseInt(val) < 1)) return true;
+                    }
+                    return false;
+                  })()}>
                     <Plus size={16} className="mr-2"/> Add Room
                   </Button>
                 </div>
@@ -3341,7 +4745,10 @@ export const ExaminationModule = () => {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-extrabold text-sm text-foreground">{room.name} <span className="text-muted-foreground font-semibold">({room.number})</span></p>
-                          <p className="text-xs font-medium text-muted-foreground mt-0.5">{room.benches} Benches × {room.maxPerBench} / bench</p>
+                          <p className="text-xs font-medium text-muted-foreground mt-0.5">
+                            {room.benches} Benches × {room.maxPerBench} / bench
+                            {room.rowConfig && room.rowConfig.length > 0 && <span className="ml-1 opacity-80">({room.rowConfig.length} Rows)</span>}
+                          </p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500 hover:bg-rose-50 -mt-1 -mr-1" onClick={() => setSeatRooms(seatRooms.filter(r => r.id !== room.id))}>
                           <Trash2 size={14}/>
@@ -3380,8 +4787,154 @@ export const ExaminationModule = () => {
               </div>
         </motion.div>
       );
-    };
+    };  const [showDeleteAttendanceModal, setShowDeleteAttendanceModal] = useState(false);
+  const [isDeletingAttendance, setIsDeletingAttendance] = useState(false);
 
+  const handleDeleteAttendance = async () => {
+    if (!activeContext || !selectedExam) return;
+    setIsDeletingAttendance(true);
+    try {
+      let query = '';
+      if (activeContext.examDate) {
+          query = `?examDate=${activeContext.examDate}`;
+          if (activeContext.classSubjectId) {
+              query += `&classSubjectId=${activeContext.classSubjectId}`;
+          }
+      }
+      const res = await api.delete(`/examinations/${selectedExam.id}/attendance${query}`);
+      if (res.data.success) {
+        toast.success("Attendance deleted successfully");
+        setActiveContext(null);
+        setShowDeleteAttendanceModal(false);
+        
+        const res2 = await api.get(`/examinations/${selectedExam.id}/attendance`);
+        if (res2.data.success && res2.data.data) {
+           setAllAttendanceRecords(res2.data.data);
+        } else {
+           setAllAttendanceRecords([]);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete attendance");
+    } finally {
+      setIsDeletingAttendance(false);
+    }
+  };
+
+  const renderDeleteAttendanceModal = () => {
+    if (!showDeleteAttendanceModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full overflow-hidden"
+        >
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-foreground">Delete Attendance?</h3>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to permanently delete the attendance record for <strong>{activeContext?.label}</strong>? This action cannot be undone.
+            </p>
+          </div>
+          <div className="flex border-t border-border bg-accent/30 p-4 gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteAttendanceModal(false)} disabled={isDeletingAttendance}>Cancel</Button>
+            <Button className="flex-1 bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteAttendance} disabled={isDeletingAttendance}>
+              {isDeletingAttendance ? <Loader2 size={16} className="animate-spin mr-2" /> : <Trash2 size={16} className="mr-2" />} Delete
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const renderAssignCoordinatorModal = () => {
+    if (!showAssignModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <div className="bg-card border border-border shadow-xl rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+            <div>
+              <h3 className="text-lg font-bold">Assign Exam Coordinator</h3>
+              <p className="text-sm text-muted-foreground mt-1">Delegate examination creation permissions to faculty</p>
+            </div>
+            <button onClick={() => setShowAssignModal(false)} className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="p-6 overflow-y-auto space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Select Faculty *</label>
+                <select className="w-full p-2 border border-border rounded-lg bg-background" value={assignFacultyId} onChange={e => setAssignFacultyId(e.target.value)}>
+                  <option value="">Select faculty member...</option>
+                  {eligibleFaculty.map(f => (
+                    <option key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.email})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exam Purpose *</label>
+                <input type="text" className="w-full p-2 border border-border rounded-lg bg-background" placeholder="e.g. Mid Term Exam 2024" value={assignExamPurpose} onChange={e => setAssignExamPurpose(e.target.value)} />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Valid Until *</label>
+                <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} />
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <Button onClick={handleAssignCoordinator} disabled={isAssigningCoordinator || !assignFacultyId || !assignExamPurpose || !assignValidUntil} className="bg-primary text-primary-foreground gap-2">
+                {isAssigningCoordinator ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                Assign Coordinator
+              </Button>
+            </div>
+            
+            <div className="mt-8">
+              <h4 className="text-md font-bold mb-4">Current Department Assignments</h4>
+              {departmentAssignments.length === 0 ? (
+                <div className="text-center p-8 bg-muted/20 border border-border rounded-xl">
+                  <p className="text-muted-foreground">No assignments found for your department.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {departmentAssignments.map(assignment => (
+                    <div key={assignment.id} className={`flex items-center justify-between p-4 border rounded-xl ${assignment.isActive ? 'bg-card border-border' : 'bg-muted/30 border-muted opacity-70'}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{assignment.assignedUserName}</span>
+                          {!assignment.isActive && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">Revoked</span>}
+                          {assignment.isActive && new Date(assignment.validUntil) < new Date() && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Expired</span>}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Purpose: {assignment.examPurpose} &bull; Valid until {new Date(assignment.validUntil).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Assigned by {assignment.assignedByName} on {new Date(assignment.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {assignment.isActive && (
+                        <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRevokeCoordinator(assignment.id)}>
+                          Revoke
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
 
   return (
@@ -3395,7 +4948,11 @@ export const ExaminationModule = () => {
       )}
       {renderDeleteModal()}
       {renderPublishNoticeModal()}
-
+      {renderDiscardAttendanceModal()}
+      {renderUnmarkedAttendanceModal()}
+      {renderDeleteSeatingModal()}
+      {renderDeleteAttendanceModal()}
+      {renderAssignCoordinatorModal()}
     </div>
   );
 };

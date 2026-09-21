@@ -140,7 +140,7 @@ public class LectureMaterialController {
     }
 
     @PostMapping(value = "/subject/{classSubjectId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<LectureMaterialResponseDto>> uploadSubjectMaterial(
             @PathVariable UUID classSubjectId,
             @RequestParam("file") MultipartFile file,
@@ -154,7 +154,7 @@ public class LectureMaterialController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'HOD', 'COORDINATOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteSubjectMaterial(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetailsImpl userDetails,

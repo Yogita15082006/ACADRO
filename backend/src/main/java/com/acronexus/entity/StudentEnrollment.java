@@ -26,6 +26,10 @@ public class StudentEnrollment extends BaseEntity {
     
     @Column(precision = 4, scale = 2)
     private java.math.BigDecimal cgpa;
+    
+    @Column(name = "study_year")
+    private Integer studyYear;
+    
     private Boolean isActive = true;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

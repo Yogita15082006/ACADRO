@@ -24,4 +24,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     java.util.List<User> findByRoleIn(java.util.List<UserRole> roles);
     java.util.List<User> findByRoleInAndIsDeletedFalse(java.util.List<UserRole> roles);
     java.util.List<User> findAllByIsDeletedFalse();
+
+    @Query("SELECT DISTINCT f.user FROM Faculty f " +
+           "LEFT JOIN f.departments fd " +
+           "WHERE (f.user.isDeleted = false OR f.user.isDeleted IS NULL) " +
+           "AND (f.user.isActive = true OR f.user.isActive IS NULL) " +
+           "AND (f.user.department.id IN :departmentIds OR fd.id IN :departmentIds)")
+    java.util.List<User> findActiveFacultyUsersByDepartmentIds(@org.springframework.data.repository.query.Param("departmentIds") java.util.List<UUID> departmentIds);
 }

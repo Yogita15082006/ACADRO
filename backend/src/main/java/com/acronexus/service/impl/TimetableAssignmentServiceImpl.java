@@ -7,6 +7,7 @@ import com.acronexus.service.AiService;
 import com.acronexus.service.TimetableAssignmentService;
 import com.acronexus.dto.ai.AiGenericRequest;
 import com.acronexus.dto.ai.AiGenericResponse;
+import com.acronexus.service.FacultyManagementDelegationService;
 import com.acronexus.util.NameNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final LectureMaterialRepository lectureMaterialRepository;
     private final SubjectAnnouncementRepository subjectAnnouncementRepository;
+    private final FacultyManagementDelegationService delegationService;
     private final StudentAttendanceRepository studentAttendanceRepository;
     private final StudentAttendanceHistoryRepository studentAttendanceHistoryRepository;
     private final AttendanceSessionRepository attendanceSessionRepository;
@@ -56,6 +58,10 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     public TimetableReviewReportDto performAiMatch(UUID timetableId, UUID requestedBy) {
         Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
                 .orElseThrow(() -> new com.acronexus.exception.ResourceNotFoundException("Timetable not found"));
+
+        if (!delegationService.canManageFacultySetup(requestedBy, timetable.getAcroClass().getDepartment().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
                 
         FileStorage fileStorage = timetable.getFile();
         if (fileStorage == null || fileStorage.getDocumentUrl() == null) {
@@ -130,7 +136,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
             dto.setDegree(timetable.getAcroClass().getDegreeProgram().getName());
         }
             dto.setAcademicYear(timetable.getAcademicYear().getYear());
-            dto.setClassName(timetable.getAcroClass().getName());
+            dto.setClassName(timetable.getAcroClass().getFunctionalClassName());
             
             if (timetable.getBatch() != null && !timetable.getBatch().isBlank()) {
                 dto.setBatch(timetable.getBatch());
@@ -172,7 +178,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                     
                     ParsedSubjectAssignmentDto sa = new ParsedSubjectAssignmentDto();
                     sa.setClassId(timetable.getAcroClass().getId().toString());
-                    sa.setClassName(timetable.getAcroClass().getName());
+                        sa.setClassName(timetable.getAcroClass().getFunctionalClassName());
                     
                     sa.setOriginalFacultyName(extractedFaculty);
                     sa.setOriginalSubjectName(extractedSubject);
@@ -213,7 +219,7 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
                 String matchedCoordId = fuzzyMatchFaculty(extractedCoord, faculties);
                 
                 ParsedCoordinatorAssignmentDto ca = new ParsedCoordinatorAssignmentDto();
-                ca.setClassName(timetable.getAcroClass().getName());
+                    ca.setClassName(timetable.getAcroClass().getFunctionalClassName());
                 ca.setSemester("Semester " + timetable.getSemester().getSemesterNumber());
                 ca.setAcademicYear(timetable.getAcademicYear().getYear());
                 ca.setBatch(dto.getBatch());
@@ -277,6 +283,10 @@ public class TimetableAssignmentServiceImpl implements TimetableAssignmentServic
     public void confirmAssignments(UUID timetableId, TimetableReviewReportDto reviewDto, UUID requestedBy) {
         Timetable timetable = timetableRepository.findById(timetableId).or(() -> timetableRepository.findByFileId(timetableId))
                 .orElseThrow(() -> new RuntimeException("Timetable not found"));
+
+        if (!delegationService.canManageFacultySetup(requestedBy, timetable.getAcroClass().getDepartment().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage this department's resources.");
+        }
 
         User creator = userRepository.findById(requestedBy).orElse(null);
 

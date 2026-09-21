@@ -98,6 +98,45 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
     setIsProfileModalOpen(true);
   };
 
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadExcel = async () => {
+    console.log('DOWNLOAD CLICKED', workspaceContext?.id);
+    if (!workspaceContext?.id) return;
+    try {
+      setIsDownloading(true);
+      const res = await api.get(`/v1/analytics/subject/${workspaceContext.id}/export`, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob(
+        [res.data],
+        {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
+      );
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const safeSubject = (workspaceContext.subjectName || 'Subject').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeClass = (workspaceContext.className || 'Class').replace(/[^a-zA-Z0-9]/g, '_');
+      const generatedFilename = `${safeSubject}_${safeClass}_Student_Analytics.xlsx`;
+      
+      link.download = generatedFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Failed to download excel', err);
+      // Optional: you could show a toast here if ACADRO has one
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {loading ? (
@@ -234,6 +273,10 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
               <SelectItem value="<75%">Below 75%</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" className="gap-2" onClick={handleDownloadExcel} disabled={isDownloading}>
+            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+            Download Excel
+          </Button>
         </div>
       </div>
 
@@ -249,6 +292,7 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
                   <th className="px-6 py-4 font-semibold text-center">Attendance</th>
                   <th className="px-6 py-4 font-semibold text-center">Assignments</th>
                   <th className="px-6 py-4 font-semibold text-center">Quizzes</th>
+                  <th className="px-6 py-4 font-semibold text-center">Examinations</th>
                   <th className="px-6 py-4 font-semibold text-center">Overall</th>
                   <th className="px-6 py-4 font-semibold text-right">Action</th>
                 </tr>
@@ -280,20 +324,30 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500" style={{ width: `${student.metrics.assignments.percentage}%` }} />
-                          </div>
-                          <span className="font-semibold text-blue-600 dark:text-blue-400 w-9">{student.metrics.assignments.percentage}%</span>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">{student.metrics.assignments.submitted} / {student.metrics.assignments.total}</span>
+                          <span className="text-[10px] uppercase text-muted-foreground">Submitted</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500" style={{ width: `${student.metrics.quizzes.average}%` }} />
-                          </div>
-                          <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-9">{student.metrics.quizzes.average}%</span>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <span className="font-semibold text-indigo-600 dark:text-indigo-400">{student.metrics.quizzes.attempted} / {student.metrics.quizzes.total}</span>
+                          <span className="text-[10px] uppercase text-muted-foreground">Attempted</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {student.metrics.examinations && student.metrics.examinations.length > 0 ? (
+                          <div className="flex flex-col gap-2 items-center">
+                            {student.metrics.examinations.map((exam: any, idx: number) => (
+                              <div key={idx} className="flex flex-col items-center justify-center border-b border-border/30 last:border-0 pb-1 last:pb-0">
+                                <span className="text-[11px] font-medium text-muted-foreground truncate max-w-[120px]" title={exam.name}>{exam.name}</span>
+                                <span className="font-semibold text-foreground">{exam.obtainedMarks} / {exam.maxMarks}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No Results</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col items-center justify-center">
@@ -369,7 +423,7 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
                 </div>
 
                 {/* Detailed Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
                   {/* Assignments History */}
                   <Card className="border border-border/50 shadow-sm">
                     <CardHeader className="bg-muted/10 pb-4">
@@ -453,6 +507,30 @@ export const SubjectAnalyticsPanel = ({ workspaceContext }: { workspaceContext: 
                             <span className="font-bold text-rose-600 dark:text-rose-400">{selectedStudent.metrics.attendance.absent}</span>
                           </div>
                         </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Examination History */}
+                  <Card className="border border-border/50 shadow-sm">
+                    <CardHeader className="bg-muted/10 pb-4">
+                      <CardTitle className="text-base flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-500" /> Examination History</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        {selectedStudent.metrics.examinations && selectedStudent.metrics.examinations.length > 0 ? (
+                          selectedStudent.metrics.examinations.map((exam: any, idx: number) => (
+                            <div key={idx} className="flex flex-col pt-3 first:pt-0 border-t first:border-0 border-border/50">
+                              <span className="text-sm font-semibold text-foreground">{exam.name}</span>
+                              <div className="flex justify-between text-sm mt-1">
+                                <span className="text-muted-foreground">Marks Obtained</span>
+                                <span className="font-bold text-purple-600 dark:text-purple-400">{exam.obtainedMarks} / {exam.maxMarks}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground text-sm">No Examination Results</div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

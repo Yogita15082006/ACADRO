@@ -8,6 +8,7 @@ import com.acronexus.repository.*;
 import com.acronexus.dto.AiFacultyValidationResultDto;
 import com.acronexus.service.AiService;
 import com.acronexus.service.FacultyBulkUploadService;
+import com.acronexus.service.FacultyManagementDelegationService;
 import com.acronexus.util.BulkUploadUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,8 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     private final SemesterRepository semesterRepository;
     private final AcademicYearRepository academicYearRepository;
     private final AcroClassRepository acroClassRepository;
+    private final com.acronexus.service.AcademicIdentityResolver academicIdentityResolver;
+    private final FacultyManagementDelegationService delegationService;
 
     @Override
     public BulkUploadResponseDto uploadFacultyList(MultipartFile file, UUID uploadedByUserId) {
@@ -166,6 +169,10 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
             throw new IllegalArgumentException("Employee ID and College Email are strictly required.");
         }
         
+        if (!delegationService.canManageFacultySetup(uploadedBy.getId(), data.department)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to manage faculty for department: " + data.department);
+        }
+        
         if (data.facultyName.isEmpty()) {
             throw new IllegalArgumentException("Faculty Name is strictly required.");
         }
@@ -182,7 +189,10 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
         String firstName = nameParts[0];
         String lastName = nameParts.length > 1 ? nameParts[1] : "";
 
-        Department department = resolveDepartment(data.department);
+        Department department = academicIdentityResolver.resolveDepartment(data.department);
+        if (department == null) {
+            throw new IllegalArgumentException("Department is strictly required.");
+        }
 
         UserRole userRole = UserRole.FACULTY; // default
         String inputRole = data.role.trim().toUpperCase();
@@ -308,20 +318,7 @@ public class FacultyBulkUploadServiceImpl implements FacultyBulkUploadService {
     }
     
     private Department resolveDepartment(String deptName) {
-        if (deptName != null && !deptName.trim().isEmpty()) {
-            String cleanDept = deptName.trim();
-            for (Department d : departmentRepository.findAll()) {
-                if (d.getName().equalsIgnoreCase(cleanDept) || d.getCode().equalsIgnoreCase(cleanDept)) {
-                    return d;
-                }
-            }
-            Department newDept = new Department();
-            newDept.setName(cleanDept);
-            newDept.setCode(cleanDept.length() > 5 ? cleanDept.substring(0, 5).toUpperCase() : cleanDept.toUpperCase());
-            newDept.setIsActive(true);
-            return departmentRepository.save(newDept);
-        }
-        throw new IllegalArgumentException("Department is required.");
+        return academicIdentityResolver.resolveDepartment(deptName);
     }
 
     @Override

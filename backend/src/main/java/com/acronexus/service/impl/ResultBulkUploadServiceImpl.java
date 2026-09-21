@@ -1,6 +1,7 @@
 package com.acronexus.service.impl;
 
 import com.acronexus.dto.BulkUploadResponseDto;
+import com.acronexus.dto.PreviewResultRowDto;
 import com.acronexus.dto.UploadErrorDto;
 import com.acronexus.entity.*;
 import com.acronexus.repository.*;
@@ -43,10 +44,11 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
     private final ExaminationRepository examinationRepository;
     private final ExamResultRepository examResultRepository;
     private final ExamResultsHistoryRepository examResultsHistoryRepository;
+    private final ClassSubjectRepository classSubjectRepository;
     private final TransactionTemplate transactionTemplate;
 
     @Override
-    public BulkUploadResponseDto uploadResultList(MultipartFile file, UUID uploadedByUserId, UUID examinationId, String className) {
+    public BulkUploadResponseDto uploadResultList(MultipartFile file, UUID uploadedByUserId, UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly) {
         Instant startTime = Instant.now();
         User uploadedBy = userRepository.findById(uploadedByUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Uploader not found"));
@@ -71,11 +73,16 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         try {
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
             if (filename.endsWith(".csv")) {
-                processCsv(file, uploadedBy, stats, examinationId, className);
+                processCsv(file, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
             } else if (filename.endsWith(".xlsx") || filename.endsWith(".xls")) {
-                processExcel(file, uploadedBy, stats, examinationId, className);
+                processExcel(file, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
             } else {
                 throw new IllegalArgumentException("Unsupported file format. Please upload .csv or Excel files.");
+            }
+
+            if (stats.successfulRecords == 0 && stats.failedRecords == 0) {
+                stats.failedRecords++;
+                stats.addError(new UploadErrorDto(0, "", "", "No valid marks found in the file. Ensure you have entered marks in the 'Marks' column."));
             }
 
             if (stats.failedRecords > 0 && stats.successfulRecords > 0) {
@@ -128,15 +135,15 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                 }
             } else if (csvRecord != null && csvHeaderMap != null) {
                 String val = csvHeaderMap.get(norm);
-                if (val != null) {
-                    return val;
+                if (val != null && csvRecord.isSet(val)) {
+                    return csvRecord.get(val);
                 }
             }
         }
         return "";
     }
 
-    private void processExcel(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className) throws Exception {
+    private void processExcel(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly) throws Exception {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
@@ -150,13 +157,15 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                     rawHeaders.add(val);
                     headerMap.put(normalizeHeader(val), cell.getColumnIndex());
                 }
+                log.info("Detected Excel headers: {}", rawHeaders);
+                log.info("Normalized header map: {}", headerMap);
             }
 
-            processRowsDynamic(rows, null, headerMap, null, rawHeaders, uploadedBy, stats, examinationId, className);
+            processRowsDynamic(rows, null, headerMap, null, rawHeaders, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
         }
     }
 
-    private void processCsv(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className) throws Exception {
+    private void processCsv(MultipartFile file, User uploadedBy, UploadStats stats, UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly) throws Exception {
         try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
              org.apache.commons.csv.CSVParser csvParser = new org.apache.commons.csv.CSVParser(fileReader,
                      org.apache.commons.csv.CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
@@ -168,7 +177,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                 headerMap.put(normalizeHeader(header), header);
             }
 
-            processRowsDynamic(null, csvParser.iterator(), null, headerMap, rawHeaders, uploadedBy, stats, examinationId, className);
+            processRowsDynamic(null, csvParser.iterator(), null, headerMap, rawHeaders, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
         }
     }
 
@@ -178,7 +187,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
             Map<String, Integer> excelHeaderMap,
             Map<String, String> csvHeaderMap,
             List<String> rawHeaders,
-            User uploadedBy, UploadStats stats, java.util.UUID examinationId, String className
+            User uploadedBy, UploadStats stats, java.util.UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly
     ) {
         boolean hasGenericMarks = false;
         for (String alias : new String[]{"obtainedmarks", "marks", "obtained", "score", "totalmarks", "marksobtained"}) {
@@ -211,11 +220,23 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                     String subjectName = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "subjectname");
                     String maxMarks = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "maxmarks", "maximummarks", "outof", "total", "maxscore");
                     String obtainedMarks = getSafeValue(row, csvRecord, excelHeaderMap, csvHeaderMap, "obtainedmarks", "marks", "obtained", "score", "totalmarks", "marksobtained");
-
+                    
+                    log.info("Row {}: enrollmentNo='{}', obtainedMarks='{}', maxMarks='{}'", rowNumber, enrollmentNo, obtainedMarks, maxMarks);
+                    
+                    if (obtainedMarks.trim().isEmpty()) {
+                        log.info("Row {} skipped because obtainedMarks is empty.", rowNumber);
+                        PreviewResultRowDto rowDto = new PreviewResultRowDto();
+                        rowDto.setEnrollmentNumber(enrollmentNo);
+                        rowDto.setStudentName(studentName);
+                        rowDto.setValid(false);
+                        rowDto.setErrorMessage("Marks left blank or absent");
+                        stats.previewRows.add(rowDto);
+                        continue; // Skip empty rows silently but add to preview
+                    }
                     ResultRowData rowData = new ResultRowData(studentName, enrollmentNo, collegeEmail, branch, batch, academicYear, semester, clazz, subjectCode, subjectName, examType, maxMarks, obtainedMarks);
-                    executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className);
+                    executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
                 } else {
-                    List<String> standardCols = List.of("studentname", "name", "enrollmentno", "enrollmentnumber", "rollno", "studentid", "enrollment", "enrolmentno", "collegeemail", "email", "emailaddress", "branch", "department", "dept", "batch", "batchyear", "academicyear", "year", "semester", "sem", "semesterid", "class", "section", "div", "classid", "examtype", "type");
+                    List<String> standardCols = List.of("sno", "s.no.", "srno", "serialnumber", "sr.no.", "studentname", "name", "enrollmentno", "enrollmentnumber", "rollno", "studentid", "enrollment", "enrolmentno", "collegeemail", "email", "emailaddress", "branch", "department", "dept", "batch", "batchyear", "academicyear", "year", "semester", "sem", "semesterid", "class", "section", "div", "classid", "examtype", "type");
                     boolean foundAnySubject = false;
 
                     for (String rawHeader : rawHeaders) {
@@ -243,11 +264,16 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                         }
 
                         ResultRowData rowData = new ResultRowData(studentName, enrollmentNo, collegeEmail, branch, batch, academicYear, semester, clazz, "", subjName, examType, "100", cellVal);
-                        executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className);
+                        executeRowInTransaction(rowNumber, rowData, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
                     }
                     if (!foundAnySubject && !enrollmentNo.isEmpty()) {
-                        stats.failedRecords++;
-                        stats.addError(new UploadErrorDto(rowNumber, enrollmentNo, "", "No valid subject marks found in this row. Ensure columns are named correctly."));
+                        PreviewResultRowDto rowDto = new PreviewResultRowDto();
+                        rowDto.setEnrollmentNumber(enrollmentNo);
+                        rowDto.setStudentName(studentName);
+                        rowDto.setValid(false);
+                        rowDto.setErrorMessage("No valid subject marks found");
+                        stats.previewRows.add(rowDto);
+                        continue;
                     }
                 }
             } catch (Exception e) {
@@ -257,26 +283,42 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         }
     }
 
-    private void executeRowInTransaction(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className) {
+    private void executeRowInTransaction(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly) {
         transactionTemplate.execute(status -> {
             try {
-                processRow(rowNumber, data, uploadedBy, stats, examinationId, className);
+                PreviewResultRowDto dto = processRow(rowNumber, data, uploadedBy, stats, examinationId, className, examDate, classSubjectId, previewOnly);
+                if (dto != null) {
+                    stats.previewRows.add(dto);
+                    if (!dto.isValid()) {
+                        status.setRollbackOnly();
+                    } else if (previewOnly) {
+                        status.setRollbackOnly(); // Do not commit if it's just a preview
+                    }
+                }
                 return null;
             } catch (Exception e) {
                 status.setRollbackOnly();
                 stats.failedRecords++;
                 stats.addError(new UploadErrorDto(rowNumber, data.enrollmentNo, data.subjectCode, e.getMessage()));
+                
+                PreviewResultRowDto dto = new PreviewResultRowDto();
+                dto.setEnrollmentNumber(data.enrollmentNo);
+                dto.setStudentName(data.studentName);
+                dto.setValid(false);
+                dto.setErrorMessage(e.getMessage());
+                stats.previewRows.add(dto);
+                
                 return null;
             }
         });
     }
 
-    private void processRow(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className) {
+    private PreviewResultRowDto processRow(int rowNumber, ResultRowData data, User uploadedBy, UploadStats stats, UUID examinationId, String className, java.time.LocalDate examDate, UUID classSubjectId, boolean previewOnly) {
         if (data.enrollmentNo.isEmpty()) {
             throw new IllegalArgumentException("Enrollment No is strictly required.");
         }
         if (data.marksObtained.isEmpty()) {
-            throw new IllegalArgumentException("Obtained Marks is strictly required.");
+            return null; // Skip silently
         }
 
         Student student = studentRepository.findByEnrollmentNo(data.enrollmentNo)
@@ -341,7 +383,15 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         }
 
         Subject subject = null;
-        if (data.subjectCode != null && !data.subjectCode.isEmpty()) {
+        com.acronexus.entity.ClassSubject classSubject = null;
+        if (classSubjectId != null) {
+            classSubject = classSubjectRepository.findById(classSubjectId).orElse(null);
+            if (classSubject != null) {
+                subject = classSubject.getSubject();
+            }
+        }
+        
+        if (subject == null && data.subjectCode != null && !data.subjectCode.isEmpty()) {
             subject = subjectRepository.findByCode(data.subjectCode).orElse(null);
         }
         if (subject == null && data.subjectName != null && !data.subjectName.isEmpty()) {
@@ -351,7 +401,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
                     .orElse(null);
         }
         if (subject == null) {
-            throw new IllegalArgumentException("Subject '" + (data.subjectCode.isEmpty() ? data.subjectName : data.subjectCode) + "' not found in database.");
+            throw new IllegalArgumentException("Subject '" + (data.subjectCode.isEmpty() ? data.subjectName : data.subjectCode) + "' not found in database. Ensure valid template is used.");
         }
 
         BigDecimal marksObtained, maxMarks;
@@ -371,6 +421,13 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
             result.setExamination(examination);
             result.setStudent(student);
             result.setSubject(subject);
+            if (classSubject != null) {
+                result.setClassSubject(classSubject);
+            }
+            if (examDate != null) {
+                result.setExamDate(examDate);
+            }
+            result.setClassName(className != null ? className : data.className());
         } else {
             isUpdate = true;
             if (result.getMarksObtained().compareTo(marksObtained) != 0) {
@@ -388,13 +445,24 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         result.setMaxMarks(maxMarks);
         result.setClassName(className != null && !className.trim().isEmpty() ? className : data.className);
 
-        examResultRepository.save(result);
+        if (!previewOnly) {
+            examResultRepository.save(result);
+            if (isUpdate) {
+                stats.updatedRecords++;
+                stats.duplicateRecords++;
+            }
+        }
 
         stats.successfulRecords++;
-        if (isUpdate) {
-            stats.updatedRecords++;
-            stats.duplicateRecords++;
-        }
+
+        PreviewResultRowDto dto = new PreviewResultRowDto();
+        dto.setStudentId(student.getId());
+        dto.setEnrollmentNumber(student.getEnrollmentNo());
+        dto.setStudentName(student.getUser().getFirstName() + " " + student.getUser().getLastName());
+        dto.setMarksObtained(marksObtained);
+        dto.setMaxMarks(maxMarks);
+        dto.setValid(true);
+        return dto;
     }
 
     private String getCellStringValue(Cell cell) {
@@ -450,6 +518,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         dto.setSkippedRecords(stats.skippedRecords);
         dto.setDuplicateRecords(stats.duplicateRecords);
         dto.setErrorLog(stats.errors);
+        dto.setPreviewRows(stats.previewRows);
         dto.setUploadedAt(upload.getUploadedAt());
         dto.setCompletedAt(upload.getCompletedAt());
         return dto;
@@ -499,6 +568,7 @@ public class ResultBulkUploadServiceImpl implements ResultBulkUploadService {
         int skippedRecords = 0;
         int duplicateRecords = 0;
         List<UploadErrorDto> errors = new ArrayList<>();
+        List<PreviewResultRowDto> previewRows = new ArrayList<>();
 
         void addError(UploadErrorDto error) {
             errors.add(error);

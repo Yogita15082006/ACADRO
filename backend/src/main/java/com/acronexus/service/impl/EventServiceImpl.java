@@ -210,7 +210,7 @@ public class EventServiceImpl implements EventService {
                 availableEvents = eventRepository.findAvailableEventsForStudent(deptId, classId, student.getBatchYear(), startOfDay);
             }
             
-            List<EventRegistration> registrations = eventRegistrationRepository.findByStudentUserIdOrderByRegisteredAtDesc(user.getId());
+            List<EventRegistration> registrations = eventRegistrationRepository.findByStudentIdOrderByRegisteredAtDesc(user.getId());
             
             long attendedCount = registrations.stream()
                 .filter(r -> "ATTENDED".equalsIgnoreCase(r.getAttendanceStatus()))
@@ -267,7 +267,7 @@ public class EventServiceImpl implements EventService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (user.getRole() == UserRole.STUDENT) {
-            isRegistered = eventRegistrationRepository.existsByEventIdAndStudentUserId(eventId, currentUserId);
+            isRegistered = eventRegistrationRepository.existsByEventIdAndStudentId(eventId, currentUserId);
         }
         
         return ApiResponse.success("Event fetched successfully", eventMapper.toResponse(event, count, isRegistered));
@@ -354,7 +354,7 @@ public class EventServiceImpl implements EventService {
         
         List<EventResponse> responses = availableEvents.stream().map(e -> {
             long count = eventRegistrationRepository.countByEventId(e.getId());
-            boolean isRegistered = eventRegistrationRepository.existsByEventIdAndStudentUserId(e.getId(), studentUserId);
+            boolean isRegistered = eventRegistrationRepository.existsByEventIdAndStudentId(e.getId(), studentUserId);
             return eventMapper.toResponse(e, count, isRegistered);
         }).collect(Collectors.toList());
         
@@ -363,7 +363,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public ApiResponse<List<EventRegistrationResponse>> getStudentRegistrations(UUID studentUserId) {
-        List<EventRegistration> registrations = eventRegistrationRepository.findByStudentUserIdOrderByRegisteredAtDesc(studentUserId);
+        List<EventRegistration> registrations = eventRegistrationRepository.findByStudentIdOrderByRegisteredAtDesc(studentUserId);
         List<EventRegistrationResponse> responses = registrations.stream()
                 .map(eventMapper::toRegistrationResponse)
                 .collect(Collectors.toList());
@@ -377,33 +377,55 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
                 
         if (!event.getIsActive()) {
-            throw new RuntimeException("Event is not active");
+            throw new IllegalArgumentException("Event is not active");
         }
         
         Instant now = Instant.now();
         if (event.getRegistrationStart() != null && now.isBefore(event.getRegistrationStart())) {
-            throw new RuntimeException("Registration has not started yet");
+            throw new IllegalArgumentException("Registration has not started yet");
         }
         if (event.getRegistrationEnd() != null && now.isAfter(event.getRegistrationEnd().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
-            throw new RuntimeException("Registration has closed");
+            throw new IllegalArgumentException("Registration has closed");
         }
         if (event.getEventDate() != null && now.isAfter(event.getEventDate().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
-            throw new RuntimeException("Cannot register after event date");
+            throw new IllegalArgumentException("Cannot register after event date");
         }
         
-        if (eventRegistrationRepository.existsByEventIdAndStudentUserId(eventId, studentUserId)) {
-            throw new RuntimeException("Student is already registered for this event");
+        if (eventRegistrationRepository.existsByEventIdAndStudentId(eventId, studentUserId)) {
+            throw new com.acronexus.exception.DuplicateResourceException("Student is already registered for this event");
         }
         
         if (event.getMaxParticipants() != null) {
             long currentParticipants = eventRegistrationRepository.countByEventId(eventId);
             if (currentParticipants >= event.getMaxParticipants()) {
-                throw new RuntimeException("Event has reached maximum participant capacity");
+                throw new IllegalArgumentException("Event has reached maximum participant capacity");
             }
         }
         
         Student student = studentRepository.findByUser_Id(studentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+                
+        // Targeting Validation
+        if (event.getTargetAssignments() != null && !event.getTargetAssignments().isEmpty()) {
+            StudentEnrollment enrollment = studentEnrollmentRepository
+                    .findFirstByStudentUserIdAndIsActiveTrueOrderByCreatedAtDesc(studentUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("No active enrollment found"));
+                    
+            boolean isEligible = false;
+            for (EventTargetAssignment ta : event.getTargetAssignments()) {
+                if (ta.getAcroClass() != null && ta.getAcroClass().getId().equals(enrollment.getAcroClass().getId())) {
+                    isEligible = true;
+                    break;
+                }
+                if (Boolean.TRUE.equals(ta.getIsEntireBatch()) && ta.getBatchYear() != null && ta.getBatchYear().equals(student.getBatchYear())) {
+                    isEligible = true;
+                    break;
+                }
+            }
+            if (!isEligible) {
+                throw new org.springframework.security.access.AccessDeniedException("You are not eligible to register for this event based on its target criteria.");
+            }
+        }
                 
         EventRegistration registration = EventRegistration.builder()
                 .event(event)
@@ -439,7 +461,7 @@ public class EventServiceImpl implements EventService {
             throw new RuntimeException("Cannot cancel registration after registration has closed");
         }
         
-        EventRegistration registration = eventRegistrationRepository.findByEventIdAndStudentUserId(eventId, studentUserId)
+        EventRegistration registration = eventRegistrationRepository.findByEventIdAndStudentId(eventId, studentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found"));
                 
         eventRegistrationRepository.delete(registration);
@@ -570,19 +592,26 @@ public class EventServiceImpl implements EventService {
         }
 
         String jsonContent = aiResponse.getContent().trim();
-        if (jsonContent.startsWith("```json")) {
-            jsonContent = jsonContent.substring(7);
-        }
-        if (jsonContent.startsWith("```")) {
-            jsonContent = jsonContent.substring(3);
-        }
-        if (jsonContent.endsWith("```")) {
-            jsonContent = jsonContent.substring(0, jsonContent.length() - 3);
+        int startIndex = jsonContent.indexOf('{');
+        int endIndex = jsonContent.lastIndexOf('}');
+        if (startIndex != -1 && endIndex != -1 && startIndex <= endIndex) {
+            jsonContent = jsonContent.substring(startIndex, endIndex + 1);
+        } else {
+            startIndex = jsonContent.indexOf('[');
+            endIndex = jsonContent.lastIndexOf(']');
+            if (startIndex != -1 && endIndex != -1 && startIndex <= endIndex) {
+                jsonContent = jsonContent.substring(startIndex, endIndex + 1);
+            }
         }
         jsonContent = jsonContent.trim();
 
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true);
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_TRAILING_COMMA, true);
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
             com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(jsonContent);
             while (root.isArray() && root.size() > 0) {
                 root = root.get(0);
@@ -935,7 +964,7 @@ public class EventServiceImpl implements EventService {
         Student student = studentRepository.findByUser_Id(studentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
 
-        if (!eventRegistrationRepository.existsByEventIdAndStudentUserId(session.getEvent().getId(), studentUserId)) {
+        if (!eventRegistrationRepository.existsByEventIdAndStudentId(session.getEvent().getId(), studentUserId)) {
             throw new RuntimeException("You are not registered for this event");
         }
 

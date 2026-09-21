@@ -11,6 +11,8 @@ public class ExamAiFeedbackResponseDto {
     private UUID subjectId;
     private String subjectCode;
     private String subjectName;
+    private UUID classSubjectId;
+    private java.time.LocalDate examDate;
     private String overallPerformance;
     private String[] strengths;
     private String[] areasOfImprovement;

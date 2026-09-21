@@ -46,7 +46,7 @@ public class FacultyProfileController {
             dto.setId(cs.getId());
             dto.setFacultyId(faculty.getId());
             dto.setSubjectName(cs.getSubject().getName());
-            dto.setClassName(cs.getAcroClass().getName());
+            dto.setClassName(cs.getAcroClass().getFunctionalClassName());
             dto.setSemester(cs.getSemester().getSemesterNumber() != null ? "Semester " + cs.getSemester().getSemesterNumber() : "Unknown");
             dto.setAcademicYear(cs.getAcademicYear().getYear());
             return dto;
@@ -75,7 +75,7 @@ public class FacultyProfileController {
             
             if (activity.getClassSubject() != null) {
                 dto.setSubjectName(activity.getClassSubject().getSubject().getName());
-                dto.setClassName(activity.getClassSubject().getAcroClass().getName());
+                dto.setClassName(activity.getClassSubject().getAcroClass().getFunctionalClassName());
                 dto.setSemester(activity.getClassSubject().getSemester().getSemesterNumber() != null ? "Semester " + activity.getClassSubject().getSemester().getSemesterNumber() : "Unknown");
                 dto.setAcademicYear(activity.getClassSubject().getAcademicYear().getYear());
             }

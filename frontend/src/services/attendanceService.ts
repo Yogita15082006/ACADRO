@@ -90,6 +90,11 @@ export const attendanceService = {
     return response.data;
   },
 
+  getExaminationAttendanceBySubject: async (classSubjectId: string): Promise<any[]> => {
+    const response = await api.get(`/examinations/subject-attendance/${classSubjectId}`);
+    return response.data?.data || [];
+  },
+
   addStudentToHistory: async (sessionId: string, enrollmentNumber: string): Promise<void> => {
     const response = await api.post(`/attendance-sessions/${sessionId}/add-student/${enrollmentNumber}`);
     return response.data;
@@ -125,6 +130,16 @@ export const attendanceService = {
 
   bulkApproveText: async (sessionId: string, text: string): Promise<any> => {
     const response = await api.post(`/attendance-sessions/${sessionId}/bulk-approve-text`, { text });
+    return response.data;
+  },
+
+  previewBulkText: async (classSubjectId: string, text: string): Promise<any> => {
+    const response = await api.post(`/attendance-sessions/class/${classSubjectId}/preview-text`, { text });
+    return response.data;
+  },
+
+  createAutomateSession: async (facultyId: string, data: any): Promise<any> => {
+    const response = await api.post(`/attendance-sessions/faculty/${facultyId}/automate`, data);
     return response.data;
   },
 

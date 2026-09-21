@@ -256,10 +256,7 @@ public class AttendanceDashboardServiceImpl implements AttendanceDashboardServic
                 semesterStr = String.valueOf(enr.getSemester().getSemesterNumber());
             }
             if (enr.getAcroClass() != null) {
-                className = enr.getAcroClass().getName();
-                if (enr.getAcroClass().getSection() != null && !enr.getAcroClass().getSection().isEmpty()) {
-                    className += "-" + enr.getAcroClass().getSection();
-                }
+                className = enr.getAcroClass().getFunctionalClassName();
             }
         }
 
@@ -540,7 +537,7 @@ sa.getDate().getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java
                     .sessionId(sessionId)
                     .date(fa.getDate())
                     .subjectName(fa.getClassSubject().getSubject().getName())
-                    .className(fa.getClassSubject().getAcroClass().getName())
+                    .className(fa.getClassSubject().getAcroClass().getFunctionalClassName())
                     .totalPresent(presentAbsent[0])
                     .totalAbsent(presentAbsent[1])
                     .build();

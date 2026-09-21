@@ -20,7 +20,10 @@ import java.nio.file.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.acronexus.exception.ResourceNotFoundException;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class AssignmentServiceImpl implements AssignmentService {
 
     @Autowired
@@ -893,18 +896,24 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     private void notifyAssignmentCreated(Assignment assignment) {
-        if (assignment.getClassSubject() == null || assignment.getClassSubject().getAcroClass() == null) return;
-        UUID classId = assignment.getClassSubject().getAcroClass().getId();
-        
-        List<UUID> targetUserIds = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId).stream()
-            .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
-            .map(e -> e.getStudent().getUser().getId())
-            .collect(Collectors.toList());
+        try {
+            if (assignment.getClassSubject() == null || assignment.getClassSubject().getAcroClass() == null) return;
+            UUID classId = assignment.getClassSubject().getAcroClass().getId();
             
-        String subjectName = assignment.getClassSubject().getSubject() != null ? assignment.getClassSubject().getSubject().getName() : "a subject";
-        String title = "New Assignment: " + assignment.getTitle();
-        String message = "A new assignment has been posted for " + subjectName + ".";
-        
-        notificationService.createBulkSystemNotifications(targetUserIds, title, message, "ASSIGNMENT", assignment.getId().toString());
+            List<UUID> targetUserIds = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId).stream()
+                .filter(e -> e.getStudent() != null && e.getStudent().getUser() != null)
+                .map(e -> e.getStudent().getUser().getId())
+                .collect(Collectors.toList());
+                
+            if (targetUserIds.isEmpty()) return;
+                
+            String subjectName = assignment.getClassSubject().getSubject() != null ? assignment.getClassSubject().getSubject().getName() : "a subject";
+            String title = "New Assignment: " + (assignment.getTitle() != null ? assignment.getTitle() : "Untitled");
+            String message = "A new assignment has been posted for " + subjectName + ".";
+            
+            notificationService.createBulkSystemNotifications(targetUserIds, title, message, "ASSIGNMENT", assignment.getId().toString());
+        } catch (Exception ex) {
+            log.warn("Failed to create notifications for new assignment ID: {}. Error: {}", assignment.getId(), ex.getMessage());
+        }
     }
 }

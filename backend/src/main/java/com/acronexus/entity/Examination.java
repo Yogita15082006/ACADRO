@@ -59,6 +59,10 @@ public class Examination {
     @OneToMany(mappedBy = "examination", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<ExaminationTimetable> timetables = new java.util.ArrayList<>();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "coordinator_assignment_id")
+    private ExamCoordinatorAssignment coordinatorAssignment;
+
     private Boolean isDeleted = false;
 
     @org.hibernate.annotations.CreationTimestamp

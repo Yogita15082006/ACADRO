@@ -176,7 +176,7 @@ public class SmartReminderScheduler {
         List<StudentEnrollment> enrolledStudents = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId);
         for (StudentEnrollment enrollment : enrolledStudents) {
             if (checkRegistration && event.getRegistrationEnd() != null) {
-                boolean hasRegistered = eventRegistrationRepository.existsByEventIdAndStudentUserId(event.getId(), enrollment.getStudent().getUser().getId());
+                boolean hasRegistered = eventRegistrationRepository.existsByEventIdAndStudentId(event.getId(), enrollment.getStudent().getId());
                 if (hasRegistered) continue; // Already registered, skip reminder
             }
             notificationService.createSystemNotification(

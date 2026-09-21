@@ -35,6 +35,12 @@ public class ExamResultMapper {
             subject.setId(dto.getSubjectId());
             entity.setSubject(subject);
         }
+        if (dto.getClassSubjectId() != null) {
+            com.acronexus.entity.ClassSubject classSubject = new com.acronexus.entity.ClassSubject();
+            classSubject.setId(dto.getClassSubjectId());
+            entity.setClassSubject(classSubject);
+        }
+        entity.setExamDate(dto.getExamDate());
         entity.setMarksObtained(dto.getMarksObtained());
         entity.setMaxMarks(dto.getMaxMarks());
         entity.setGrade(dto.getGrade());
@@ -64,6 +70,10 @@ public class ExamResultMapper {
             dto.setSubjectName(entity.getSubject().getName());
             dto.setSubjectCode(entity.getSubject().getCode());
         }
+        if (entity.getClassSubject() != null) {
+            dto.setClassSubjectId(entity.getClassSubject().getId());
+        }
+        dto.setExamDate(entity.getExamDate());
         dto.setMarksObtained(entity.getMarksObtained());
         dto.setMaxMarks(entity.getMaxMarks());
         dto.setGrade(entity.getGrade());

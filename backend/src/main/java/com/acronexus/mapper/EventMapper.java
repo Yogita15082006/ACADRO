@@ -73,7 +73,7 @@ public class EventMapper {
                 dto.setIsEntireBatch(t.getIsEntireBatch());
                 if (t.getAcroClass() != null) {
                     dto.setAcroClassId(t.getAcroClass().getId());
-                    dto.setAcroClassName(t.getAcroClass().getName());
+                    dto.setAcroClassName(t.getAcroClass().getFunctionalClassName());
                 }
                 return dto;
             }).collect(java.util.stream.Collectors.toList());

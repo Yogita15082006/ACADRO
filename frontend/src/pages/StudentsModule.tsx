@@ -49,8 +49,7 @@ export const StudentsModule = () => {
   const [batches, setBatches] = useState<string[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
 
-  // New options states
-  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [studyYears, setStudyYears] = useState<any[]>([]);
   const [semesters, setSemesters] = useState<any[]>([]);
   const [classOptions, setClassOptions] = useState<any[]>([]);
 
@@ -82,9 +81,7 @@ export const StudentsModule = () => {
       setClassesList(cRes.data?.data || []);
 
       const ayRes = await api.get('/v1/students/options/academic-years');
-      setAcademicYears(ayRes.data?.data || []);
-      const classOptRes = await api.get('/v1/students/options/classes');
-      setClassOptions(classOptRes.data?.data || []);
+      setStudyYears(ayRes.data?.data || []);
     } catch (e) {
       console.error(e);
     }
@@ -113,46 +110,38 @@ export const StudentsModule = () => {
   // Form state
   const [form, setForm] = useState({ 
     enrollmentNumber: '', name: '', gender: 'Male', batch: '', 
-    academicYearId: '', semesterId: '', classId: '', status: 'Active' 
+    studyYear: '', semesterId: '', classId: '', status: 'Active' 
   });
 
   useEffect(() => {
-    if (form.academicYearId) {
-      api.get(`/v1/students/options/semesters?academicYearId=${form.academicYearId}`)
-         .then(res => {
-           const opts = res.data?.data || [];
-           setSemesters(opts);
-           setForm(prev => {
-             if (prev.semesterId && !opts.find((o: any) => o.id === prev.semesterId)) {
-               return { ...prev, semesterId: '' };
-             }
-             return prev;
-           });
-         })
-         .catch(() => setSemesters([]));
+    if (form.studyYear) {
+      api.get(`/v1/students/options/semesters?studyYear=${form.studyYear}`)
+        .then(res => {
+          setSemesters(res.data?.data || []);
+        })
+        .catch(e => console.error(e));
     } else {
       setSemesters([]);
     }
-  }, [form.academicYearId]);
+  }, [form.studyYear]);
+
+
 
   useEffect(() => {
-    if (form.semesterId && form.batch && form.academicYearId) {
-      api.get(`/v1/students/options/classes?batch=${encodeURIComponent(form.batch)}&academicYearId=${form.academicYearId}&semesterId=${form.semesterId}`)
+    if (form.semesterId && form.studyYear) {
+      let url = `/v1/students/options/classes?studyYear=${form.studyYear}&semesterId=${form.semesterId}`;
+      if (form.batch) {
+          url += `&batch=${encodeURIComponent(form.batch)}`;
+      }
+      api.get(url)
          .then(res => {
-           const opts = res.data?.data || [];
-           setClassOptions(opts);
-           setForm(prev => {
-             if (prev.classId && !opts.find((o: any) => o.id === prev.classId)) {
-               return { ...prev, classId: '' };
-             }
-             return prev;
-           });
+           setClassOptions(res.data?.data || []);
          })
          .catch(() => setClassOptions([]));
     } else {
       setClassOptions([]);
     }
-  }, [form.batch, form.academicYearId, form.semesterId]);
+  }, [form.batch, form.studyYear, form.semesterId]);
 
 
 
@@ -271,7 +260,7 @@ export const StudentsModule = () => {
                 <th>Name</th>
                 <th>Gender</th>
                 <th>Batch</th>
-                <th>Year</th>
+                <th>Study Year</th>
                 <th>Semester</th>
                 <th>Class</th>
                 <th>Status</th>
@@ -374,7 +363,7 @@ export const StudentsModule = () => {
         name: form.name,
         gender: form.gender,
         batch: form.batch,
-        academicYearId: form.academicYearId || null,
+        studyYear: form.studyYear ? parseInt(form.studyYear) : null,
         semesterId: form.semesterId || null,
         classId: form.classId || null,
         status: form.status
@@ -389,7 +378,7 @@ export const StudentsModule = () => {
       }
       
       setShowAdd(false);
-      setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '', academicYearId: '', semesterId: '', classId: '', status: 'Active' });
+      setForm({ enrollmentNumber: '', name: '', gender: 'Male', batch: '', studyYear: '', semesterId: '', classId: '', status: 'Active' });
       toast.success('Student added successfully');
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to add student');
@@ -404,7 +393,7 @@ export const StudentsModule = () => {
         name: form.name,
         gender: form.gender,
         batch: form.batch,
-        academicYearId: form.academicYearId || null,
+        studyYear: form.studyYear ? parseInt(form.studyYear) : null,
         semesterId: form.semesterId || null,
         classId: form.classId || null,
         status: form.status
@@ -435,7 +424,7 @@ export const StudentsModule = () => {
       name: s.name || '', 
       gender: s.gender || 'Male', 
       batch: s.batch || '',
-      academicYearId: s.academicYearId || '',
+      studyYear: s.studyYear ? s.studyYear.toString() : '',
       semesterId: s.semesterId || '',
       classId: s.classId || '',
       status: s.status || 'Active'
@@ -524,7 +513,7 @@ export const StudentsModule = () => {
             <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
               className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:ring-2 focus:ring-ring">
               <option value="">All Classes</option>
-              {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+              {classesList.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             {isHod && (
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
@@ -566,7 +555,7 @@ export const StudentsModule = () => {
                   <th className="px-4 py-3 font-semibold">Enrollment</th>
                   <th className="px-4 py-3 font-semibold">Gender</th>
                   <th className="px-4 py-3 font-semibold">Batch</th>
-                  <th className="px-4 py-3 font-semibold">Year</th>
+                  <th className="px-4 py-3 font-semibold">Study Year</th>
                   <th className="px-4 py-3 font-semibold">Semester</th>
                   <th className="px-4 py-3 font-semibold">Class</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
@@ -665,7 +654,7 @@ export const StudentsModule = () => {
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Add Student [RUNTIME CHECK]</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Add Student</DialogTitle>
             <DialogDescription>Manually add a student with correct academic relations.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -697,18 +686,18 @@ export const StudentsModule = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Year</label>
-                  <select value={form.academicYearId} onChange={e => setForm({...form, academicYearId: e.target.value, semesterId: ''})}
+                  <select value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Year</option>
-                    {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
+                    {studyYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value})}
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.academicYearId}>
+                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.studyYear}>
                     <option value="">Select Semester</option>
                     {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
@@ -763,22 +752,22 @@ export const StudentsModule = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Batch</label>
-                  <Input value={form.batch} onChange={e => setForm({...form, batch: e.target.value})} placeholder="e.g. 2024-2028" />
+                  <Input value={form.batch} onChange={e => setForm({...form, batch: e.target.value, classId: ''})} placeholder="e.g. 2024-2028" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Year</label>
-                  <select value={form.academicYearId} onChange={e => setForm({...form, academicYearId: e.target.value, semesterId: ''})}
+                  <select value={form.studyYear} onChange={e => setForm({...form, studyYear: e.target.value, semesterId: '', classId: ''})}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
                     <option value="">Select Year</option>
-                    {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
+                    {studyYears.map(ay => <option key={ay.id} value={ay.id}>{ay.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Semester</label>
-                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value})}
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.academicYearId}>
+                  <select value={form.semesterId} onChange={e => setForm({...form, semesterId: e.target.value, classId: ''})}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" disabled={!form.studyYear}>
                     <option value="">Select Semester</option>
                     {semesters.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>

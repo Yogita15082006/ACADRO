@@ -105,7 +105,7 @@ public class ClassSubjectService {
                         allActiveSubjects.stream().filter(cs -> {
                             if (cs.getAcroClass() == null) return false;
                             boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
-                                                 (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                                                 (finalClassName != null && cs.getAcroClass().getFunctionalClassName() != null && cs.getAcroClass().getFunctionalClassName().trim().equalsIgnoreCase(finalClassName.trim()));
                             boolean matchSem = true;
                             if (finalSemNum != null && cs.getSemester() != null) {
                                 matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
@@ -119,13 +119,13 @@ public class ClassSubjectService {
                     }
                 } else if (t.getAcroClass() != null) {
                     UUID finalClassId = t.getAcroClass().getId();
-                    String finalClassName = t.getAcroClass().getName();
+                    String finalClassName = t.getAcroClass().getFunctionalClassName();
                     Integer finalSemNum = targetSemNum;
 
                     allActiveSubjects.stream().filter(cs -> {
                         if (cs.getAcroClass() == null) return false;
                         boolean matchClass = (finalClassId != null && cs.getAcroClass().getId().equals(finalClassId)) ||
-                                             (finalClassName != null && cs.getAcroClass().getName() != null && cs.getAcroClass().getName().trim().equalsIgnoreCase(finalClassName.trim()));
+                                             (finalClassName != null && cs.getAcroClass().getFunctionalClassName() != null && cs.getAcroClass().getFunctionalClassName().trim().equalsIgnoreCase(finalClassName.trim()));
                         boolean matchSem = true;
                         if (finalSemNum != null && cs.getSemester() != null) {
                             matchSem = cs.getSemester().getSemesterNumber().equals(finalSemNum);
@@ -267,9 +267,14 @@ public class ClassSubjectService {
 
         if (classSubject.getAcroClass() != null) {
             dto.setClassId(classSubject.getAcroClass().getId());
-            dto.setClassName(classSubject.getAcroClass().getName() + " - " + classSubject.getAcroClass().getSection());
+            if (classSubject.getAcroClass().getSection() != null && !classSubject.getAcroClass().getSection().trim().isEmpty()) {
+                dto.setClassSection(classSubject.getAcroClass().getSection().trim());
+                dto.setClassName(classSubject.getAcroClass().getSection().trim());
+            } else {
+                dto.setClassName(classSubject.getAcroClass().getFunctionalClassName());
+            }
             
-            List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getName());
+            List<CoordinatorAssignment> coordinatorAssignments = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(classSubject.getAcroClass().getFunctionalClassName());
             if (!coordinatorAssignments.isEmpty()) {
                 CoordinatorAssignment ca = coordinatorAssignments.get(0);
                 if (ca.getCoordinator() != null) {
@@ -310,6 +315,9 @@ public class ClassSubjectService {
         if (classSubject.getSyllabusSubject() != null) {
             dto.setLinkedSyllabus(mapSyllabusToMap(classSubject.getSyllabusSubject()));
         }
+        
+        // This won't have the user context inside mapToDto, so we can't fully populate canManageWorkspace here easily without passing UserDetails.
+        // We'll leave the boolean out of DTO or let the controller set it if needed. Let's just return dto.
 
         return dto;
     }
@@ -326,12 +334,12 @@ public class ClassSubjectService {
         }
         String year = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear() : null;
         String semester = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : null;
-        String className = cs.getAcroClass() != null ? cs.getAcroClass().getName() : null;
+        String className = cs.getAcroClass() != null ? cs.getAcroClass().getFunctionalClassName() : null;
 
         // Fetch batch if available from coordinator assignments
         String batch = null;
         if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-            batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+            batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
                     .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                   java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                     .map(CoordinatorAssignment::getBatch)
@@ -366,11 +374,11 @@ public class ClassSubjectService {
                 ? cs.getAcroClass().getDepartment().getName() : null;
             String yr = cs.getAcademicYear() != null ? cs.getAcademicYear().getYear() : null;
             String sem = cs.getSemester() != null ? String.valueOf(cs.getSemester().getSemesterNumber()) : null;
-            String cls = cs.getAcroClass() != null ? cs.getAcroClass().getName() : null;
+            String cls = cs.getAcroClass() != null ? cs.getAcroClass().getFunctionalClassName() : null;
 
             String batch = null;
             if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-                batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getName()).stream()
+                batch = coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
                         .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                       java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                         .map(CoordinatorAssignment::getBatch)
@@ -598,5 +606,55 @@ public class ClassSubjectService {
             map.put("documentUrl", "/api/v1/academic-resources/" + ss.getAcademicSyllabus().getFileStorage().getId() + "/download");
         }
         return map;
+    }
+    @Transactional(readOnly = true)
+    public boolean canManageSubjectWorkspace(UUID userId, String userRole, UUID classSubjectId) {
+        if ("ROLE_ADMIN".equals(userRole)) {
+            return true; // Admin override
+        }
+
+        ClassSubject classSubject = classSubjectRepository.findById(classSubjectId).orElse(null);
+        if (classSubject == null) return false;
+
+        // 1. Faculty Check
+        if (classSubject.getFaculty() != null && classSubject.getFaculty().getId().equals(userId)) {
+            return true;
+        }
+
+        // 2. HOD Check
+        if (classSubject.getAcroClass() != null && classSubject.getAcroClass().getDepartment() != null) {
+            Department dept = classSubject.getAcroClass().getDepartment();
+            if (dept.getHod() != null && dept.getHod().getId().equals(userId)) {
+                return true;
+            }
+        }
+
+        // 3. Coordinator Check
+        if (classSubject.getAcroClass() != null && classSubject.getSemester() != null && classSubject.getAcademicYear() != null) {
+            List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(userId);
+            for (CoordinatorAssignment ca : assignments) {
+                if (Boolean.TRUE.equals(ca.getIsActive())) {
+                    boolean matchClass = ca.getClassName() != null && classSubject.getAcroClass().getFunctionalClassName() != null &&
+                            ca.getClassName().trim().equalsIgnoreCase(classSubject.getAcroClass().getFunctionalClassName().trim());
+                    
+                    boolean matchSem = true;
+                    if (ca.getSemester() != null) {
+                        String semName = "Semester " + classSubject.getSemester().getSemesterNumber();
+                        matchSem = ca.getSemester().equalsIgnoreCase(semName);
+                    }
+                    
+                    boolean matchYear = true;
+                    if (ca.getAcademicYear() != null) {
+                        matchYear = ca.getAcademicYear().equalsIgnoreCase(classSubject.getAcademicYear().getYear());
+                    }
+                    
+                    if (matchClass && matchSem && matchYear) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

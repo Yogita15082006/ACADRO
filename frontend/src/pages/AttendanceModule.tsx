@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -1603,7 +1603,7 @@ export const AttendanceModule = () => {
                   semester: coordinatorSectionData?.semester || 'N/A',
                   // @ts-ignore
                   photo: s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.photo ? getAssetUrl(s.photo) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
-                  attendance: s.overallAttendance ? Math.round(s.overallAttendance) : 0
+                  attendance: studentOverall?.overallPercentage !== undefined && studentOverall?.overallPercentage !== null ? Math.round(studentOverall.overallPercentage) : (s.overallAttendance ? Math.round(s.overallAttendance) : 0)
                 };
               })()}
               subjectData={studentSubjectWise}

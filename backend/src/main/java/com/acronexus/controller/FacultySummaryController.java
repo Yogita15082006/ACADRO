@@ -66,7 +66,7 @@ public class FacultySummaryController {
             for (ClassSubject cs : classSubjects) {
                 if (cs.getAcademicYear() != null) assignedYears.add(cs.getAcademicYear().getYear().replace("YEAR_", ""));
                 if (cs.getSemester() != null) assignedSems.add("Sem " + cs.getSemester().getSemesterNumber());
-                if (cs.getAcroClass() != null) assignedClasses.add(cs.getAcroClass().getName());
+                if (cs.getAcroClass() != null) assignedClasses.add(cs.getAcroClass().getFunctionalClassName());
                 if (cs.getSubject() != null) assignedSubjects.add(cs.getSubject().getName());
             }
 

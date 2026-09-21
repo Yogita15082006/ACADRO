@@ -14,12 +14,12 @@ import java.util.UUID;
 @Repository
 public interface EventRegistrationRepository extends JpaRepository<EventRegistration, UUID> {
 
-    boolean existsByEventIdAndStudentUserId(UUID eventId, UUID studentId);
+    boolean existsByEventIdAndStudentId(UUID eventId, UUID studentId);
 
     long countByEventId(UUID eventId);
 
     @EntityGraph(attributePaths = {"event", "event.department", "event.targetClass", "event.posterFile"})
-    List<EventRegistration> findByStudentUserIdOrderByRegisteredAtDesc(UUID studentId);
+    List<EventRegistration> findByStudentIdOrderByRegisteredAtDesc(UUID studentId);
 
     @EntityGraph(attributePaths = {"student", "student.user"})
     Page<EventRegistration> findByEventId(UUID eventId, Pageable pageable);
@@ -27,5 +27,5 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     @EntityGraph(attributePaths = {"student", "student.user", "student.enrollmentNo"})
     List<EventRegistration> findByEventIdOrderByRegisteredAtDesc(UUID eventId);
 
-    Optional<EventRegistration> findByEventIdAndStudentUserId(UUID eventId, UUID studentId);
+    Optional<EventRegistration> findByEventIdAndStudentId(UUID eventId, UUID studentId);
 }

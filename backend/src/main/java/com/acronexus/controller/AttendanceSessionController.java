@@ -92,11 +92,32 @@ public class AttendanceSessionController {
 
     @PostMapping("/{sessionId}/bulk-approve-text")
     @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
-    public ResponseEntity<Void> bulkApproveText(
+    public ResponseEntity<com.acronexus.dto.BulkReviewResponse> bulkApproveText(
             @PathVariable UUID sessionId,
             @RequestBody com.acronexus.dto.BulkApproveTextRequest request) {
-        sessionService.bulkApproveText(sessionId, request.getText());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(sessionService.bulkApproveText(sessionId, request.getText()));
+    }
+    
+    @PostMapping("/class/{classSubjectId}/preview-text")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<com.acronexus.dto.BulkReviewResponse> previewBulkText(
+            @PathVariable UUID classSubjectId,
+            @RequestBody com.acronexus.dto.BulkApproveTextRequest request,
+            org.springframework.security.core.Authentication authentication) {
+        com.acronexus.security.UserDetailsImpl userDetails = (com.acronexus.security.UserDetailsImpl) authentication.getPrincipal();
+        boolean hasAdminRole = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("ADMIN") || a.getAuthority().contains("COORDINATOR") || a.getAuthority().contains("HOD"));
+        return ResponseEntity.ok(sessionService.previewBulkText(classSubjectId, request.getText(), userDetails.getId(), hasAdminRole));
+    }
+    
+    @PostMapping("/faculty/{facultyId}/automate")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN', 'COORDINATOR', 'HOD')")
+    public ResponseEntity<AttendanceSessionDTO> createAutomateSession(
+            @PathVariable UUID facultyId,
+            @RequestBody com.acronexus.dto.CreateAutomateSessionRequest request,
+            org.springframework.security.core.Authentication authentication) {
+        com.acronexus.security.UserDetailsImpl userDetails = (com.acronexus.security.UserDetailsImpl) authentication.getPrincipal();
+        boolean hasAdminRole = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("ADMIN") || a.getAuthority().contains("COORDINATOR") || a.getAuthority().contains("HOD"));
+        return ResponseEntity.ok(sessionService.createAutomateSession(facultyId, request, userDetails.getId(), hasAdminRole));
     }
 
 

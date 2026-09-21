@@ -5,6 +5,8 @@ import com.acronexus.dto.ExaminationResponseDto;
 import com.acronexus.entity.Department;
 import com.acronexus.entity.Examination;
 import com.acronexus.entity.Semester;
+import com.acronexus.entity.ExamCoordinatorAssignment;
+import org.springframework.security.access.AccessDeniedException;
 import com.acronexus.exception.DuplicateResourceException;
 import com.acronexus.exception.ResourceNotFoundException;
 import com.acronexus.mapper.ExaminationMapper;
@@ -26,6 +28,7 @@ import com.acronexus.repository.StudentRepository;
 import com.acronexus.repository.StudentEnrollmentRepository;
 import com.acronexus.repository.AcroClassRepository;
 import com.acronexus.repository.AcademicYearRepository;
+import com.acronexus.repository.ExamCoordinatorAssignmentRepository;
 import org.springframework.web.multipart.MultipartFile;
 import com.acronexus.entity.ExaminationTimetable;
 import com.acronexus.dto.ExaminationTimetableDto;
@@ -87,6 +90,7 @@ public class ExaminationServiceImpl implements ExaminationService {
     private final ExaminationMapper mapper;
     private final UserRepository userRepository;
     private final com.acronexus.service.NotificationService notificationService;
+    private final ExamCoordinatorAssignmentRepository examCoordinatorAssignmentRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ExaminationServiceImpl(
@@ -99,7 +103,8 @@ public class ExaminationServiceImpl implements ExaminationService {
         SemesterRepository semesterRepository,
         ExaminationMapper mapper,
         UserRepository userRepository,
-        com.acronexus.service.NotificationService notificationService
+        com.acronexus.service.NotificationService notificationService,
+        ExamCoordinatorAssignmentRepository examCoordinatorAssignmentRepository
     ) {
         this.eligibilityListRepository = eligibilityListRepository;
         this.eligibilityStudentRepository = eligibilityStudentRepository;
@@ -111,6 +116,7 @@ public class ExaminationServiceImpl implements ExaminationService {
         this.mapper = mapper;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.examCoordinatorAssignmentRepository = examCoordinatorAssignmentRepository;
     }
 
 
@@ -144,10 +150,27 @@ public class ExaminationServiceImpl implements ExaminationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Semester not found"));
 
         verifyDepartmentAccess(department);
+        
+        ExamCoordinatorAssignment validAssignment = null;
+        if (currentUser.getRole() != UserRole.HOD) {
+            if (requestDto.getCoordinatorAssignmentId() == null) {
+                throw new AccessDeniedException("You are not authorized to create examinations. An active coordinator assignment is required.");
+            }
+            validAssignment = examCoordinatorAssignmentRepository.findById(requestDto.getCoordinatorAssignmentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Coordinator assignment not found"));
+            
+            if (!validAssignment.getIsActive() || validAssignment.getValidUntil().isBefore(java.time.LocalDate.now()) || !validAssignment.getAssignedUser().getId().equals(currentUser.getId())) {
+                throw new AccessDeniedException("The specified coordinator assignment is invalid, expired, or not assigned to you.");
+            }
+            if (!validAssignment.getDepartment().getId().equals(department.getId())) {
+                throw new AccessDeniedException("The specified coordinator assignment does not match the examination department.");
+            }
+        }
 
         Examination entity = mapper.toEntity(requestDto);
         entity.setDepartment(department);
         entity.setSemester(semester);
+        entity.setCoordinatorAssignment(validAssignment);
         
         entity.setBatch(requestDto.getBatch());
         entity.setCreatedBy(currentUser);

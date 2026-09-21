@@ -9,6 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface ExaminationEligibilityListRepository extends JpaRepository<ExaminationEligibilityList, UUID> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"students", "students.student", "students.student.user"})
     java.util.List<ExaminationEligibilityList> findByExaminationIdOrderByCreatedAtDesc(UUID examinationId);
     void deleteByExaminationId(UUID examinationId);
 }

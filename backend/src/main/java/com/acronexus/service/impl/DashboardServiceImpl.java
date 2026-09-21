@@ -46,6 +46,10 @@ public class DashboardServiceImpl implements DashboardService {
     private final AcademicSchemeRepository academicSchemeRepository;
     private final AcademicSyllabusRepository academicSyllabusRepository;
     private final TimetableRepository timetableRepository;
+    
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.acronexus.service.QuizAttemptService quizAttemptService;
     private final com.acronexus.service.AttendanceDashboardService attendanceDashboardService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
@@ -128,7 +132,7 @@ public class DashboardServiceImpl implements DashboardService {
                             .id(a.getId())
                             .title(a.getTitle())
                             .subjectName(a.getClassSubject().getSubject().getName())
-                            .className(a.getClassSubject().getAcroClass().getName())
+                            .className(a.getClassSubject().getAcroClass().getFunctionalClassName())
                             .deadline(a.getDeadline())
                             .maxMarks(a.getMaxMarks())
                             .submitted(submitted)
@@ -149,7 +153,7 @@ public class DashboardServiceImpl implements DashboardService {
                         .id(a.getId())
                         .title(a.getTitle())
                         .subjectName(a.getClassSubject().getSubject().getName())
-                        .className(a.getClassSubject().getAcroClass().getName())
+                        .className(a.getClassSubject().getAcroClass().getFunctionalClassName())
                         .deadline(a.getDeadline())
                         .maxMarks(a.getMaxMarks())
                         .submitted(false)
@@ -178,17 +182,17 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private List<StudentDashboardResponse.QuizScoreSummary> buildRecentQuizScores(UUID userId) {
-        List<QuizAttempt> attempts = quizAttemptRepository.findByStudent_User_Id(userId);
-        return attempts.stream()
-                .filter(a -> a.getCompletedAt() != null)
-                .sorted(Comparator.comparing(QuizAttempt::getCompletedAt).reversed())
+        List<com.acronexus.dto.QuizAttemptDto.Response> evaluatedResults = quizAttemptService.getStudentResultsByUserId(userId);
+        
+        return evaluatedResults.stream()
+                .sorted(Comparator.comparing(com.acronexus.dto.QuizAttemptDto.Response::getCompletedAt).reversed())
                 .limit(5)
-                .map(a -> StudentDashboardResponse.QuizScoreSummary.builder()
-                        .quizId(a.getQuiz().getId())
-                        .quizTitle(a.getQuiz().getTitle())
-                        .score(a.getScore())
-                        .totalMarks(a.getQuiz().getTotalMarks())
-                        .completedAt(a.getCompletedAt())
+                .map(r -> StudentDashboardResponse.QuizScoreSummary.builder()
+                        .quizId(r.getQuizId())
+                        .quizTitle(r.getQuizTitle())
+                        .score(r.getScore())
+                        .totalMarks(r.getTotalMarks())
+                        .completedAt(r.getCompletedAt())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -303,7 +307,7 @@ public class DashboardServiceImpl implements DashboardService {
         long totalMissing = 0;
 
         for (ClassSubject cs : classSubjects) {
-            String className = cs.getAcroClass().getName();
+            String className = cs.getAcroClass().getFunctionalClassName();
             String subjectName = cs.getSubject().getName();
             Double attendancePercentage = 0.0;
             long pendingSubjectAssignments = 0;
@@ -443,53 +447,13 @@ public class DashboardServiceImpl implements DashboardService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        UUID departmentId = user.getDepartment().getId();
-        if (departmentId == null) {
-            throw new RuntimeException("HOD is not assigned to any department");
-        }
-
-        long studentCount = userRepository.countByDepartmentIdAndRoleAndIsDeletedFalse(departmentId, UserRole.STUDENT);
-        long facultyCount = userRepository.countByDepartmentIdAndRoleAndIsDeletedFalse(departmentId, UserRole.FACULTY);
-        long attendanceCount = studentAttendanceRepository.countByDepartmentId(departmentId);
-        long assignmentCount = assignmentRepository.countByDepartmentId(departmentId);
-        long quizCount = quizRepository.countByDepartmentId(departmentId);
-        long examinationCount = examinationRepository.countByDepartmentIdAndIsDeletedFalse(departmentId);
-        long noticeCount = noticeRepository.countByTargetDepartmentIdAndIsDeletedFalseAndIsActiveTrue(departmentId);
-        long notificationCount = userNotificationRepository.countByDepartmentId(departmentId);
-        long classCount = acroClassRepository.countByDepartmentId(departmentId);
-        String deptName = user.getDepartment().getName();
-
-        Object attendanceResult = studentAttendanceRepository.getDepartmentOverallAttendance(departmentId);
-        Double attendancePercentage = null;
-        if (attendanceResult != null) {
-            long totalClasses = 0;
-            long presentClasses = 0;
-            if (attendanceResult instanceof Object[] row) {
-                totalClasses = row.length > 0 && row[0] != null ? ((Number) row[0]).longValue() : 0;
-                presentClasses = row.length > 1 && row[1] != null ? ((Number) row[1]).longValue() : 0;
-            } else if (attendanceResult instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Object[] row) {
-                totalClasses = row.length > 0 && row[0] != null ? ((Number) row[0]).longValue() : 0;
-                presentClasses = row.length > 1 && row[1] != null ? ((Number) row[1]).longValue() : 0;
-            }
-            if (totalClasses > 0) {
-                attendancePercentage = Math.round(((double) presentClasses / totalClasses) * 10000.0) / 100.0;
-            } else {
-                attendancePercentage = 0.0;
-            }
-        }
-
-        Faculty faculty = facultyRepository.findById(userId).orElse(null);
-        List<com.acronexus.entity.Department> targetDepts = new ArrayList<>();
-        if (faculty != null && faculty.getDepartments() != null && !faculty.getDepartments().isEmpty()) {
-            targetDepts = faculty.getDepartments();
-        } else if (user.getDepartment() != null) {
-            targetDepts.add(user.getDepartment());
-        }
+        List<com.acronexus.entity.Department> targetDepts = departmentRepository.findByHodId(userId);
 
         if (targetDepts.isEmpty()) {
             throw new RuntimeException("HOD is not assigned to any department");
         }
 
+        Double attendancePercentage = 0.0;
         List<HodDashboardResponse.DepartmentStats> breakdowns = new ArrayList<>();
         
         long totalStudentCount = 0;
@@ -528,7 +492,7 @@ public class DashboardServiceImpl implements DashboardService {
             
             totalSchemes += academicSchemeRepository.countByDepartmentIgnoreCase(subDeptName);
             totalSyllabus += academicSyllabusRepository.countByDepartmentIgnoreCase(subDeptName);
-            totalLectureMaterials += timetableRepository.countByAcroClassDepartmentId(subId);
+            totalLectureMaterials += timetableRepository.countByAcroClassDepartmentIdAndIsActiveTrue(subId);
 
             Double attPct = 0.0;
             Object attRes = studentAttendanceRepository.getDepartmentOverallAttendance(subId);
@@ -604,7 +568,7 @@ public class DashboardServiceImpl implements DashboardService {
         userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
 
         List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(userId);
-        long totalClasses = assignments.size();
+        long totalClasses = 0;
         long totalStudents = 0;
         long totalSubjects = 0;
         long upcomingEvents = 0;
@@ -615,9 +579,34 @@ public class DashboardServiceImpl implements DashboardService {
 
         List<CoordinatorDashboardResponse.ClassOverview> classOverviews = new ArrayList<>();
 
+        java.util.Map<String, CoordinatorAssignment> uniqueAssignmentsMap = new java.util.HashMap<>();
+        java.util.Map<String, AcroClass> resolvedClasses = new java.util.HashMap<>();
+
         for (CoordinatorAssignment assignment : assignments) {
             String className = assignment.getClassName();
-            AcroClass acroClass = acroClassRepository.findByName(className).stream().findFirst().orElse(null);
+            AcroClass acroClass = acroClassRepository.findByNameOrSection(className).stream().findFirst().orElse(null);
+            if (acroClass == null) {
+                acroClass = acroClassRepository.findByName(className).stream().findFirst().orElse(null);
+            }
+            if (acroClass != null) {
+                String key = acroClass.getId().toString() + "|" + assignment.getBatch() + "|" + assignment.getSemester() + "|" + assignment.getAcademicYear();
+                if (!uniqueAssignmentsMap.containsKey(key)) {
+                    uniqueAssignmentsMap.put(key, assignment);
+                    resolvedClasses.put(key, acroClass);
+                } else {
+                    if (className != null && className.equalsIgnoreCase(acroClass.getFunctionalClassName())) {
+                        uniqueAssignmentsMap.put(key, assignment);
+                    }
+                }
+            }
+        }
+
+        for (java.util.Map.Entry<String, CoordinatorAssignment> entry : uniqueAssignmentsMap.entrySet()) {
+            String key = entry.getKey();
+            CoordinatorAssignment assignment = entry.getValue();
+            AcroClass acroClass = resolvedClasses.get(key);
+            
+            String displayClassName = acroClass.getFunctionalClassName();
             
             long classStudentCount = 0;
             Double classAttendance = 0.0;
@@ -625,19 +614,27 @@ public class DashboardServiceImpl implements DashboardService {
             long defaulters = 0;
 
             if (acroClass != null) {
-                // Strictly filter students based on Coordinator Assignment directly from Student table
-                List<Student> matchedStudents = studentRepository.findByStrictCoordinatorScope(
+                String queryClassName = acroClass.getFunctionalClassName();
+            List<Student> matchedStudents = studentRepository.findByStrictCoordinatorScope(
+                    assignment.getCoordinator().getDepartment().getId(),
+                    assignment.getBatch(),
+                    assignment.getSemester() != null ? assignment.getSemester().replace("Semester ", "") : null,
+                    queryClassName
+            );
+            
+            if (matchedStudents.isEmpty() && acroClass.getName() != null && !acroClass.getName().equals(queryClassName)) {
+                matchedStudents = studentRepository.findByStrictCoordinatorScope(
                         assignment.getCoordinator().getDepartment().getId(),
                         assignment.getBatch(),
                         assignment.getSemester() != null ? assignment.getSemester().replace("Semester ", "") : null,
-                        assignment.getClassName()
+                        acroClass.getName()
                 );
-                
-                classStudentCount = matchedStudents.size();
-                totalStudents += classStudentCount;
-                
-                // Strictly filter subjects based on Coordinator Assignment
-                List<ClassSubject> classSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId());
+            }
+            
+            classStudentCount = matchedStudents.size();
+            totalStudents += classStudentCount;
+            
+            List<ClassSubject> classSubjects = classSubjectRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId());
                 classSubjects = classSubjects.stream().filter(cs -> {
                     // Department Match
                     if (assignment.getCoordinator() != null && assignment.getCoordinator().getDepartment() != null
@@ -704,7 +701,7 @@ public class DashboardServiceImpl implements DashboardService {
             }
             
             classOverviews.add(CoordinatorDashboardResponse.ClassOverview.builder()
-                    .className(className)
+                    .className(displayClassName)
                     .studentCount(classStudentCount)
                     .attendancePercentage(classAttendance)
                     .eligibleStudents(eligible)
@@ -713,7 +710,7 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         return CoordinatorDashboardResponse.builder()
-                .totalClasses(totalClasses)
+                .totalClasses((long) uniqueAssignmentsMap.size())
                 .totalStudents(totalStudents)
                 .totalSubjects(totalSubjects)
                 .upcomingEvents(upcomingEvents)
@@ -761,3 +758,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
     }
 }
+
+
+
+
