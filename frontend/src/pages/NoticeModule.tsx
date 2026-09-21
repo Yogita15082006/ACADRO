@@ -13,7 +13,7 @@ import { noticeService } from '../services/noticeService';
 import { eventService } from '../services/eventService';
 import { SpecificAssignmentRow } from '../components/events/CreateEventForm';
 import type { SpecificAssignment } from '../components/events/CreateEventForm';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
 const CATEGORIES = ['General', 'Academic', 'Examination', 'Assignment', 'Placement', 'Event', 'Holiday', 'Other'];

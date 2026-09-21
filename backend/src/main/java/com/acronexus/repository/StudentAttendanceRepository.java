@@ -89,8 +89,8 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
     @Query("SELECT sa.classSubject.acroClass.name as className, " +
            "sa.classSubject.subject.name as subjectName, " +
            "COUNT(DISTINCT sa.student.id) as totalStudents, " +
-           "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END) as totalPresent, " +
-           "SUM(CASE WHEN sa.status = 'ABSENT' THEN 1 ELSE 0 END) as totalAbsent " +
+           "SUM(CASE WHEN sa.status = com.acronexus.entity.AttendanceStatus.PRESENT THEN 1 ELSE 0 END) as totalPresent, " +
+           "SUM(CASE WHEN sa.status = com.acronexus.entity.AttendanceStatus.ABSENT THEN 1 ELSE 0 END) as totalAbsent " +
            "FROM StudentAttendance sa " +
            "WHERE sa.classSubject.id = :classSubjectId " +
            "GROUP BY sa.classSubject.acroClass.name, sa.classSubject.subject.name")
@@ -107,8 +107,8 @@ public interface StudentAttendanceRepository extends JpaRepository<StudentAttend
 
     // For Batch Optimization: Faculty/Class history
     @Query("SELECT sa.classSubject.id, sa.date, " +
-           "SUM(CASE WHEN sa.status = 'PRESENT' THEN 1 ELSE 0 END), " +
-           "SUM(CASE WHEN sa.status = 'ABSENT' THEN 1 ELSE 0 END) " +
+           "SUM(CASE WHEN sa.status = com.acronexus.entity.AttendanceStatus.PRESENT THEN 1 ELSE 0 END), " +
+           "SUM(CASE WHEN sa.status = com.acronexus.entity.AttendanceStatus.ABSENT THEN 1 ELSE 0 END) " +
            "FROM StudentAttendance sa " +
            "WHERE sa.classSubject.id IN :classSubjectIds " +
            "GROUP BY sa.classSubject.id, sa.date")

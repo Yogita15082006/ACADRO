@@ -709,10 +709,23 @@ public class UserService {
         jdbcTemplate.update("DELETE FROM faculty_departments WHERE faculty_id = ?", id);
 
         jdbcTemplate.update("DELETE FROM faculty_class_assignments WHERE faculty_id = ?", id);
-
+        
+        jdbcTemplate.update("DELETE FROM professional_details WHERE faculty_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_activities WHERE faculty_id = ?", id);
+        jdbcTemplate.update("DELETE FROM subject_announcements WHERE faculty_id = ?", id);
+        
+        jdbcTemplate.update("UPDATE student_attendance SET session_id = NULL WHERE session_id IN (SELECT id FROM attendance_session WHERE faculty_id = ?)", id);
+        jdbcTemplate.update("DELETE FROM attendance_session WHERE faculty_id = ?", id);
+        
         jdbcTemplate.update("DELETE FROM faculties WHERE user_id = ?", id);
 
-        
+        jdbcTemplate.update("DELETE FROM seating_arrangement_room_invigilators WHERE user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_user_id = ?", id);
+        jdbcTemplate.update("DELETE FROM exam_coordinator_assignments WHERE assigned_by = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_faculty_id = ?", id);
+        jdbcTemplate.update("DELETE FROM faculty_management_delegations WHERE assigned_by_id = ?", id);
+
+
 
         // Hard delete the user
 

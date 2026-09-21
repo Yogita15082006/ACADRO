@@ -205,7 +205,19 @@ public class ClassSubjectController {
             
             // Map Coordinator name (first active one for the class/semester/year)
             if (cs.getAcroClass() != null && cs.getSemester() != null && cs.getAcademicYear() != null) {
-                coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(cs.getAcroClass().getFunctionalClassName()).stream()
+                java.util.List<com.acronexus.entity.CoordinatorAssignment> potentialAssignments = new java.util.ArrayList<>();
+                
+                String name = cs.getAcroClass().getName();
+                String section = cs.getAcroClass().getSection();
+                
+                if (name != null && !name.isBlank()) {
+                    potentialAssignments.addAll(coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(name.trim()));
+                }
+                if (section != null && !section.isBlank() && !section.trim().equalsIgnoreCase(name != null ? name.trim() : "")) {
+                    potentialAssignments.addAll(coordinatorAssignmentRepository.findByClassNameAndIsActiveTrue(section.trim()));
+                }
+                
+                potentialAssignments.stream()
                     .filter(ca -> java.util.Objects.equals(ca.getSemester(), "Semester " + cs.getSemester().getSemesterNumber()) &&
                                   java.util.Objects.equals(ca.getAcademicYear(), cs.getAcademicYear().getYear()))
                     .findFirst()

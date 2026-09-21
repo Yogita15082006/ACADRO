@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/input';
 import { FileText, Download, Printer, Search, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import * as XLSX from 'xlsx';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export const ConsolidatedReportViewer = ({ open, onClose, onOpenIndividualReport }: any) => {
   const [loading, setLoading] = useState(false);

@@ -32,6 +32,7 @@ import com.acronexus.entity.ExamAiFeedback;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@org.springframework.transaction.annotation.Transactional(readOnly = true)
 public class ExamResultServiceImpl implements ExamResultService {
 
     private final ExamResultRepository repository;

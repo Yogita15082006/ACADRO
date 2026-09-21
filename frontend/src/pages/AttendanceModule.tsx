@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { CustomSelect } from "@/components/ui/select";
-
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,7 +82,7 @@ const getProgressBarColor = (percentage: number) => {
 
 const SubjectAttendanceDetails = ({ subject, onBack, historyData }: { subject: any, onBack: () => void, historyData?: any[] }) => {
   const percentage = (subject.totalAttended / subject.totalConducted) * 100 || (subject.attended / subject.total) * 100 || 0;
-  
+
   // mock chart data
   const trendData = [
     { date: 'Jun 1', pct: 70 },
@@ -120,150 +119,150 @@ const SubjectAttendanceDetails = ({ subject, onBack, historyData }: { subject: a
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
-             <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4 flex flex-row items-center justify-between">
-               <CardTitle className="text-base font-semibold flex items-center gap-2"><Calendar className="w-4 h-4 text-primary"/> Attendance History</CardTitle>
-               <div className="flex gap-2">
-                 <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Filter size={12}/> Filter</Button>
-                 <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Search size={12}/> Search</Button>
-               </div>
-             </CardHeader>
-             <CardContent className="p-0">
-               <div className="overflow-x-auto">
-                 <Table>
-                   <TableHeader className="bg-muted/5">
-                     <TableRow className="border-b border-border/50 hover:bg-transparent">
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Date & Day</TableHead>
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Lecture</TableHead>
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Faculty</TableHead>
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Status</TableHead>
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Time / Code</TableHead>
-                       <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Verification</TableHead>
-                     </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                      {(historyData || []).map((h, i) => (
-                        <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b border-border/50">
-                          <TableCell className="py-3">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-sm">{h.date}</span>
-                              <span className="text-[11px] text-muted-foreground mt-0.5">{h.day || new Date(h.date).toLocaleDateString('en-US', {weekday: 'short'})}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-sm">{h.lec || h.topic || '-'}</span>
-                              <span className="text-[11px] text-muted-foreground mt-0.5">{h.type || 'Theory'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm font-medium">{subject.facultyName || subject.faculty || '-'}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={h.status === 'Present' || h.status === 'PRESENT' ? 'active' : h.status === 'PENDING' ? 'pending' : 'rejected'} className={`text-[10px] px-2 py-0.5 ${h.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : ''}`}>{h.status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-mono text-sm font-medium">{h.time || 'N/A'}</span>
-                              <span className="text-[11px] text-muted-foreground font-mono mt-0.5">{h.code || '-'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {h.verified || h.status === 'PRESENT' ? (
-                               <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px]">Verified</Badge>
-                            ) : (
-                               <Badge variant="outline" className="text-amber-500 border-amber-500/20 bg-amber-500/10 text-[10px]">Unverified</Badge>
-                            )}
-                            {h.remarks && h.remarks !== '-' && (
-                              <p className="text-[10px] text-muted-foreground mt-1">{h.remarks}</p>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                 </Table>
-               </div>
-             </CardContent>
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" /> Attendance History</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Filter size={12} /> Filter</Button>
+                <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Search size={12} /> Search</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/5">
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Date & Day</TableHead>
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Lecture</TableHead>
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Faculty</TableHead>
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Time / Code</TableHead>
+                      <TableHead className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground">Verification</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(historyData || []).map((h, i) => (
+                      <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b border-border/50">
+                        <TableCell className="py-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-sm">{h.date}</span>
+                            <span className="text-[11px] text-muted-foreground mt-0.5">{h.day || new Date(h.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-sm">{h.lec || h.topic || '-'}</span>
+                            <span className="text-[11px] text-muted-foreground mt-0.5">{h.type || 'Theory'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-medium">{subject.facultyName || subject.faculty || '-'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={h.status === 'Present' || h.status === 'PRESENT' ? 'active' : h.status === 'PENDING' ? 'pending' : 'rejected'} className={`text-[10px] px-2 py-0.5 ${h.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : ''}`}>{h.status}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-mono text-sm font-medium">{h.time || 'N/A'}</span>
+                            <span className="text-[11px] text-muted-foreground font-mono mt-0.5">{h.code || '-'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {h.verified || h.status === 'PRESENT' ? (
+                            <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px]">Verified</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-500 border-amber-500/20 bg-amber-500/10 text-[10px]">Unverified</Badge>
+                          )}
+                          {h.remarks && h.remarks !== '-' && (
+                            <p className="text-[10px] text-muted-foreground mt-1">{h.remarks}</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
         <div className="space-y-6">
           <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
-             <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
-               <CardTitle className="text-base font-semibold flex items-center gap-2"><PieChart className="w-4 h-4 text-primary"/> Overview</CardTitle>
-             </CardHeader>
-             <CardContent className="p-5">
-                <div className="flex justify-between items-end mb-4">
-                  <div>
-                    <p className="text-4xl font-extrabold tracking-tight">{percentage.toFixed(1)}%</p>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1">Overall Attendance</p>
-                  </div>
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><PieChart className="w-4 h-4 text-primary" /> Overview</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="flex justify-between items-end mb-4">
+                <div>
+                  <p className="text-4xl font-extrabold tracking-tight">{percentage.toFixed(1)}%</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1">Overall Attendance</p>
                 </div>
-                <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden mt-3 shadow-inner">
-                  <div className={`h-full ${getProgressBarColor(percentage)} rounded-full`} style={{ width: `${percentage}%` }}></div>
+              </div>
+              <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden mt-3 shadow-inner">
+                <div className={`h-full ${getProgressBarColor(percentage)} rounded-full`} style={{ width: `${percentage}%` }}></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-border/50">
+                <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Conducted</p>
+                  <p className="text-xl font-black text-foreground">{subject.totalConducted || subject.total}</p>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-border/50">
-                   <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
-                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Conducted</p>
-                     <p className="text-xl font-black text-foreground">{subject.totalConducted || subject.total}</p>
-                   </div>
-                   <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
-                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Attended</p>
-                     <p className="text-xl font-black text-emerald-500">{subject.totalAttended !== undefined ? subject.totalAttended : subject.attended}</p>
-                   </div>
-                   <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
-                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Missed</p>
-                     <p className="text-xl font-black text-rose-500">{(subject.totalConducted || subject.total) - (subject.totalAttended !== undefined ? subject.totalAttended : subject.attended)}</p>
-                   </div>
+                <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Attended</p>
+                  <p className="text-xl font-black text-emerald-500">{subject.totalAttended !== undefined ? subject.totalAttended : subject.attended}</p>
                 </div>
-             </CardContent>
-          </Card>
-          
-          <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
-             <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
-               <CardTitle className="text-base font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary"/> Attendance Trend</CardTitle>
-             </CardHeader>
-             <CardContent className="p-5">
-                <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorPct" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.7 }} />
-                      <YAxis domain={[0, 100]} hide />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'hsl(var(--card))', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                        itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
-                      />
-                      <Area type="monotone" dataKey="pct" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorPct)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Missed</p>
+                  <p className="text-xl font-black text-rose-500">{(subject.totalConducted || subject.total) - (subject.totalAttended !== undefined ? subject.totalAttended : subject.attended)}</p>
                 </div>
-             </CardContent>
+              </div>
+            </CardContent>
           </Card>
 
           <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
-             <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
-               <CardTitle className="text-base font-semibold flex items-center gap-2"><Calculator className="w-4 h-4 text-primary"/> Analytics</CardTitle>
-             </CardHeader>
-             <CardContent className="p-5 space-y-3">
-                <div className="p-3 bg-muted/30 rounded-lg border border-border/50 flex justify-between items-center transition-colors hover:bg-muted/50">
-                  <span className="text-sm font-medium">To reach 75%</span>
-                  <span className="text-sm font-bold text-emerald-500">Safe</span>
-                </div>
-                <div className="p-3 bg-muted/30 rounded-lg border border-border/50 flex justify-between items-center transition-colors hover:bg-muted/50">
-                  <span className="text-sm font-medium">To reach 90%</span>
-                  <span className="text-sm font-bold text-indigo-500">Attend next 6</span>
-                </div>
-                <div className="p-3 bg-rose-500/10 rounded-lg border border-rose-500/20 flex justify-between items-center text-rose-700 dark:text-rose-400">
-                  <span className="text-sm font-semibold">Max Miss Allowed</span>
-                  <span className="text-sm font-black">3 Classes</span>
-                </div>
-             </CardContent>
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Attendance Trend</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="h-40 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorPct" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.7 }} />
+                    <YAxis domain={[0, 100]} hide />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'hsl(var(--card))', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
+                    />
+                    <Area type="monotone" dataKey="pct" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorPct)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><Calculator className="w-4 h-4 text-primary" /> Analytics</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-3">
+              <div className="p-3 bg-muted/30 rounded-lg border border-border/50 flex justify-between items-center transition-colors hover:bg-muted/50">
+                <span className="text-sm font-medium">To reach 75%</span>
+                <span className="text-sm font-bold text-emerald-500">Safe</span>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-lg border border-border/50 flex justify-between items-center transition-colors hover:bg-muted/50">
+                <span className="text-sm font-medium">To reach 90%</span>
+                <span className="text-sm font-bold text-indigo-500">Attend next 6</span>
+              </div>
+              <div className="p-3 bg-rose-500/10 rounded-lg border border-rose-500/20 flex justify-between items-center text-rose-700 dark:text-rose-400">
+                <span className="text-sm font-semibold">Max Miss Allowed</span>
+                <span className="text-sm font-black">3 Classes</span>
+              </div>
+            </CardContent>
           </Card>
         </div>
       </div>
@@ -380,72 +379,72 @@ const AdminSessionDetails = ({ session, onBack }: { session: any, onBack: () => 
               <CardTitle className="text-base font-semibold flex items-center gap-2"><Info className="w-4 h-4 text-primary" /> Session Info</CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Faculty</p>
-                   <p className="text-sm font-medium">{session.faculty}</p>
-                 </div>
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Academic Year</p>
-                   <p className="text-sm font-medium">{session.academicYear}</p>
-                 </div>
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Department</p>
-                   <p className="text-sm font-medium">{session.department}</p>
-                 </div>
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Lecture</p>
-                   <p className="text-sm font-medium">{session.type} ({session.lectureNumber})</p>
-                 </div>
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Duration</p>
-                   <p className="text-sm font-medium">{session.startTime} - {session.endTime} ({session.duration})</p>
-                 </div>
-                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Created At</p>
-                   <p className="text-sm font-medium">{session.createdAt}</p>
-                 </div>
-               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Faculty</p>
+                  <p className="text-sm font-medium">{session.faculty}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Academic Year</p>
+                  <p className="text-sm font-medium">{session.academicYear}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Department</p>
+                  <p className="text-sm font-medium">{session.department}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Lecture</p>
+                  <p className="text-sm font-medium">{session.type} ({session.lectureNumber})</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Duration</p>
+                  <p className="text-sm font-medium">{session.startTime} - {session.endTime} ({session.duration})</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Created At</p>
+                  <p className="text-sm font-medium">{session.createdAt}</p>
+                </div>
+              </div>
 
-               <div className="pt-4 border-t border-border/50 space-y-4">
-                 <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Attendance Code</p>
-                      <p className="text-lg font-black tracking-widest text-primary">{session.code}</p>
-                    </div>
-                    <Button variant="ghost" size="icon">
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                 </div>
-                 
-                 {session.verificationQuestion && (
-                   <div className="p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/20">
-                     <p className="text-[10px] text-indigo-500 uppercase font-bold tracking-wider mb-2">Verification Question</p>
-                     <p className="text-sm font-medium mb-1">Q: {session.verificationQuestion}</p>
-                     <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">A: {session.expectedAnswer}</p>
-                   </div>
-                 )}
-               </div>
+              <div className="pt-4 border-t border-border/50 space-y-4">
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Attendance Code</p>
+                    <p className="text-lg font-black tracking-widest text-primary">{session.code}</p>
+                  </div>
+                  <Button variant="ghost" size="icon">
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {session.verificationQuestion && (
+                  <div className="p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/20">
+                    <p className="text-[10px] text-indigo-500 uppercase font-bold tracking-wider mb-2">Verification Question</p>
+                    <p className="text-sm font-medium mb-1">Q: {session.verificationQuestion}</p>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">A: {session.expectedAnswer}</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border border-border/50 bg-card shadow-sm">
-             <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
-               <CardTitle className="text-base font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Submission Trend</CardTitle>
-             </CardHeader>
-             <CardContent className="p-5">
-                <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={session.trend.map((val: any, idx: any) => ({ time: `+${idx*10}m`, count: val }))} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
-                      <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.7 }} />
-                      <YAxis hide />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'hsl(var(--card))' }} />
-                      <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-             </CardContent>
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Submission Trend</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="h-40 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={session.trend.map((val: any, idx: any) => ({ time: `+${idx * 10}m`, count: val }))} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.7 }} />
+                    <YAxis hide />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'hsl(var(--card))' }} />
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
@@ -457,33 +456,33 @@ const AdminSessionDetails = ({ session, onBack }: { session: any, onBack: () => 
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search students..." 
+                  <Input
+                    placeholder="Search students..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 h-9 w-[200px] bg-background text-sm"
                   />
                 </div>
                 <div className="flex items-center p-1 bg-muted rounded-md border border-border/50">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className={`h-7 px-3 text-xs rounded-sm ${statusFilter === 'All' ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
                     onClick={() => setStatusFilter('All')}
                   >
                     All
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className={`h-7 px-3 text-xs rounded-sm ${statusFilter === 'Present' ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
                     onClick={() => setStatusFilter('Present')}
                   >
                     Present
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className={`h-7 px-3 text-xs rounded-sm ${statusFilter === 'Absent' ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
                     onClick={() => setStatusFilter('Absent')}
                   >
@@ -493,56 +492,56 @@ const AdminSessionDetails = ({ session, onBack }: { session: any, onBack: () => 
               </div>
             </CardHeader>
             <CardContent className="p-0">
-               <div className="overflow-x-auto">
-                 <Table>
-                   <TableHeader className="bg-muted/10">
-                     <TableRow className="hover:bg-transparent border-b-border/50">
-                       <TableHead className="font-semibold h-10 text-xs">Roll No</TableHead>
-                       <TableHead className="font-semibold h-10 text-xs">Name</TableHead>
-                       <TableHead className="font-semibold h-10 text-xs">Status</TableHead>
-                       <TableHead className="font-semibold h-10 text-xs">Time</TableHead>
-                       <TableHead className="font-semibold h-10 text-xs text-center">Verified</TableHead>
-                       <TableHead className="font-semibold h-10 text-xs">Remarks</TableHead>
-                     </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                     {filteredStudents.length === 0 ? (
-                       <TableRow>
-                         <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                           No students found matching your criteria.
-                         </TableCell>
-                       </TableRow>
-                     ) : (
-                       filteredStudents.map((student, idx) => (
-                         <TableRow key={idx} className="hover:bg-muted/30 border-b-border/50 transition-colors">
-                           <TableCell className="font-medium text-xs">{student.enrollment}</TableCell>
-                           <TableCell className="text-sm font-semibold">{student.name}</TableCell>
-                           <TableCell>
-                             {student.status === 'Present' ? (
-                               <Badge variant="active" className="text-[10px] px-1.5 py-0 rounded-sm">Present</Badge>
-                             ) : (
-                               <Badge variant="rejected" className="text-[10px] px-1.5 py-0 rounded-sm">Absent</Badge>
-                             )}
-                           </TableCell>
-                           <TableCell className="text-xs text-muted-foreground">{student.time}</TableCell>
-                           <TableCell className="text-center">
-                             {student.verified ? (
-                               <CheckCircle className="w-4 h-4 text-emerald-500 mx-auto" />
-                             ) : (
-                               student.status === 'Present' ? (
-                                 <AlertTriangle className="w-4 h-4 text-amber-500 mx-auto" />
-                               ) : (
-                                 <span className="text-muted-foreground">-</span>
-                               )
-                             )}
-                           </TableCell>
-                           <TableCell className="text-xs text-muted-foreground">{student.remarks}</TableCell>
-                         </TableRow>
-                       ))
-                     )}
-                   </TableBody>
-                 </Table>
-               </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/10">
+                    <TableRow className="hover:bg-transparent border-b-border/50">
+                      <TableHead className="font-semibold h-10 text-xs">Roll No</TableHead>
+                      <TableHead className="font-semibold h-10 text-xs">Name</TableHead>
+                      <TableHead className="font-semibold h-10 text-xs">Status</TableHead>
+                      <TableHead className="font-semibold h-10 text-xs">Time</TableHead>
+                      <TableHead className="font-semibold h-10 text-xs text-center">Verified</TableHead>
+                      <TableHead className="font-semibold h-10 text-xs">Remarks</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                          No students found matching your criteria.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredStudents.map((student, idx) => (
+                        <TableRow key={idx} className="hover:bg-muted/30 border-b-border/50 transition-colors">
+                          <TableCell className="font-medium text-xs">{student.enrollment}</TableCell>
+                          <TableCell className="text-sm font-semibold">{student.name}</TableCell>
+                          <TableCell>
+                            {student.status === 'Present' ? (
+                              <Badge variant="active" className="text-[10px] px-1.5 py-0 rounded-sm">Present</Badge>
+                            ) : (
+                              <Badge variant="rejected" className="text-[10px] px-1.5 py-0 rounded-sm">Absent</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{student.time}</TableCell>
+                          <TableCell className="text-center">
+                            {student.verified ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-500 mx-auto" />
+                            ) : (
+                              student.status === 'Present' ? (
+                                <AlertTriangle className="w-4 h-4 text-amber-500 mx-auto" />
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{student.remarks}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -613,7 +612,7 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
     const conducted = teachingRecords.reduce((sum, r) => sum + (r.conducted || 0), 0);
     const missed = teachingRecords.reduce((sum, r) => sum + (r.missed || 0), 0);
     const overallAttendance = totalScheduled > 0 ? Math.round((conducted / totalScheduled) * 100) : 0;
-    
+
     const absent = facultyActivities.filter(r => r.status === 'ABSENT').length;
     const holidays = facultyActivities.filter(r => r.status === 'HOLIDAY');
     const uniqueHolidayDates = new Set(holidays.map(r => r.date));
@@ -641,12 +640,12 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
     });
 
     const entries: any[] = [];
-    
+
     Object.values(groups).forEach(group => {
       const first = group[0];
       const d = new Date(first.date + 'T00:00:00');
       const day = d.toLocaleDateString('en-US', { weekday: 'long' });
-      
+
       if (first.status === 'HOLIDAY') {
         entries.push({
           id: first.id,
@@ -664,12 +663,12 @@ export const AdminTeachingHistory = ({ readOnlyFacultyId }: { readOnlyFacultyId?
       } else {
         group.forEach(r => {
           entries.push({
-            id: r.id, 
-            date: r.date, 
+            id: r.id,
+            date: r.date,
             day,
-            subject: r.subjectName || '-', 
+            subject: r.subjectName || '-',
             className: (r.className || '-').replace(' - null', ''),
-            semester: r.semester?.replace('SEMESTER_', '') || '-', 
+            semester: r.semester?.replace('SEMESTER_', '') || '-',
             batch: r.batch || '-',
             year: r.academicYear?.replace('YEAR_', '') || '-',
             status: r.status,
@@ -897,17 +896,17 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        exit={{ opacity: 0 }} 
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm" 
-        onClick={onClose} 
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        onClick={onClose}
       />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }} 
-        animate={{ opacity: 1, scale: 1 }} 
-        exit={{ opacity: 0, scale: 0.95 }} 
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         className="relative w-full max-w-2xl bg-card border border-border/50 shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/20">
@@ -1033,7 +1032,7 @@ const CreateSessionModal = ({ isOpen, onClose, onSubmit, register, handleSubmit,
                 <input type="checkbox" className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4" {...register('requireVerification')} />
                 <span className="text-sm font-medium">Require Security Verification</span>
               </label>
-              
+
               {requireVerification && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
                   <div className="space-y-2">
@@ -1066,7 +1065,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
   else aiInsight = `${student.name} is critically short of attendance. Immediate intervention and counseling are required. High probability of missing the mid-term eligibility if the current trend continues.`;
 
   const safeSubjectData = subjectData && subjectData.length > 0 ? subjectData : [];
-  
+
   const totalConducted = overallData?.totalClasses || 0;
   const totalAttended = overallData?.totalPresent || 0;
   const totalMissed = overallData?.classesMissed || 0;
@@ -1159,7 +1158,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
       <div className="grid grid-cols-1 gap-6">
         <Card className="border border-border/50 shadow-sm bg-card">
           <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4 text-primary"/> Subject-wise Breakdown</CardTitle>
+            <CardTitle className="text-base font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4 text-primary" /> Subject-wise Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto custom-scrollbar">
@@ -1205,8 +1204,8 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
 
         <Card className="border border-border/50 shadow-sm bg-card">
           <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-primary"/> Complete Absence Record</CardTitle>
-            <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Filter size={12}/> Filter</Button>
+            <CardTitle className="text-base font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Complete Absence Record</CardTitle>
+            <Button variant="outline" size="sm" className="h-8 gap-2 text-xs"><Filter size={12} /> Filter</Button>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto custom-scrollbar">
@@ -1225,7 +1224,7 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
                   {(historyData && historyData.length > 0 ? historyData.filter((r: any) => ['ABSENT', 'REJECTED'].includes(r.status)).slice(0, 5) : []).map((abs: any, i: number) => (
                     <TableRow key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <TableCell className="font-semibold text-sm min-w-[100px] whitespace-normal leading-tight">{abs.date}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground min-w-[80px] whitespace-normal leading-tight">{abs.day || new Date(abs.date).toLocaleDateString('en-US', {weekday: 'long'})}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground min-w-[80px] whitespace-normal leading-tight">{abs.day || new Date(abs.date).toLocaleDateString('en-US', { weekday: 'long' })}</TableCell>
                       <TableCell className="text-sm font-medium min-w-[150px] whitespace-normal leading-tight">{abs.subjectName || abs.subject}</TableCell>
                       <TableCell className="text-sm text-muted-foreground min-w-[80px] whitespace-normal leading-tight">{abs.time || 'N/A'}</TableCell>
                       <TableCell className="text-center">
@@ -1251,13 +1250,13 @@ const StudentAttendanceDetails = ({ student, onBack, subjectData, historyData, o
 
 const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: { onSelectStudent: (id: string) => void, onViewProfile: (id: string) => void, sectionData: CoordinatorSectionData | null }) => {
   const [search, setSearch] = useState('');
-  
+
   if (!sectionData) {
     return <div className="text-center p-8 text-muted-foreground">Loading section data...</div>;
   }
 
-  const filtered = sectionData.students.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filtered = sectionData.students.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
     (s.enrollmentNumber && s.enrollmentNumber.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -1271,10 +1270,10 @@ const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: {
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-[250px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                type="text" 
-                placeholder="Search students..." 
-                className="w-full pl-9 h-9 text-sm bg-background/50 border-border/50" 
+              <Input
+                type="text"
+                placeholder="Search students..."
+                className="w-full pl-9 h-9 text-sm bg-background/50 border-border/50"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -1301,44 +1300,45 @@ const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: {
                   // @ts-ignore
                   const fallbackPhoto = student.profilePictureUrl ? getAssetUrl(student.profilePictureUrl) : student.avatar ? getAssetUrl(student.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&background=4F46E5&color=fff&size=128`;
                   return (
-                  <TableRow key={student.id} className="hover:bg-muted/30 transition-colors border-b border-border/50 cursor-pointer" onClick={() => onSelectStudent(student.id)}>
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={student.photo || fallbackPhoto} 
-                          onError={(e) => { e.currentTarget.src = fallbackPhoto; }}
-                          alt={student.name} 
-                          className="w-8 h-8 rounded-full object-cover border border-border/50" 
-                        />
-                        <span className="font-semibold text-sm text-foreground">{student.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm font-medium text-muted-foreground">
-                      {student.enrollmentNumber || 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="font-bold text-sm">{student.overallAttendance?.toFixed(1) || 0}%</span>
-                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className={`h-full ${getProgressBarColor(student.overallAttendance)}`} style={{ width: `${student.overallAttendance}%` }}></div>
+                    <TableRow key={student.id} className="hover:bg-muted/30 transition-colors border-b border-border/50 cursor-pointer" onClick={() => onSelectStudent(student.id)}>
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={student.photo || fallbackPhoto}
+                            onError={(e) => { e.currentTarget.src = fallbackPhoto; }}
+                            alt={student.name}
+                            className="w-8 h-8 rounded-full object-cover border border-border/50"
+                          />
+                          <span className="font-semibold text-sm text-foreground">{student.name}</span>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getStatusBadge(student.overallAttendance)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onViewProfile(student.id); }}>
-                          View Profile
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onSelectStudent(student.id); }}>
-                          View Details
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )})}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium text-muted-foreground">
+                        {student.enrollmentNumber || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-bold text-sm">{student.overallAttendance?.toFixed(1) || 0}%</span>
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full ${getProgressBarColor(student.overallAttendance)}`} style={{ width: `${student.overallAttendance}%` }}></div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getStatusBadge(student.overallAttendance)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onViewProfile(student.id); }}>
+                            View Profile
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-xs hover:bg-primary/10 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); onSelectStudent(student.id); }}>
+                            View Details
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -1350,7 +1350,7 @@ const CoordinatorDashboard = ({ onSelectStudent, onViewProfile, sectionData }: {
 
 export const AttendanceModule = () => {
   const { user, role } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculator' | 'teachingHistory'>(() => 
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculator' | 'teachingHistory'>(() =>
     role === 'faculty' ? 'teachingHistory' : 'dashboard'
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
@@ -1371,7 +1371,7 @@ export const AttendanceModule = () => {
           const overall = await attendanceService.getStudentOverallAttendance(targetId);
           const subjectWise = await attendanceService.getStudentSubjectWiseAttendance(targetId);
           const history = await attendanceService.getStudentAttendanceHistory(targetId);
-          
+
           if (isMounted) {
             setStudentOverall(overall);
             setStudentSubjectWise(subjectWise || []);
@@ -1382,17 +1382,17 @@ export const AttendanceModule = () => {
         }
       }
     };
-    
+
     fetchStudentData();
     window.addEventListener('sync-attendance-data', fetchStudentData);
-    
+
     return () => {
       isMounted = false;
       window.removeEventListener('sync-attendance-data', fetchStudentData);
     };
   }, [role, user?.id, selectedStudentId]);
 
-  
+
   // Coordinator Real Data State
   const [coordinatorSectionData, setCoordinatorSectionData] = useState<CoordinatorSectionData | null>(() => coordinatorAttendanceService.getCachedStudents());
   const [showCoordinatorAddModal, setShowCoordinatorAddModal] = useState(false);
@@ -1433,7 +1433,7 @@ export const AttendanceModule = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMarkModal, setShowMarkModal] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  
+
   const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<AttendanceSessionValues>({
     resolver: zodResolver(attendanceSessionSchema),
     defaultValues: {
@@ -1480,9 +1480,9 @@ export const AttendanceModule = () => {
     setShowCreateModal(false);
     reset();
   };
-  
+
   // Mark Attendance State
-  const [activeSession, setActiveSession] = useState<{codeRequired: boolean, question: string} | null>({
+  const [activeSession, setActiveSession] = useState<{ codeRequired: boolean, question: string } | null>({
     codeRequired: true,
     question: "What topic was discussed today?"
   });
@@ -1508,565 +1508,565 @@ export const AttendanceModule = () => {
   return (
     <>
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-7xl mx-auto">
-      
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-border/40">
-        <div>
-          <Badge variant="event" className="mb-2">
-            ATTENDANCE MANAGEMENT
-          </Badge>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-            {role === 'student' ? 'My Attendance' : 'Class Attendance'}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
-            {role === 'student' 
-              ? 'Track your attendance records, view subject-wise insights, and mark active sessions.' 
-              : 'Monitor class attendance, generate reports, and start live attendance sessions.'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {['faculty', 'hod', 'coordinator', 'both'].includes(role) ? (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
-                {role !== 'faculty' && (
-                  <button 
-                    onClick={() => setActiveTab('dashboard')} 
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex-1 sm:flex-none ${activeTab === 'dashboard' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-border/40">
+          <div>
+            <Badge variant="event" className="mb-2">
+              ATTENDANCE MANAGEMENT
+            </Badge>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+              {role === 'student' ? 'My Attendance' : 'Class Attendance'}
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
+              {role === 'student'
+                ? 'Track your attendance records, view subject-wise insights, and mark active sessions.'
+                : 'Monitor class attendance, generate reports, and start live attendance sessions.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {['faculty', 'hod', 'coordinator', 'both'].includes(role) ? (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
+                    {role !== 'faculty' && (
+                      <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex-1 sm:flex-none ${activeTab === 'dashboard' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Dashboard
+                      </button>
+                    )}
+                    {role !== 'coordinator' && (
+                      <button
+                        onClick={() => { setActiveTab('teachingHistory'); setSelectedSessionId(null); }}
+                        className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex-1 sm:flex-none ${activeTab === 'teachingHistory' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Teaching History
+                      </button>
+                    )}
+                  </div>
+
+                  {['faculty', 'both'].includes(role) && (
+                    <Button onClick={() => setShowMarkModal(true)} variant="outline" className="gap-2 shadow-sm whitespace-nowrap bg-background">
+                      <CheckCircle size={16} /> Mark Attendance
+                    </Button>
+                  )}
+
+                  {role === 'coordinator' && (
+                    <Button onClick={() => setShowCoordinatorAddModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
+                      <Plus size={16} /> Add Attendance
+                    </Button>
+                  )}
+
+                  {role !== 'coordinator' && role !== 'faculty' && activeTab !== 'teachingHistory' && (
+                    <Button onClick={() => setShowCreateModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
+                      <Plus size={16} /> Create Session
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeTab === 'dashboard' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                   >
                     Dashboard
                   </button>
-                )}
-                {role !== 'coordinator' && (
-                  <button 
-                    onClick={() => { setActiveTab('teachingHistory'); setSelectedSessionId(null); }} 
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex-1 sm:flex-none ${activeTab === 'teachingHistory' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  <button
+                    onClick={() => setActiveTab('calculator')}
+                    className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeTab === 'calculator' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                   >
-                    Teaching History
+                    Calculator
                   </button>
-                )}
-              </div>
-
-              {['faculty', 'both'].includes(role) && (
-                <Button onClick={() => setShowMarkModal(true)} variant="outline" className="gap-2 shadow-sm whitespace-nowrap bg-background">
-                  <CheckCircle size={16} /> Mark Attendance
-                </Button>
-              )}
-
-              {role === 'coordinator' && (
-                <Button onClick={() => setShowCoordinatorAddModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
-                  <Plus size={16} /> Add Attendance
-                </Button>
-              )}
-
-              {role !== 'coordinator' && role !== 'faculty' && activeTab !== 'teachingHistory' && (
-                <Button onClick={() => setShowCreateModal(true)} className="gap-2 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground whitespace-nowrap">
-                  <Plus size={16} /> Create Session
-                </Button>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
-              <button 
-                onClick={() => setActiveTab('dashboard')} 
-                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeTab === 'dashboard' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Dashboard
-              </button>
-              <button 
-                onClick={() => setActiveTab('calculator')} 
-                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeTab === 'calculator' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Calculator
-              </button>
-            </div>
-          )}
+          </div>
         </div>
-      </div>
-      </div>
 
-      {activeTab === 'dashboard' && (
-        <AnimatePresence mode="wait">
-          {viewingProfileStudentId && role === 'coordinator' ? (
-            <ProfileModule 
-              studentId={viewingProfileStudentId} 
-              onBack={() => setViewingProfileStudentId(null)} 
-            />
-          ) : selectedStudentId && role === 'coordinator' ? (
-            <StudentAttendanceDetails 
-              student={(() => {
-                const s = coordinatorSectionData?.students.find(s => s.id === selectedStudentId);
-                if (!s) return { id: selectedStudentId, name: 'Unknown', enrollment: 'N/A', section: 'N/A', semester: 'N/A', photo: '', attendance: 0 };
-                return {
-                  id: s.id,
-                  name: s.name,
-                  enrollment: s.enrollmentNumber || 'N/A',
-                  section: coordinatorSectionData?.className || 'N/A',
-                  semester: coordinatorSectionData?.semester || 'N/A',
-                  // @ts-ignore
-                  photo: s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.photo ? getAssetUrl(s.photo) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
-                  attendance: s.overallAttendance ? Math.round(s.overallAttendance) : 0
-                };
-              })()}
-              subjectData={studentSubjectWise}
-              historyData={studentHistory}
-              overallData={studentOverall}
-              onBack={() => setSelectedStudentId(null)}
-            />
-          ) : selectedSubjectId && role === 'student' ? (
-            <SubjectAttendanceDetails 
-              subject={studentSubjectWise?.find((s: any) => s.classSubjectId === selectedSubjectId || s.subjectName === selectedSubjectId || s.name === selectedSubjectId) || null}
-              historyData={studentHistory?.filter(h => h.classSubjectId === selectedSubjectId || h.subjectName === selectedSubjectId)}
-              onBack={() => setSelectedSubjectId(null)}
-            />
-          ) : selectedSessionId && ['faculty', 'hod', 'coordinator', 'both'].includes(role) ? (
-            <AdminSessionDetails
-              session={adminSessions.find(s => s.id === selectedSessionId)}
-              onBack={() => setSelectedSessionId(null)}
-            />
-          ) : role === 'student' ? (
-            <StudentAttendanceDetails 
-              student={{
-                id: user?.id || selectedStudentId || 'unknown',
-                name: studentOverall?.studentName || user?.name || 'Student',
-                enrollment: studentOverall?.email || user?.email || 'N/A',
-                section: studentOverall?.className || 'N/A',
-                semester: studentOverall?.semester || 'N/A',
-                photo: studentOverall?.profilePictureUrl ? getAssetUrl(studentOverall.profilePictureUrl) : user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(studentOverall?.studentName || user?.name || 'Student')}&background=4F46E5&color=fff&size=128`,
-                attendance: studentOverall?.overallPercentage ? Math.round(studentOverall.overallPercentage) : 0
-              }}
-              subjectData={studentSubjectWise}
-              historyData={studentHistory}
-              overallData={studentOverall}
-            />
-          ) : (
-            <motion.div 
-              key="dashboard"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-          
-          {/* Top KPIs */}
-          {role === 'coordinator' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500"><Users className="w-5 h-5"/></div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">{coordinatorSectionData ? coordinatorSectionData.students.length : '-'}</h3>
-                    <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Total Students</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500"><CheckCircle className="w-5 h-5"/></div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionData ? `${coordinatorSectionData.sectionAverage?.toFixed(1) || 0}%` : '-'}
-                    </h3>
-                    <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Section Avg Attendance</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500"><TrendingUp className="w-5 h-5"/></div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance >= 75).length : '-'}
-                    </h3>
-                    <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students in Safe Zone</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500"><AlertTriangle className="w-5 h-5"/></div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-                      {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance < 75).length : '-'}
-                    </h3>
-                    <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students at Risk</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                      <TrendingUp className="w-5 h-5" />
-                    </div>
-                    {getStatusBadge(parseFloat(overallPercentage))}
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-bold text-foreground tracking-tight">{overallPercentage}%</h3>
-                    <p className="text-sm font-medium text-muted-foreground mt-1">Overall Attendance</p>
-                  </div>
-                  <div className="mt-4 h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div className={`h-full ${getProgressBarColor(parseFloat(overallPercentage))} rounded-full`} style={{ width: `${overallPercentage}%` }}></div>
-                  </div>
-                </CardContent>
-              </Card>
-  
-              <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
-                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                      <BookOpen className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalClasses}</h3>
-                    <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Conducted</p>
-                  </div>
-                </CardContent>
-              </Card>
-  
-              <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
-                <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalAttended}</h3>
-                    <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Attended</p>
-                  </div>
-                </CardContent>
-              </Card>
-  
-              <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
-                <div className="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalMissed}</h3>
-                    <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Missed</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Mark Attendance Section (Student Only) */}
-            {role === 'student' && (
-              <div className="lg:col-span-1 space-y-6">
-                <Card className="border-border/50 bg-card shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
-                  <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-primary" /> Mark Attendance
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    {attendanceStatus === 'success' ? (
-                      <div className="flex flex-col items-center justify-center text-center py-6 space-y-3">
-                        <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-2">
-                          <CheckCircle className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-xl font-bold text-foreground">Attendance Marked!</h3>
-                        <p className="text-sm text-muted-foreground">You have successfully submitted your attendance for this session.</p>
-                      </div>
-                    ) : activeSession ? (
-                      <div className="space-y-4">
-                        <div className="p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Active Session</span>
-                          </div>
-                          <h4 className="text-sm font-bold text-foreground">Java Programming (Dr. Rahul Sharma)</h4>
-                        </div>
-                        
-                        {attendanceStatus === 'error' && (
-                          <div className="p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm font-medium">
-                            Incorrect code or verification answer. Please try again.
-                          </div>
-                        )}
-                        
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Unique Attendance Code</label>
-                            <Input 
-                              type="text" 
-                              placeholder="e.g. 7890" 
-                              className="font-mono text-center tracking-widest text-lg"
-                              value={code}
-                              onChange={(e) => setCode(e.target.value)}
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Verification Question</label>
-                            <div className="p-3 bg-muted/50 rounded-md border border-border/50 text-sm font-medium mb-2 text-foreground">
-                              {activeSession.question}
-                            </div>
-                            <Input 
-                              type="text" 
-                              placeholder="Your answer..." 
-                              value={answer}
-                              onChange={(e) => setAnswer(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        
-                        <Button className="w-full mt-2" onClick={handleMarkAttendance}>
-                          Submit Attendance
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center py-10 space-y-3">
-                        <Clock className="w-10 h-10 text-muted-foreground/50 mb-2" />
-                        <h3 className="text-lg font-semibold text-foreground">No Active Session</h3>
-                        <p className="text-sm text-muted-foreground">Your instructor has not started an attendance session yet.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* AI Insights Card */}
-                <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
-                  <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-indigo-500" /> AI Insights
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-5">
-                    <div className="space-y-4">
-                      <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
-                        <p className="text-sm text-foreground font-medium">Your attendance in <span className="font-bold text-primary">Operating Systems</span> is dropping. Missing 2 more classes will drop you below 75%.</p>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Most Attended</span>
-                        <span className="font-semibold">Software Engineering (95%)</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Least Attended</span>
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">Operating Systems (75%)</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Trend</span>
-                        <span className="font-semibold text-emerald-600 flex items-center gap-1"><TrendingUp size={14} /> Improving</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Subject-wise Cards / Admin Sessions */}
-            {role === 'student' ? (
-              <div className="lg:col-span-2 grid-cols-1 md:grid-cols-2 grid gap-6">
-                {(studentSubjectWise || []).map((sub, idx) => {
-                  const subPct = sub.attendancePercentage || 0;
-                  const attended = sub.classesAttended || sub.attendedClasses || 0;
-                  const total = sub.totalClasses || 1;
-                  const missed = total - attended;
-                  const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
-                  return (
-                    <Card 
-                      key={idx} 
-                      className="border border-border/50 bg-card shadow-sm hover:shadow-md transition-all duration-300 flex flex-col"
-                    >
-                      <CardContent className="p-5 flex-1 flex flex-col">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-bold text-base text-foreground line-clamp-1">{subjectName}</h4>
-                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{sub.faculty || 'Assigned Faculty'}</p>
-                          </div>
-                          {getStatusBadge(subPct)}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
-                          <div>
-                            <p className="text-2xl font-extrabold tracking-tight">{subPct.toFixed(1)}%</p>
-                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5">
-                              Attendance
-                            </p>
-                          </div>
-                          <div className="text-right">
-                             <div className="flex justify-end gap-3">
-                               <div className="text-center">
-                                 <p className="text-lg font-bold text-emerald-600">{sub.attended}</p>
-                                 <p className="text-[10px] text-muted-foreground uppercase">Attended</p>
-                               </div>
-                               <div className="text-center">
-                                 <p className="text-lg font-bold text-rose-500">{missed}</p>
-                                 <p className="text-[10px] text-muted-foreground uppercase">Missed</p>
-                               </div>
-                             </div>
-                          </div>
-                        </div>
-                        
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden mb-6">
-                          <div className={`h-full ${getProgressBarColor(subPct)} rounded-full`} style={{ width: `${subPct}%` }}></div>
-                        </div>
-                        
-                        <div className="mt-auto">
-                          <Button 
-                            variant="outline" 
-                            className="w-full gap-2"
-                            onClick={() => setSelectedSubjectId(sub.name)}
-                          >
-                            <BarChart3 className="w-4 h-4" />
-                            View History
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : role === 'coordinator' ? (
-              <CoordinatorDashboard 
-                onSelectStudent={setSelectedStudentId} 
-                onViewProfile={setViewingProfileStudentId}
-                sectionData={coordinatorSectionData}
+        {activeTab === 'dashboard' && (
+          <AnimatePresence mode="wait">
+            {viewingProfileStudentId && role === 'coordinator' ? (
+              <ProfileModule
+                studentId={viewingProfileStudentId}
+                onBack={() => setViewingProfileStudentId(null)}
+              />
+            ) : selectedStudentId && role === 'coordinator' ? (
+              <StudentAttendanceDetails
+                student={(() => {
+                  const s = coordinatorSectionData?.students.find(s => s.id === selectedStudentId);
+                  if (!s) return { id: selectedStudentId, name: 'Unknown', enrollment: 'N/A', section: 'N/A', semester: 'N/A', photo: '', attendance: 0 };
+                  return {
+                    id: s.id,
+                    name: s.name,
+                    enrollment: s.enrollmentNumber || 'N/A',
+                    section: coordinatorSectionData?.className || 'N/A',
+                    semester: coordinatorSectionData?.semester || 'N/A',
+                    // @ts-ignore
+                    photo: s.profilePictureUrl ? getAssetUrl(s.profilePictureUrl) : s.photo ? getAssetUrl(s.photo) : s.avatar ? getAssetUrl(s.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=4F46E5&color=fff&size=128`,
+                    attendance: studentOverall?.overallPercentage !== undefined && studentOverall?.overallPercentage !== null ? Math.round(studentOverall.overallPercentage) : (s.overallAttendance ? Math.round(s.overallAttendance) : 0)
+                  };
+                })()}
+                subjectData={studentSubjectWise}
+                historyData={studentHistory}
+                overallData={studentOverall}
+                onBack={() => setSelectedStudentId(null)}
+              />
+            ) : selectedSubjectId && role === 'student' ? (
+              <SubjectAttendanceDetails
+                subject={studentSubjectWise?.find((s: any) => s.classSubjectId === selectedSubjectId || s.subjectName === selectedSubjectId || s.name === selectedSubjectId) || null}
+                historyData={studentHistory?.filter(h => h.classSubjectId === selectedSubjectId || h.subjectName === selectedSubjectId)}
+                onBack={() => setSelectedSubjectId(null)}
+              />
+            ) : selectedSessionId && ['faculty', 'hod', 'coordinator', 'both'].includes(role) ? (
+              <AdminSessionDetails
+                session={adminSessions.find(s => s.id === selectedSessionId)}
+                onBack={() => setSelectedSessionId(null)}
+              />
+            ) : role === 'student' ? (
+              <StudentAttendanceDetails
+                student={{
+                  id: user?.id || selectedStudentId || 'unknown',
+                  name: studentOverall?.studentName || user?.name || 'Student',
+                  enrollment: studentOverall?.email || user?.email || 'N/A',
+                  section: studentOverall?.className || 'N/A',
+                  semester: studentOverall?.semester || 'N/A',
+                  photo: studentOverall?.profilePictureUrl ? getAssetUrl(studentOverall.profilePictureUrl) : user?.profilePictureUrl ? getAssetUrl(user.profilePictureUrl) : user?.avatar ? getAssetUrl(user.avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(studentOverall?.studentName || user?.name || 'Student')}&background=4F46E5&color=fff&size=128`,
+                  attendance: studentOverall?.overallPercentage ? Math.round(studentOverall.overallPercentage) : 0
+                }}
+                subjectData={studentSubjectWise}
+                historyData={studentHistory}
+                overallData={studentOverall}
               />
             ) : (
-              <div className="lg:col-span-3 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold">Session Management</h3>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="gap-2"><Filter size={14} /> Filter</Button>
-                    <Button variant="outline" size="sm" className="gap-2"><Search size={14} /> Search</Button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {adminSessions.map(session => (
-                    <Card key={session.id} className="border border-border/50 bg-card shadow-sm hover:border-primary/30 transition-all duration-300">
-                      <CardContent className="p-5 flex flex-col h-full">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-bold text-base text-foreground line-clamp-1">{session.subject}</h4>
-                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{session.class} â€¢ {session.type}</p>
-                          </div>
-                          <Badge variant={session.status === 'Active' ? 'active' : session.status === 'Closed' ? 'outline' : 'rejected'}>
-                            {session.status}
-                          </Badge>
-                        </div>
-                        
-                        <div className="space-y-2 mb-4 mt-2">
-                          <div className="flex items-center text-xs text-muted-foreground gap-2">
-                            <Calendar size={12} /> {session.date}
-                          </div>
-                          <div className="flex items-center text-xs text-muted-foreground gap-2">
-                            <Clock size={12} /> {session.time}
-                          </div>
-                          <div className="flex items-center text-xs text-muted-foreground gap-2">
-                            <QrCode size={12} /> Code: <span className="font-mono font-bold text-foreground">{session.code}</span>
-                          </div>
-                        </div>
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
 
-                        <div className="mt-auto pt-4 border-t border-border/50">
-                          <div className="flex justify-between text-sm mb-3">
-                            <span className="text-emerald-600 font-medium">{session.presentCount} Present</span>
-                            <span className="text-rose-600 font-medium">{session.absentCount} Absent</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setSelectedSessionId(session.id)}>View</Button>
-                            <Button variant="outline" size="sm" className="flex-1 text-xs">Edit</Button>
-                            <Button variant="outline" size="icon" className="w-8 h-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={14} /></Button>
-                          </div>
+                {/* Top KPIs */}
+                {role === 'coordinator' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+                      <CardContent className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500"><Users className="w-5 h-5" /></div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-extrabold tracking-tight text-foreground">{coordinatorSectionData ? coordinatorSectionData.students.length : '-'}</h3>
+                          <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Total Students</p>
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+                      <CardContent className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500"><CheckCircle className="w-5 h-5" /></div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
+                            {coordinatorSectionData ? `${coordinatorSectionData.sectionAverage?.toFixed(1) || 0}%` : '-'}
+                          </h3>
+                          <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Section Avg Attendance</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+                      <CardContent className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500"><TrendingUp className="w-5 h-5" /></div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
+                            {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance >= 75).length : '-'}
+                          </h3>
+                          <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students in Safe Zone</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/50 shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
+                      <CardContent className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500"><AlertTriangle className="w-5 h-5" /></div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
+                            {coordinatorSectionData ? coordinatorSectionData.students.filter(s => s.overallAttendance < 75).length : '-'}
+                          </h3>
+                          <p className="text-xs font-bold mt-1 text-muted-foreground uppercase tracking-wider">Students at Risk</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            <TrendingUp className="w-5 h-5" />
+                          </div>
+                          {getStatusBadge(parseFloat(overallPercentage))}
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-bold text-foreground tracking-tight">{overallPercentage}%</h3>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">Overall Attendance</p>
+                        </div>
+                        <div className="mt-4 h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full ${getProgressBarColor(parseFloat(overallPercentage))} rounded-full`} style={{ width: `${overallPercentage}%` }}></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                            <BookOpen className="w-5 h-5" />
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalClasses}</h3>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Conducted</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle className="w-5 h-5" />
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalAttended}</h3>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Attended</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border border-border/50 bg-card shadow-sm overflow-hidden relative group hover:shadow-md transition-shadow">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="p-2 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-bold text-foreground tracking-tight">{totalMissed}</h3>
+                          <p className="text-sm font-medium text-muted-foreground mt-1">Total Classes Missed</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                  {/* Mark Attendance Section (Student Only) */}
+                  {role === 'student' && (
+                    <div className="lg:col-span-1 space-y-6">
+                      <Card className="border-border/50 bg-card shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+                        <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            <Lock className="w-4 h-4 text-primary" /> Mark Attendance
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          {attendanceStatus === 'success' ? (
+                            <div className="flex flex-col items-center justify-center text-center py-6 space-y-3">
+                              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-2">
+                                <CheckCircle className="w-8 h-8" />
+                              </div>
+                              <h3 className="text-xl font-bold text-foreground">Attendance Marked!</h3>
+                              <p className="text-sm text-muted-foreground">You have successfully submitted your attendance for this session.</p>
+                            </div>
+                          ) : activeSession ? (
+                            <div className="space-y-4">
+                              <div className="p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Active Session</span>
+                                </div>
+                                <h4 className="text-sm font-bold text-foreground">Java Programming (Dr. Rahul Sharma)</h4>
+                              </div>
+
+                              {attendanceStatus === 'error' && (
+                                <div className="p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm font-medium">
+                                  Incorrect code or verification answer. Please try again.
+                                </div>
+                              )}
+
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Unique Attendance Code</label>
+                                  <Input
+                                    type="text"
+                                    placeholder="e.g. 7890"
+                                    className="font-mono text-center tracking-widest text-lg"
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value)}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Verification Question</label>
+                                  <div className="p-3 bg-muted/50 rounded-md border border-border/50 text-sm font-medium mb-2 text-foreground">
+                                    {activeSession.question}
+                                  </div>
+                                  <Input
+                                    type="text"
+                                    placeholder="Your answer..."
+                                    value={answer}
+                                    onChange={(e) => setAnswer(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              <Button className="w-full mt-2" onClick={handleMarkAttendance}>
+                                Submit Attendance
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-center py-10 space-y-3">
+                              <Clock className="w-10 h-10 text-muted-foreground/50 mb-2" />
+                              <h3 className="text-lg font-semibold text-foreground">No Active Session</h3>
+                              <p className="text-sm text-muted-foreground">Your instructor has not started an attendance session yet.</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* AI Insights Card */}
+                      <Card className="border border-border/50 bg-card shadow-sm overflow-hidden">
+                        <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-indigo-500" /> AI Insights
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-5">
+                          <div className="space-y-4">
+                            <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                              <p className="text-sm text-foreground font-medium">Your attendance in <span className="font-bold text-primary">Operating Systems</span> is dropping. Missing 2 more classes will drop you below 75%.</p>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Most Attended</span>
+                              <span className="font-semibold">Software Engineering (95%)</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Least Attended</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-400">Operating Systems (75%)</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Trend</span>
+                              <span className="font-semibold text-emerald-600 flex items-center gap-1"><TrendingUp size={14} /> Improving</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Subject-wise Cards / Admin Sessions */}
+                  {role === 'student' ? (
+                    <div className="lg:col-span-2 grid-cols-1 md:grid-cols-2 grid gap-6">
+                      {(studentSubjectWise || []).map((sub, idx) => {
+                        const subPct = sub.attendancePercentage || 0;
+                        const attended = sub.classesAttended || sub.attendedClasses || 0;
+                        const total = sub.totalClasses || 1;
+                        const missed = total - attended;
+                        const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
+                        return (
+                          <Card
+                            key={idx}
+                            className="border border-border/50 bg-card shadow-sm hover:shadow-md transition-all duration-300 flex flex-col"
+                          >
+                            <CardContent className="p-5 flex-1 flex flex-col">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <h4 className="font-bold text-base text-foreground line-clamp-1">{subjectName}</h4>
+                                  <p className="text-xs text-muted-foreground font-medium mt-0.5">{sub.faculty || 'Assigned Faculty'}</p>
+                                </div>
+                                {getStatusBadge(subPct)}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
+                                <div>
+                                  <p className="text-2xl font-extrabold tracking-tight">{subPct.toFixed(1)}%</p>
+                                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5">
+                                    Attendance
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="flex justify-end gap-3">
+                                    <div className="text-center">
+                                      <p className="text-lg font-bold text-emerald-600">{sub.attended}</p>
+                                      <p className="text-[10px] text-muted-foreground uppercase">Attended</p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-lg font-bold text-rose-500">{missed}</p>
+                                      <p className="text-[10px] text-muted-foreground uppercase">Missed</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="h-2 w-full bg-muted rounded-full overflow-hidden mb-6">
+                                <div className={`h-full ${getProgressBarColor(subPct)} rounded-full`} style={{ width: `${subPct}%` }}></div>
+                              </div>
+
+                              <div className="mt-auto">
+                                <Button
+                                  variant="outline"
+                                  className="w-full gap-2"
+                                  onClick={() => setSelectedSubjectId(sub.name)}
+                                >
+                                  <BarChart3 className="w-4 h-4" />
+                                  View History
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  ) : role === 'coordinator' ? (
+                    <CoordinatorDashboard
+                      onSelectStudent={setSelectedStudentId}
+                      onViewProfile={setViewingProfileStudentId}
+                      sectionData={coordinatorSectionData}
+                    />
+                  ) : (
+                    <div className="lg:col-span-3 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold">Session Management</h3>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="gap-2"><Filter size={14} /> Filter</Button>
+                          <Button variant="outline" size="sm" className="gap-2"><Search size={14} /> Search</Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {adminSessions.map(session => (
+                          <Card key={session.id} className="border border-border/50 bg-card shadow-sm hover:border-primary/30 transition-all duration-300">
+                            <CardContent className="p-5 flex flex-col h-full">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <h4 className="font-bold text-base text-foreground line-clamp-1">{session.subject}</h4>
+                                  <p className="text-xs text-muted-foreground font-medium mt-0.5">{session.class} â€¢ {session.type}</p>
+                                </div>
+                                <Badge variant={session.status === 'Active' ? 'active' : session.status === 'Closed' ? 'outline' : 'rejected'}>
+                                  {session.status}
+                                </Badge>
+                              </div>
+
+                              <div className="space-y-2 mb-4 mt-2">
+                                <div className="flex items-center text-xs text-muted-foreground gap-2">
+                                  <Calendar size={12} /> {session.date}
+                                </div>
+                                <div className="flex items-center text-xs text-muted-foreground gap-2">
+                                  <Clock size={12} /> {session.time}
+                                </div>
+                                <div className="flex items-center text-xs text-muted-foreground gap-2">
+                                  <QrCode size={12} /> Code: <span className="font-mono font-bold text-foreground">{session.code}</span>
+                                </div>
+                              </div>
+
+                              <div className="mt-auto pt-4 border-t border-border/50">
+                                <div className="flex justify-between text-sm mb-3">
+                                  <span className="text-emerald-600 font-medium">{session.presentCount} Present</span>
+                                  <span className="text-rose-600 font-medium">{session.absentCount} Absent</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setSelectedSessionId(session.id)}>View</Button>
+                                  <Button variant="outline" size="sm" className="flex-1 text-xs">Edit</Button>
+                                  <Button variant="outline" size="icon" className="w-8 h-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={14} /></Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </motion.div>
             )}
+          </AnimatePresence>
+        )}
+
+        {activeTab === 'teachingHistory' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+          <AdminTeachingHistory />
+        )}
+
+
+
+        {activeTab === 'calculator' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(studentSubjectWise || []).map((sub, idx) => {
+              const currentPct = sub.attendancePercentage || 0;
+              const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
+
+              // Real calculations from backend
+              const neededFor75 = sub.neededFor75 ?? -1;
+              const neededFor80 = sub.neededFor80 ?? -1;
+              const canMiss = sub.safeToMiss ?? 0;
+
+              const renderPrediction = (needed: number) => {
+                if (needed === -2) return <span className="text-sm font-bold text-muted-foreground">—</span>;
+                if (needed === -1) return <span className="text-sm font-bold text-rose-500">Cannot be achieved</span>;
+                if (needed === 0) return <span className="text-sm font-bold text-emerald-500">Safe</span>;
+                return <span className="text-sm font-bold text-foreground">Attend next {needed} classes</span>;
+              };
+
+              return (
+                <Card key={idx} className="border border-border/50 bg-card shadow-sm">
+                  <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
+                    <CardTitle className="text-base font-semibold flex items-center justify-between">
+                      <span className="truncate pr-2">{subjectName}</span>
+                      <Badge variant="outline" className="shrink-0">{currentPct.toFixed(1)}%</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex justify-between items-center py-2 border-b border-border/40">
+                      <span className="text-sm text-muted-foreground">To reach 75%</span>
+                      {renderPrediction(neededFor75)}
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-border/40">
+                      <span className="text-sm text-muted-foreground">To reach 80%</span>
+                      {renderPrediction(neededFor80)}
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm text-muted-foreground">Safe to miss</span>
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{canMiss} classes</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
-          </motion.div>
-          )}
-        </AnimatePresence>
-      )}
+        )}
 
-      {activeTab === 'teachingHistory' && ['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-        <AdminTeachingHistory />
-      )}
-
-
-
-      {activeTab === 'calculator' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(studentSubjectWise || []).map((sub, idx) => {
-            const currentPct = sub.attendancePercentage || 0;
-            const subjectName = sub.subjectName || sub.name || 'Unknown Subject';
-            
-            // Real calculations from backend
-            const neededFor75 = sub.neededFor75 ?? -1;
-            const neededFor80 = sub.neededFor80 ?? -1;
-            const canMiss = sub.safeToMiss ?? 0;
-            
-            const renderPrediction = (needed: number) => {
-              if (needed === -2) return <span className="text-sm font-bold text-muted-foreground">—</span>;
-              if (needed === -1) return <span className="text-sm font-bold text-rose-500">Cannot be achieved</span>;
-              if (needed === 0) return <span className="text-sm font-bold text-emerald-500">Safe</span>;
-              return <span className="text-sm font-bold text-foreground">Attend next {needed} classes</span>;
-            };
-            
-            return (
-              <Card key={idx} className="border border-border/50 bg-card shadow-sm">
-                <CardHeader className="bg-muted/20 border-b border-border/50 px-5 py-4">
-                  <CardTitle className="text-base font-semibold flex items-center justify-between">
-                    <span className="truncate pr-2">{subjectName}</span>
-                    <Badge variant="outline" className="shrink-0">{currentPct.toFixed(1)}%</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex justify-between items-center py-2 border-b border-border/40">
-                    <span className="text-sm text-muted-foreground">To reach 75%</span>
-                    {renderPrediction(neededFor75)}
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-border/40">
-                    <span className="text-sm text-muted-foreground">To reach 80%</span>
-                    {renderPrediction(neededFor80)}
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-muted-foreground">Safe to miss</span>
-                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{canMiss} classes</span>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
-    </div>
+      </div>
 
       {/* Mark Attendance Modal */}
       <AnimatePresence>
         {showMarkModal && (
-          <MarkAttendanceModal 
+          <MarkAttendanceModal
             isOpen={showMarkModal}
             onClose={() => setShowMarkModal(false)}
             user={user}
@@ -2079,7 +2079,7 @@ export const AttendanceModule = () => {
       {/* Create Attendance Session Modal */}
       <AnimatePresence>
         {showCreateModal && (
-          <CreateSessionModal 
+          <CreateSessionModal
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onSubmit={onSubmit}
@@ -2093,9 +2093,9 @@ export const AttendanceModule = () => {
           />
         )}
       </AnimatePresence>
-      <CoordinatorAddAttendanceModal 
-        isOpen={showCoordinatorAddModal} 
-        onClose={() => setShowCoordinatorAddModal(false)} 
+      <CoordinatorAddAttendanceModal
+        isOpen={showCoordinatorAddModal}
+        onClose={() => setShowCoordinatorAddModal(false)}
         onSuccess={() => fetchCoordinatorStudents()}
         students={coordinatorSectionData?.students || []}
       />

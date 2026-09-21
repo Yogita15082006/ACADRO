@@ -26,4 +26,18 @@ public class SubjectAnalyticsController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+    
+    @GetMapping("/subject/{classSubjectId}/export")
+    public ResponseEntity<byte[]> exportSubjectAnalyticsExcel(@PathVariable UUID classSubjectId) {
+        try {
+            byte[] excelFile = subjectAnalyticsService.exportSubjectAnalyticsExcel(classSubjectId);
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Student_Record.xlsx\"")
+                    .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    .body(excelFile);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
