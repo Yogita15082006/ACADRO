@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getAssetUrl } from '@/lib/utils';
 import {
   LayoutDashboard, Users,
-  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen
+  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen, History
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -59,6 +59,7 @@ export const Layout = () => {
     ...(role === 'coordinator' || role === 'faculty' || role === 'both' ? [{ to: '/admin/students', icon: <GraduationCap size={18} />, label: 'Students', roles: ['coordinator', 'faculty', 'both'] }] : []),
     ...(role !== 'hod' ? [{ to: '/admin/attendance', icon: <CheckSquare size={18} />, label: 'Attendance', roles: ['coordinator', 'faculty', 'both'] }] : []),
     ...(role === 'hod' || role === 'coordinator' || role === 'both' ? [{ to: '/admin/faculty-activity', icon: <ClipboardList size={18} />, label: 'Faculty Activity', roles: ['hod', 'coordinator', 'both'] }] : []),
+    ...(role === 'hod' || role === 'coordinator' || role === 'both' ? [{ to: '/admin/student-login-history', icon: <History size={18} />, label: 'Student Login History', roles: ['hod', 'coordinator', 'both'] }] : []),
     { to: '/admin/examinations', icon: <GraduationCap size={18} />, label: 'Examinations', roles: ['hod', 'coordinator', 'faculty', 'both'] },
     { to: '/admin/events', icon: <Calendar size={18} />, label: 'Events', roles: ['hod', 'coordinator', 'faculty', 'both'] },
     { to: '/admin/notice', icon: <Bell size={18} />, label: 'Notices', roles: ['hod', 'coordinator', 'faculty', 'both'] },

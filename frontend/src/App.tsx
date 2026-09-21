@@ -21,6 +21,7 @@ import { ClassesModule } from './pages/ClassesModule';
 import { FacultyManagementModule } from './pages/FacultyManagementModule';
 import { AcademicResourcesModule } from './pages/AcademicResourcesModule';
 import { NotificationsModule } from './pages/NotificationsModule';
+import { StudentLoginHistoryModule } from './pages/StudentLoginHistoryModule';
 import { Toaster } from 'sonner';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -64,6 +65,7 @@ export function AppRoutes() {
         <Route path="faculty-requests" element={<FacultyRequestsModule />} />
         <Route path="coordinators" element={<CoordinatorsModule />} />
         <Route path="academic-resources" element={<AcademicResourcesModule />} />
+        <Route path="student-login-history" element={<StudentLoginHistoryModule />} />
         <Route path="reports" element={<GenericModule title="Reports" type="reports" />} />
       </Route>
 

@@ -24,6 +24,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
     private final AuthService authService;
+    private final com.acronexus.service.StudentLoginHistoryService studentLoginHistoryService;
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponseDto>> authenticateUser(@Valid @RequestBody AuthRequestDto loginRequest) {
@@ -45,6 +46,17 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .findFirst()
                 .orElse("ROLE_STUDENT");
+
+        // Record login history for students only
+        if ("ROLE_STUDENT".equals(role)) {
+            try {
+                studentLoginHistoryService.recordLogin(userDetails.getId());
+            } catch (Exception e) {
+                // Login history recording must never break the login flow
+                org.slf4j.LoggerFactory.getLogger(AuthController.class)
+                    .warn("Failed to record student login history for user {}: {}", userDetails.getId(), e.getMessage());
+            }
+        }
 
         AuthResponseDto authResponse = AuthResponseDto.builder()
                 .token(jwt)
