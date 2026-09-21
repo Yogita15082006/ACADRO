@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { getAssetUrl } from '@/lib/utils';
@@ -10,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import {
   Search, X, GraduationCap, ArrowLeft, Printer,
-  Calendar, CheckCircle, Upload, Plus, Eye, Edit, Trash2, AlertTriangle, Users, FileText, XCircle
+  Calendar, CheckCircle, Upload, Plus, Eye, Edit, Trash2, AlertTriangle, Users, FileText, XCircle, Download
 } from 'lucide-react';
 import { ProfileModule } from './ProfileModule';
 
@@ -287,6 +288,36 @@ export const StudentsModule = () => {
     }, 250);
   };
 
+  const handleDownloadFormat = () => {
+    const templateData = [
+      ["Enrollment_no", "Student Name", "Gender", "Batch_year", "Academic_year", "Semester_id", "Class_id", "Section", "Status", "Email", "Department_id", "degree_programs"]
+    ];
+    
+    const instructions = [
+      ["Column", "Description", "Required", "Example"],
+      ["Enrollment_no", "Unique enrollment number of the student", "Yes", "EN123456"],
+      ["Student Name", "Full name of the student", "Yes", "John Doe"],
+      ["Gender", "Student gender (Male/Female/Other)", "Yes", "Male"],
+      ["Batch_year", "Batch year (e.g., 2023-2027)", "Yes", "2023-2027"],
+      ["Academic_year", "Current academic year (e.g., 1st Year, 2nd Year)", "Yes", "1st Year"],
+      ["Semester_id", "Current semester (e.g., Semester 1, Semester 2)", "Yes", "Semester 1"],
+      ["Class_id", "Class name or ID (e.g., CS-A, IT-1)", "Yes", "CS-A"],
+      ["Section", "Section of the class", "No", "A"],
+      ["Status", "Student status (Active/Inactive)", "Yes", "Active"],
+      ["Email", "College email address", "Yes", "johndoe@college.edu"],
+      ["Department_id", "Department ID or Name", "Yes", "CS"],
+      ["degree_programs", "Degree program (e.g., B.Tech, MCA)", "Yes", "B.Tech"]
+    ];
+    
+    const wb = XLSX.utils.book_new();
+    const wsTemplate = XLSX.utils.aoa_to_sheet(templateData);
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
+    
+    XLSX.utils.book_append_sheet(wb, wsTemplate, "Students");
+    XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+    XLSX.writeFile(wb, "ACADRO_Student_Upload_Template.xlsx");
+  };
+
   const handleUpload = async () => {
     if (!uploadFile) return;
     setIsUploading(true);
@@ -464,14 +495,17 @@ export const StudentsModule = () => {
           </p>
         </div>
         {isHod && (
-          <div className="flex gap-2">
-            <Button onClick={() => setShowDeleteAll(true)} variant="outline" className="gap-2 border-red-500/30 text-red-600 hover:bg-red-50 hover:text-red-700">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Button onClick={() => setShowDeleteAll(true)} variant="outline" className="gap-2 w-full sm:w-auto border-red-500/30 text-red-600 hover:bg-red-50 hover:text-red-700">
               <Trash2 size={16} /> Delete All Students
             </Button>
-            <Button onClick={() => setShowUpload(true)} variant="outline" className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
+            <Button onClick={handleDownloadFormat} variant="outline" className="gap-2 w-full sm:w-auto border-primary/30 text-primary hover:bg-primary/5">
+              <Download size={16} /> Download Format
+            </Button>
+            <Button onClick={() => setShowUpload(true)} variant="outline" className="gap-2 w-full sm:w-auto border-primary/30 text-primary hover:bg-primary/5">
               <Upload size={16} /> Upload Student List
             </Button>
-            <Button onClick={() => setShowAdd(true)} className="gap-2 shadow-md">
+            <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto shadow-md">
               <Plus size={16} /> Add Student
             </Button>
           </div>
