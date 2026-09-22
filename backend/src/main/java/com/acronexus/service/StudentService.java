@@ -110,6 +110,20 @@ public class StudentService {
     }
 
     @Transactional(readOnly = true)
+    public Page<StudentResponseDto> getAllStudents(String search, String batch, String className, String status, String activeRole, com.acronexus.security.UserDetailsImpl userDetails, Pageable pageable) {
+        // HOD in Faculty context: scope to only the Faculty's own class_subject assignments
+        if ("faculty".equalsIgnoreCase(activeRole) && userDetails != null) {
+            boolean isHod = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_HOD"));
+            if (isHod) {
+                return getFacultyStudents(userDetails.getId(), search, batch, className, status, pageable);
+            }
+        }
+        // Default: existing behavior for HOD view, Faculty, Coordinator, etc.
+        return getAllStudents(search, batch, className, status, pageable);
+    }
+
+    @Transactional(readOnly = true)
     public Page<StudentResponseDto> getAllStudents(String search, String batch, String className, String status, Pageable pageable) {
         // Sanitize inputs (frontend sends empty strings instead of null)
         search = (search != null && search.trim().isEmpty()) ? null : search;
@@ -124,6 +138,61 @@ public class StudentService {
 
         return studentRepository.findAllWithFilters(search, batch, status, className, customPageable)
                 .map(this::mapToDto);
+    }
+
+    /**
+     * Returns students scoped to a Faculty's assigned classes via class_subjects.
+     * Used when HOD switches to Faculty View.
+     */
+    private Page<StudentResponseDto> getFacultyStudents(UUID facultyUserId, String search, String batch, String className, String status, Pageable pageable) {
+        // Find all active class_subject assignments for this Faculty
+        List<com.acronexus.entity.ClassSubject> assignments = classSubjectRepository.findByFacultyIdAndIsActiveTrue(facultyUserId);
+        
+        if (assignments.isEmpty()) {
+            // Faculty has no class assignments → return empty page
+            return new PageImpl<>(java.util.Collections.emptyList(), pageable, 0);
+        }
+
+        // Collect distinct class IDs from assignments
+        java.util.Set<UUID> classIds = assignments.stream()
+            .filter(cs -> cs.getAcroClass() != null)
+            .map(cs -> cs.getAcroClass().getId())
+            .collect(java.util.stream.Collectors.toSet());
+
+        if (classIds.isEmpty()) {
+            return new PageImpl<>(java.util.Collections.emptyList(), pageable, 0);
+        }
+
+        // Find all students enrolled in those classes
+        java.util.Set<UUID> studentIds = new java.util.HashSet<>();
+        for (UUID classId : classIds) {
+            List<StudentEnrollment> enrollments = enrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId);
+            for (StudentEnrollment e : enrollments) {
+                if (e.getStudent() != null) {
+                    studentIds.add(e.getStudent().getId());
+                }
+            }
+        }
+
+        if (studentIds.isEmpty()) {
+            return new PageImpl<>(java.util.Collections.emptyList(), pageable, 0);
+        }
+
+        // Filter through the existing query, then post-filter to only matching students
+        search = (search != null && search.trim().isEmpty()) ? null : search;
+        batch = (batch != null && batch.trim().isEmpty()) ? null : batch;
+        className = (className != null && className.trim().isEmpty()) ? null : className;
+        status = (status != null && status.trim().isEmpty()) ? null : status;
+
+        Pageable customPageable = org.springframework.data.domain.PageRequest.of(0, 2000, pageable.getSort());
+        Page<Student> allFiltered = studentRepository.findAllWithFilters(search, batch, status, className, customPageable);
+
+        List<StudentResponseDto> scopedStudents = allFiltered.getContent().stream()
+            .filter(s -> studentIds.contains(s.getId()))
+            .map(this::mapToDto)
+            .collect(java.util.stream.Collectors.toList());
+
+        return new PageImpl<>(scopedStudents, pageable, scopedStudents.size());
     }
 
     @Transactional(readOnly = true)

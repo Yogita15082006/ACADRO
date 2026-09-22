@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.acronexus.security.UserDetailsImpl;
 
 @RestController
 @RequestMapping("/api/v1/students")
@@ -28,9 +30,11 @@ public class StudentController {
             @RequestParam(required = false) String batch,
             @RequestParam(required = false) String className,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String activeRole,
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
             @org.springframework.data.web.PageableDefault(size = 2000) Pageable pageable) {
 
-        return ResponseEntity.ok(ApiResponse.success("Students retrieved successfully", studentService.getAllStudents(search, batch, className, status, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Students retrieved successfully", studentService.getAllStudents(search, batch, className, status, activeRole, userDetails, pageable)));
     }
 
     @GetMapping("/batches")

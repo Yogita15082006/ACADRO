@@ -42,7 +42,7 @@ export const formatYear = (year: any, fallbackYear?: string): string => {
 };
 
 export const StudentsModule = () => {
-  const { role } = useAuth();
+  const { role, realRole, activeRole } = useAuth();
   const isHod = role === 'hod';
 
 
@@ -67,7 +67,11 @@ export const StudentsModule = () => {
   
   const fetchStudents = async () => {
     try {
-      const res = await api.get('/v1/students?size=1000');
+      const params = new URLSearchParams({ size: '1000' });
+      if (realRole === 'hod' && activeRole === 'faculty') {
+        params.append('activeRole', 'faculty');
+      }
+      const res = await api.get(`/v1/students?${params.toString()}`);
       setStudents(res.data?.data?.content || []);
     } catch (e) {
       console.error(e);
@@ -93,7 +97,7 @@ export const StudentsModule = () => {
   useEffect(() => {
     fetchStudents();
     fetchFilters();
-  }, []);
+  }, [role]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBatch, setFilterBatch] = useState('');
