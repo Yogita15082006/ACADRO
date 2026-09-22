@@ -111,15 +111,32 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public Page<StudentResponseDto> getAllStudents(String search, String batch, String className, String status, String activeRole, com.acronexus.security.UserDetailsImpl userDetails, Pageable pageable) {
-        // HOD in Faculty context: scope to only the Faculty's own class_subject assignments
-        if ("faculty".equalsIgnoreCase(activeRole) && userDetails != null) {
+        if (userDetails != null) {
             boolean isHod = userDetails.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_HOD"));
-            if (isHod) {
+            boolean isFaculty = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_FACULTY"));
+
+            // 1. Normal Faculty (has ROLE_FACULTY, but not ROLE_HOD)
+            if (isFaculty && !isHod) {
                 return getFacultyStudents(userDetails.getId(), search, batch, className, status, pageable);
             }
+            
+            // 2. HOD in Faculty View
+            if (isHod && "faculty".equalsIgnoreCase(activeRole)) {
+                return getFacultyStudents(userDetails.getId(), search, batch, className, status, pageable);
+            }
+
+            // 3. Coordinator
+            boolean isCoordinator = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_COORDINATOR"));
+            
+            if (isCoordinator) {
+                return getCoordinatorStudents(userDetails.getId(), search, batch, className, status, pageable);
+            }
         }
-        // Default: existing behavior for HOD view, Faculty, Coordinator, etc.
+        
+        // Default: existing behavior for HOD view, Admin, etc.
         return getAllStudents(search, batch, className, status, pageable);
     }
 
@@ -194,6 +211,54 @@ public class StudentService {
 
         return new PageImpl<>(scopedStudents, pageable, scopedStudents.size());
     }
+
+    /**
+     * Returns students scoped to a Coordinator's assigned departments and classes.
+     */
+    private Page<StudentResponseDto> getCoordinatorStudents(UUID coordinatorUserId, String search, String batch, String className, String status, Pageable pageable) {
+        List<CoordinatorAssignment> assignments = coordinatorAssignmentRepository.findByCoordinatorId(coordinatorUserId);
+        
+        if (assignments.isEmpty()) {
+            return new PageImpl<>(java.util.Collections.emptyList(), pageable, 0);
+        }
+
+        java.util.Set<UUID> studentIds = new java.util.HashSet<>();
+        for (CoordinatorAssignment a : assignments) {
+            if (a.getCoordinator() == null || a.getCoordinator().getDepartment() == null) continue;
+            
+            List<Student> matched = studentRepository.findByStrictCoordinatorScope(
+                    a.getCoordinator().getDepartment().getId(),
+                    a.getBatch(),
+                    a.getSemester() != null ? a.getSemester().replace("Semester ", "") : null,
+                    a.getClassName()
+            );
+            
+            for (Student s : matched) {
+                studentIds.add(s.getId());
+            }
+        }
+
+        if (studentIds.isEmpty()) {
+            return new PageImpl<>(java.util.Collections.emptyList(), pageable, 0);
+        }
+
+        // Post-filter global query
+        search = (search != null && search.trim().isEmpty()) ? null : search;
+        batch = (batch != null && batch.trim().isEmpty()) ? null : batch;
+        className = (className != null && className.trim().isEmpty()) ? null : className;
+        status = (status != null && status.trim().isEmpty()) ? null : status;
+
+        Pageable customPageable = org.springframework.data.domain.PageRequest.of(0, 2000, pageable.getSort());
+        Page<Student> allFiltered = studentRepository.findAllWithFilters(search, batch, status, className, customPageable);
+
+        List<StudentResponseDto> scopedStudents = allFiltered.getContent().stream()
+            .filter(s -> studentIds.contains(s.getId()))
+            .map(this::mapToDto)
+            .collect(java.util.stream.Collectors.toList());
+
+        return new PageImpl<>(scopedStudents, pageable, scopedStudents.size());
+    }
+
 
     @Transactional(readOnly = true)
     public List<String> getBatches() {
