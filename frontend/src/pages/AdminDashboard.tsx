@@ -20,7 +20,7 @@ export const AdminDashboard = ({ previewUser }: { previewUser?: any }) => {
   };
 
   // Normalize role
-  const role = user.role?.replace('ROLE_', '').toLowerCase() || auth.role;
+  const role = previewUser ? (previewUser.role?.replace('ROLE_', '').toLowerCase()) : auth.role;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
