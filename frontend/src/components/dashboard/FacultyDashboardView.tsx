@@ -19,13 +19,24 @@ export const FacultyDashboardView = ({ user }: { user: any }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashRes, noticeRes, eventRes, attRes] = await Promise.all([
+        const [dashRes, noticeRes, eventRes, attRes, examsRes] = await Promise.all([
           api.get('/dashboard/faculty'),
           noticeService.getNotices(),
           eventService.getAllEvents(),
-          api.get(`/attendance-sessions/faculty/${user.id}/statistics`).catch(() => ({ data: { daysPresent: 0, daysAbsent: 0, totalWorkingDays: 0 } }))
+          api.get(`/attendance-sessions/faculty/${user.id}/statistics`).catch(() => ({ data: { daysPresent: 0, daysAbsent: 0, totalWorkingDays: 0 } })),
+          api.get('/examinations').catch(() => ({ data: { data: [] } }))
         ]);
-        if (dashRes.data?.data) setData(dashRes.data.data);
+        
+        let dashboardData = dashRes.data?.data || {};
+        
+        // Calculate upcoming exams from examinations endpoint since it's not supported in dashboard schema
+        if (examsRes.data?.data) {
+          const exams = Array.isArray(examsRes.data.data) ? examsRes.data.data : [];
+          const upcomingExams = exams.filter((e: any) => e.status === 'UPCOMING' || e.status === 'Upcoming');
+          dashboardData.upcomingExamCount = upcomingExams.length;
+        }
+        
+        setData(dashboardData);
         
         if (attRes?.data) {
           setAttendanceStats({
