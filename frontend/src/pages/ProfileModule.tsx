@@ -23,7 +23,7 @@ import { Projects } from '../components/profile/Projects';
 import { ConsentDeclaration } from '../components/profile/ConsentDeclaration';
 
 export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingStudent?: any, studentId?: string, onBack?: () => void }) => {
-  const { user, role, logout } = useAuth();
+  const { user, role, realRole, activeRole, switchRole, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [searchParams] = useSearchParams();
   const studentIdParam = studentId || searchParams.get('studentId');
@@ -52,12 +52,15 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
     if (viewingStudent) {
       setFetchedStudent(viewingStudent);
     }
-    
+
     if (targetId) {
       // Only show loader if we don't have basic data from viewingStudent
       if (!viewingStudent) setIsLoadingProfile(true);
-      
-      const endpoint = (targetId === user?.id) ? `/v1/profile` : `/v1/profile/${targetId}`;
+
+      // Strict override: If the user is on their own profile page, force targetId to their own ID
+      const finalTargetId = (!studentIdParam && !viewingStudent) ? user?.id : targetId;
+
+      const endpoint = (finalTargetId === user?.id) ? `/v1/profile` : `/v1/profile/${finalTargetId}`;
       api.get(endpoint).then(res => {
         setFetchedStudent(res.data?.data);
       }).catch(err => {
@@ -236,15 +239,30 @@ export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingSt
 
               {/* Profile Info */}
               <div className="pt-2 sm:pt-4 flex-1 text-center sm:text-left space-y-3 w-full">
-                <div className="flex items-center justify-center sm:justify-start gap-2">
+                <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4">
                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                     {isReadOnlyView ? 'Student' : (
-                       role === 'hod' ? 'Head of Department' :
-                       role === 'both' ? 'Coordinator • Faculty' :
-                       role === 'coordinator' ? 'Coordinator' :
-                       role === 'faculty' ? 'Faculty' : 'Student'
+                       activeRole === 'hod' ? 'Head of Department' :
+                       activeRole === 'both' ? 'Coordinator • Faculty' :
+                       activeRole === 'coordinator' ? 'Coordinator' :
+                       activeRole === 'faculty' ? 'Faculty' : 'Student'
                     )}
                   </Badge>
+
+                  {!isReadOnlyView && realRole === 'hod' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7 shrink-0"
+                      onClick={() => {
+                        const newRole = activeRole === 'hod' ? 'faculty' : 'hod';
+                        switchRole(newRole);
+                        toast.success(`Switched to ${newRole === 'hod' ? 'HOD' : 'Faculty'} view`);
+                      }}
+                    >
+                      Switch to {activeRole === 'hod' ? 'Faculty' : 'HOD'} View
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center sm:items-center justify-center sm:justify-start gap-x-6 gap-y-3 text-sm text-muted-foreground mt-4">
