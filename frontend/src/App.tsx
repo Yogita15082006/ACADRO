@@ -41,13 +41,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 export function AppRoutes() {
+  const { activeRole } = useAuth();
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       
       {/* Admin Routes */}
-      <Route path="/admin" element={<ProtectedRoute allowedRoles={['hod', 'coordinator', 'faculty']}><Layout /></ProtectedRoute>}>
+      <Route path="/admin" element={<ProtectedRoute allowedRoles={['hod', 'coordinator', 'faculty']}><Layout key={activeRole || 'default'} /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="classes" element={<ClassesModule />} />
         <Route path="students" element={<StudentsModule />} />

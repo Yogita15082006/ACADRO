@@ -9,6 +9,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [realUser, setRealUser] = useState<any>(null);
   const [realRole, setRealRole] = useState<any>(null); // 'hod', 'coordinator', 'faculty', or 'student'
+  const [activeRole, setActiveRole] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +24,16 @@ export const AuthProvider = ({ children }) => {
           const profileRes = await authService.getProfile();
           if (profileRes.success) {
             setRealUser(profileRes.data);
-            setRealRole(profileRes.data.role.replace('ROLE_', '').toLowerCase());
+            const fetchedRole = profileRes.data.role.replace('ROLE_', '').toLowerCase();
+            setRealRole(fetchedRole);
+            
+            if (fetchedRole === 'hod') {
+              const storedActive = localStorage.getItem('acronexus_active_role');
+              setActiveRole(storedActive === 'faculty' ? 'faculty' : 'hod');
+            } else {
+              setActiveRole(fetchedRole);
+              localStorage.removeItem('acronexus_active_role');
+            }
             
             // Automatically register FCM token if permission is granted
             pushNotificationService.requestPermissionAndRegister().catch(console.error);
@@ -71,6 +81,14 @@ export const AuthProvider = ({ children }) => {
           setRealUser(profileRes.data);
           setRealRole(fetchedRole);
           
+          if (fetchedRole === 'hod') {
+            const storedActive = localStorage.getItem('acronexus_active_role');
+            setActiveRole(storedActive === 'faculty' ? 'faculty' : 'hod');
+          } else {
+            setActiveRole(fetchedRole);
+            localStorage.removeItem('acronexus_active_role');
+          }
+          
           // Automatically prompt/register FCM token upon login
           pushNotificationService.requestPermissionAndRegister().catch(console.error);
           
@@ -89,6 +107,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setRealUser(null);
     setRealRole(null);
+    setActiveRole(null);
     try {
       await pushNotificationService.unregisterToken();
     } catch (e) {
@@ -97,16 +116,25 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('acronexus_token');
     localStorage.removeItem('acronexus_user');
     localStorage.removeItem('acronexus_role');
+    localStorage.removeItem('acronexus_active_role');
     sessionStorage.clear();
   };
 
+  const switchRole = (newRole: string) => {
+    if (realRole === 'hod') {
+      const validRole = newRole === 'faculty' ? 'faculty' : 'hod';
+      setActiveRole(validRole);
+      localStorage.setItem('acronexus_active_role', validRole);
+    }
+  };
+
   const user = realUser;
-  const role = realRole;
+  const role = activeRole || realRole;
 
   return (
     <AuthContext.Provider value={{ 
-      user, role, realUser, realRole, 
-      login, logout, loading
+      user, role, realUser, realRole, activeRole,
+      login, logout, loading, switchRole
     }}>
       {!loading && children}
     </AuthContext.Provider>
