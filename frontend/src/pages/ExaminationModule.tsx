@@ -93,27 +93,44 @@ export const ExaminationModule = () => {
         api.get('/v1/metadata/batches')
       ];
 
-      if (['hod', 'coordinator', 'faculty'].includes(role)) {
-        fetchPromises.push(api.get('/exam-coordinator-assignments/capabilities'));
+      if (['hod', 'coordinator', 'faculty', 'both'].includes(role)) {
+        fetchPromises.push(api.get(`/exam-coordinator-assignments/capabilities?activeRole=${role}`));
       }
 
       if (role === 'hod') {
         fetchPromises.push(api.get('/exam-coordinator-assignments'));
         fetchPromises.push(api.get('/exam-coordinator-assignments/eligible-faculty'));
+      } else if (['coordinator', 'both'].includes(role) || user?.role === 'ROLE_BOTH') {
+        fetchPromises.push(api.get('/exam-coordinator-assignments'));
       }
 
-      const results = await Promise.all(fetchPromises);
-      const examsRes = results[0];
-      const batchesRes = results[1];
-      const capsRes = results.length > 2 && ['hod', 'coordinator', 'faculty'].includes(role) ? results[2] : null;
-      const deptAssignmentsRes = role === 'hod' ? results[results.length - 2] : null;
-      const facultyRes = role === 'hod' ? results[results.length - 1] : null;
+      const results = await Promise.allSettled(fetchPromises);
       
-      if (examsRes.data.success) setExams(examsRes.data.data);
-      if (batchesRes.data.success) setBatches(batchesRes.data.data);
-      if (capsRes && capsRes.data.success) setExamCapabilities(capsRes.data.data);
-      if (deptAssignmentsRes && deptAssignmentsRes.data.success) setDepartmentAssignments(deptAssignmentsRes.data.data);
-      if (facultyRes && facultyRes.data.success) setEligibleFaculty(facultyRes.data.data);
+      const getSuccessData = (index: number) => {
+        if (index >= results.length) return null;
+        const res = results[index];
+        return res.status === 'fulfilled' ? res.value.data : null;
+      };
+
+      const examsData = getSuccessData(0);
+      const batchesData = getSuccessData(1);
+      const capsData = ['hod', 'coordinator', 'faculty', 'both'].includes(role) ? getSuccessData(2) : null;
+      
+      let deptAssignmentsData: any = null;
+      let facultyData: any = null;
+      
+      if (role === 'hod') {
+        deptAssignmentsData = getSuccessData(results.length - 2);
+        facultyData = getSuccessData(results.length - 1);
+      } else if (['coordinator'].includes(role) || user?.role === 'ROLE_BOTH') {
+        deptAssignmentsData = getSuccessData(results.length - 1);
+      }
+      
+      if (examsData?.success) setExams(examsData.data);
+      if (batchesData?.success) setBatches(batchesData.data);
+      if (capsData?.success) setExamCapabilities(capsData.data);
+      if (deptAssignmentsData?.success) setDepartmentAssignments(deptAssignmentsData.data);
+      if (facultyData?.success) setEligibleFaculty(facultyData.data);
     } catch (error) {
       console.error("Error fetching examination initial data:", error);
       toast.error("Failed to load examination data");
@@ -172,7 +189,7 @@ export const ExaminationModule = () => {
 
   useEffect(() => {
     if (createBatch && createYear) {
-      api.get(`/semesters?batch=${createBatch}&academicYearId=${createYear}`)
+      api.get(`/semesters?academicYearId=${createYear}&batch=${encodeURIComponent(createBatch)}`)
         .then(res => {
           if (res.data.success) setSemesters(res.data.data);
         })
@@ -952,7 +969,7 @@ export const ExaminationModule = () => {
       if (editingExamId) {
         response = await api.put(`/examinations/${editingExamId}`, requestDto);
       } else {
-        response = await api.post(`/examinations`, requestDto);
+        response = await api.post(`/examinations?activeRole=${role}`, requestDto);
       }
       
       let examData = response.data.data;
@@ -1317,7 +1334,7 @@ export const ExaminationModule = () => {
           <p className="text-muted-foreground mt-1 text-sm font-medium">Manage and view official examinations</p>
         </div>
         <div className="flex gap-2">
-          {examCapabilities?.canAssignExamCoordinator && (
+          {role === 'hod' && examCapabilities?.canAssignExamCoordinator && (
             <Button onClick={() => setShowAssignModal(true)} variant="outline" className="gap-2">
               <Plus size={16} /> Assign Exam Coordinator
             </Button>
@@ -1331,52 +1348,64 @@ export const ExaminationModule = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {exams.map(exam => (
-          <div 
-            key={exam.id} 
-            onClick={() => { setSelectedExam(exam); setActiveTab('timetable'); setAttendanceViewMode('cards'); setSelectedAttendanceRoomId(null); setAttendanceMap({}); setPersistedAttendanceMap({}); setAttendanceLoaded(false); }}
-            className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md hover:border-primary/50 transition-all cursor-pointer group flex flex-col h-full"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                <Award size={24} />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={cn("text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider", 
-                  exam.status === 'Completed' || exam.status?.toUpperCase() === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : exam.status === 'UPCOMING' || exam.status?.toUpperCase() === 'UPCOMING' ? 'bg-blue-600 text-white shadow-sm' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                )}>
-                  {exam.status}
-                </span>
-                {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
-                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:bg-blue-50" onClick={() => openCreateForm(exam)}>
-                      <Edit size={14} />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteExam(exam.id)}>
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                )}
-              </div>
+        {exams.length === 0 ? (
+          <div className="col-span-full py-16 flex flex-col items-center justify-center bg-card border border-border border-dashed rounded-xl text-center">
+            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
+              <Award size={32} />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{exam.name}</h3>
-            {exam.description && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{exam.description}</p>}
-              <div className="grid grid-cols-2 gap-y-2 text-sm text-muted-foreground mb-4 flex-grow">
-                  <p className="flex items-center gap-2 col-span-2"><CalendarIcon size={14} className="text-primary"/> {new Date(exam.startDate).toLocaleDateString()} to {new Date(exam.endDate).toLocaleDateString()}</p>
-                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Batch: <span className="font-medium text-foreground">{exam.batch}</span></p>
-                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Year: <span className="font-medium text-foreground">{exam.academicYearName}</span></p>
-                  <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Sem: <span className="font-medium text-foreground">{exam.semesterName || exam.semester}</span></p>
-                  <p className="flex items-center gap-2 col-span-2"><GraduationCap size={14} className="text-primary"/> Classes: <span className="font-medium text-foreground">{exam.classNames ? exam.classNames.join(', ') : exam.class}</span></p>
-                {exam.createdByName && <p className="text-xs text-muted-foreground flex items-center gap-2 mt-2 pt-2 border-t border-border/50 col-span-2"><User size={12}/> Created By: {exam.createdByName}</p>}
-                {exam.createdAt && <p className="text-xs text-muted-foreground flex items-center gap-2 col-span-2"><Clock size={12}/> Created Date: {new Date(exam.createdAt).toLocaleString()}</p>}
-              </div>
-            <div className="pt-4 border-t border-border flex justify-end">
-              <span className="text-sm font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
-                Open Examination <ChevronRight size={16} />
-              </span>
-            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Examinations Found</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              There are currently no examinations available or assigned to you. Please check back later or contact your department head.
+            </p>
           </div>
-        ))}
+        ) : (
+          exams.map(exam => (
+            <div 
+              key={exam.id} 
+              onClick={() => { setSelectedExam(exam); setActiveTab('timetable'); setAttendanceViewMode('cards'); setSelectedAttendanceRoomId(null); setAttendanceMap({}); setPersistedAttendanceMap({}); setAttendanceLoaded(false); }}
+              className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md hover:border-primary/50 transition-all cursor-pointer group flex flex-col h-full"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                  <Award size={24} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn("text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider", 
+                    exam.status === 'Completed' || exam.status?.toUpperCase() === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : exam.status === 'UPCOMING' || exam.status?.toUpperCase() === 'UPCOMING' ? 'bg-blue-600 text-white shadow-sm' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  )}>
+                    {exam.status}
+                  </span>
+                  {['faculty', 'hod', 'coordinator', 'both'].includes(role) && (
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:bg-blue-50" onClick={() => openCreateForm(exam)}>
+                        <Edit size={14} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteExam(exam.id)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{exam.name}</h3>
+              {exam.description && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{exam.description}</p>}
+                <div className="grid grid-cols-2 gap-y-2 text-sm text-muted-foreground mb-4 flex-grow">
+                    <p className="flex items-center gap-2 col-span-2"><CalendarIcon size={14} className="text-primary"/> {new Date(exam.startDate).toLocaleDateString()} to {new Date(exam.endDate).toLocaleDateString()}</p>
+                    <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Batch: <span className="font-medium text-foreground">{exam.batch}</span></p>
+                    <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Year: <span className="font-medium text-foreground">{exam.academicYearName}</span></p>
+                    <p className="flex items-center gap-2"><GraduationCap size={14} className="text-primary"/> Sem: <span className="font-medium text-foreground">{exam.semesterName || exam.semester}</span></p>
+                    <p className="flex items-center gap-2 col-span-2"><GraduationCap size={14} className="text-primary"/> Classes: <span className="font-medium text-foreground">{exam.classNames ? exam.classNames.join(', ') : exam.class}</span></p>
+                  {exam.createdByName && <p className="text-xs text-muted-foreground flex items-center gap-2 mt-2 pt-2 border-t border-border/50 col-span-2"><User size={12}/> Created By: {exam.createdByName}</p>}
+                  {exam.createdAt && <p className="text-xs text-muted-foreground flex items-center gap-2 col-span-2"><Clock size={12}/> Created Date: {new Date(exam.createdAt).toLocaleString()}</p>}
+                </div>
+              <div className="pt-4 border-t border-border flex justify-end">
+                <span className="text-sm font-semibold text-primary flex items-center gap-1 group-hover:gap-2 transition-all">
+                  Open Examination <ChevronRight size={16} />
+                </span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </motion.div>
   );
@@ -1501,11 +1530,11 @@ export const ExaminationModule = () => {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Start Date *</label>
-            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createStartDate} onChange={e => setCreateStartDate(e.target.value)} />
+            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createStartDate} onChange={e => setCreateStartDate(e.target.value)} onClick={e => { try { e.currentTarget.showPicker(); } catch (err) {} }} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">End Date *</label>
-            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createEndDate} onChange={e => setCreateEndDate(e.target.value)} />
+            <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={createEndDate} onChange={e => setCreateEndDate(e.target.value)} onClick={e => { try { e.currentTarget.showPicker(); } catch (err) {} }} />
           </div>
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Description</label>
