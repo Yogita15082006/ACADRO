@@ -229,7 +229,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
 
   useEffect(() => {
     if (createBatch && createYear) {
-      api.get(`/semesters?batch=${createBatch}&academicYearId=${createYear}`)
+      api.get(`/semesters?academicYearId=${createYear}`)
         .then(res => {
           if (res.data.success) setSemesters(res.data.data);
         })

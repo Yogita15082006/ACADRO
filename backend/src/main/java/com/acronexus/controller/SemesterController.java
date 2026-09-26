@@ -35,10 +35,25 @@ public class SemesterController {
         if (batch != null && !batch.isEmpty() && academicYearId != null) {
             com.acronexus.entity.AcademicYear year = academicYearRepository.findById(academicYearId).orElse(null);
             if (year != null) {
-                List<String> validSemNumbers = studentEnrollmentRepository.findDistinctSemesters(batch, java.util.List.of(year.getYear()));
+                List<Integer> rawSemNumbers = studentEnrollmentRepository.findDistinctSemesters(batch, java.util.List.of(year.getYear()));
+                List<Integer> validSemNumbers = rawSemNumbers.stream().map(Number::intValue).collect(Collectors.toList());
+                
+                if (validSemNumbers.isEmpty()) {
+                    try {
+                        int batchStartYear = Integer.parseInt(batch.split("-")[0]);
+                        int acadStartYear = Integer.parseInt(year.getYear().split("-")[0]);
+                        int yearOfStudy = acadStartYear - batchStartYear + 1;
+                        if (yearOfStudy > 0 && yearOfStudy <= 5) {
+                            validSemNumbers.add(yearOfStudy * 2 - 1);
+                            validSemNumbers.add(yearOfStudy * 2);
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+                
                 semesters = semesters.stream()
-                    .filter(s -> s.getAcademicYear() != null && s.getAcademicYear().getId().equals(academicYearId))
-                    .filter(s -> validSemNumbers.contains(String.valueOf(s.getSemesterNumber())))
+                    .filter(s -> validSemNumbers.contains(s.getSemesterNumber() != null ? s.getSemesterNumber().intValue() : -1))
                     .collect(Collectors.toList());
             } else {
                 semesters = java.util.Collections.emptyList();

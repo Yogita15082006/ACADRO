@@ -543,13 +543,21 @@ public class EventServiceImpl implements EventService {
     @Override
     public ApiResponse<List<String>> getAvailableSemesters(String batchYear, String academicYear) {
         java.util.List<String> yearVariations = getYearVariations(academicYear);
-        return ApiResponse.success("Semesters fetched", studentEnrollmentRepository.findDistinctSemesters(batchYear, yearVariations)); // Requires new query
+        List<String> semesters = studentEnrollmentRepository.findDistinctSemesters(batchYear, yearVariations)
+                .stream().map(String::valueOf).collect(java.util.stream.Collectors.toList());
+        return ApiResponse.success("Semesters fetched", semesters);
     }
 
     @Override
     public ApiResponse<List<com.acronexus.entity.AcroClass>> getAvailableClasses(String batchYear, String academicYear, String semester) {
         java.util.List<String> yearVariations = getYearVariations(academicYear);
-        return ApiResponse.success("Classes fetched", studentEnrollmentRepository.findClasses(batchYear, yearVariations, semester)); // Requires new query
+        Integer semNum = null;
+        try {
+            semNum = Integer.parseInt(semester);
+        } catch (NumberFormatException e) {
+            // ignore parsing error if it's not a valid number
+        }
+        return ApiResponse.success("Classes fetched", studentEnrollmentRepository.findClasses(batchYear, yearVariations, semNum)); 
     }
 
     // --- AI Registration Form ---

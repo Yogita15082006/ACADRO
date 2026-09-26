@@ -36,8 +36,8 @@ public class AcroClassController {
             com.acronexus.entity.AcademicYear year = academicYearRepository.findById(academicYearId).orElse(null);
             com.acronexus.entity.Semester sem = semesterRepository.findById(semesterId).orElse(null);
             
-            if (year != null && sem != null) {
-                List<AcroClass> classes = studentEnrollmentRepository.findClasses(batch, java.util.List.of(year.getYear()), String.valueOf(sem.getSemesterNumber()));
+            if (year != null && sem != null && sem.getSemesterNumber() != null) {
+                List<AcroClass> classes = studentEnrollmentRepository.findClasses(batch, java.util.List.of(year.getYear()), sem.getSemesterNumber().intValue());
                 return ResponseEntity.ok(ApiResponse.success("Classes retrieved successfully", classes));
             } else {
                 return ResponseEntity.ok(ApiResponse.success("Classes retrieved successfully", java.util.Collections.emptyList()));
