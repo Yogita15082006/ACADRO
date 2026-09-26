@@ -13,7 +13,7 @@ import { AcademicResourceDialog } from '../components/modals/AcademicResourceDia
 type ResourceTab = 'scheme' | 'syllabus' | 'timetable';
 
 export const AcademicResourcesModule: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user, role, activeRole } = useAuth();
   const [activeTab, setActiveTab] = useState<ResourceTab>('syllabus');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +53,9 @@ export const AcademicResourcesModule: React.FC = () => {
       }
 
       try {
-        const res = await api.get('/v1/class-subjects/my-subjects');
+        const res = await api.get('/v1/class-subjects/my-subjects', {
+          params: { activeRole }
+        });
         const subjects = res.data?.data || [];
         subjects.forEach((s: any) => {
           if (s.className) classesSet.add(s.className);
@@ -88,7 +90,7 @@ export const AcademicResourcesModule: React.FC = () => {
     };
 
     fetchUserAssignments();
-  }, [user, role]);
+  }, [user, role, activeRole]);
 
   // 2. Fetch resources from central endpoint
   const fetchResources = async () => {

@@ -19,13 +19,15 @@ import { SubjectSyllabusView } from './SubjectSyllabusView';
 import ExamResultWorkspace from './ExamResultWorkspace';
 
 export const ClassesModule = () => {
-  const { role, user } = useAuth();
+  const { role, user, activeRole } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
 
   const fetchWorkspaces = async () => {
     try {
-      const res = await api.get('/v1/class-subjects/my-subjects');
+      const res = await api.get('/v1/class-subjects/my-subjects', {
+        params: { activeRole }
+      });
       setWorkspaces(res.data?.data || []);
     } catch (e) {
       console.error('Failed to fetch subjects', e);
@@ -34,7 +36,7 @@ export const ClassesModule = () => {
 
   useEffect(() => {
     fetchWorkspaces();
-  }, []);
+  }, [activeRole]);
 
   const [activeWorkspace, setActiveWorkspace] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'announcements' | 'materials' | 'assignments' | 'quizzes' | 'attendance' | 'examResult' | 'analytics'>('overview');
