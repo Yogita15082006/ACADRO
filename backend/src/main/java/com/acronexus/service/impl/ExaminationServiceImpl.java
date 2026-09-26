@@ -124,17 +124,15 @@ public class ExaminationServiceImpl implements ExaminationService {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (currentUser.getRole() == UserRole.HOD || currentUser.getRole() == UserRole.COORDINATOR) {
+        if (currentUser.getRole() == UserRole.HOD || currentUser.getRole() == UserRole.COORDINATOR || currentUser.getRole() == UserRole.FACULTY) {
             if (currentUser.getDepartment() != null && !currentUser.getDepartment().getId().equals(department.getId())) {
                 throw new RuntimeException("Access Denied: Examination does not belong to your department");
             }
-        } else if (currentUser.getRole() == UserRole.FACULTY) {
-            throw new RuntimeException("Access Denied: Faculty cannot manage examinations");
         }
     }
         @Override
     @Transactional
-    public ExaminationResponseDto create(ExaminationRequestDto requestDto) {
+    public ExaminationResponseDto create(ExaminationRequestDto requestDto, String activeRole) {
         UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User currentUser = userRepository.findById(userDetails.getId()).orElseThrow(() -> new RuntimeException("User not found"));
         Department department = currentUser.getDepartment();
@@ -152,7 +150,12 @@ public class ExaminationServiceImpl implements ExaminationService {
         verifyDepartmentAccess(department);
         
         ExamCoordinatorAssignment validAssignment = null;
-        if (currentUser.getRole() != UserRole.HOD) {
+        boolean isHod = currentUser.getRole() == UserRole.HOD;
+        if (isHod && "faculty".equalsIgnoreCase(activeRole)) {
+            isHod = false;
+        }
+
+        if (!isHod) {
             if (requestDto.getCoordinatorAssignmentId() == null) {
                 throw new AccessDeniedException("You are not authorized to create examinations. An active coordinator assignment is required.");
             }

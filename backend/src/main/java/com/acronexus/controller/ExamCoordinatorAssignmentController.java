@@ -57,7 +57,7 @@ public class ExamCoordinatorAssignmentController {
 
     @GetMapping("/capabilities")
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY')")
-    public ResponseEntity<ApiResponse<ExamCapabilitiesDto>> getMyCapabilities() {
-        return ResponseEntity.ok(ApiResponse.success("Capabilities fetched successfully", service.getMyCapabilities()));
+    public ResponseEntity<ApiResponse<ExamCapabilitiesDto>> getMyCapabilities(@org.springframework.web.bind.annotation.RequestParam(required = false) String activeRole) {
+        return ResponseEntity.ok(ApiResponse.success("Capabilities fetched successfully", service.getMyCapabilities(activeRole)));
     }
 }

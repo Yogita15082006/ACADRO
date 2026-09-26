@@ -23,8 +23,10 @@ public class ExaminationController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY')")
-    public ResponseEntity<ApiResponse<ExaminationResponseDto>> create(@Valid @RequestBody ExaminationRequestDto requestDto) {
-        ExaminationResponseDto created = service.create(requestDto);
+    public ResponseEntity<ApiResponse<ExaminationResponseDto>> create(
+            @Valid @RequestBody ExaminationRequestDto requestDto,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String activeRole) {
+        ExaminationResponseDto created = service.create(requestDto, activeRole);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Examination created successfully", created));
     }

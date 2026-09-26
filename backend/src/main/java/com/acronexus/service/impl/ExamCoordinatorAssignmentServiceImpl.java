@@ -148,7 +148,7 @@ public class ExamCoordinatorAssignmentServiceImpl implements ExamCoordinatorAssi
 
     @Override
     @Transactional(readOnly = true)
-    public ExamCapabilitiesDto getMyCapabilities() {
+    public ExamCapabilitiesDto getMyCapabilities(String activeRole) {
         User currentUser = getCurrentUser();
         ExamCapabilitiesDto capabilities = new ExamCapabilitiesDto();
         
@@ -159,7 +159,13 @@ public class ExamCoordinatorAssignmentServiceImpl implements ExamCoordinatorAssi
                 
         capabilities.setActiveCoordinatorAssignments(activeAssignments);
         capabilities.setCanAssignExamCoordinator(currentUser.getRole() == UserRole.HOD);
-        capabilities.setCanCreateExamination(currentUser.getRole() == UserRole.HOD || !activeAssignments.isEmpty());
+        
+        boolean isHod = currentUser.getRole() == UserRole.HOD;
+        if (isHod && "faculty".equalsIgnoreCase(activeRole)) {
+            isHod = false;
+        }
+        
+        capabilities.setCanCreateExamination(isHod || !activeAssignments.isEmpty());
         
         return capabilities;
     }

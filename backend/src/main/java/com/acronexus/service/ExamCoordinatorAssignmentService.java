@@ -14,5 +14,5 @@ public interface ExamCoordinatorAssignmentService {
     List<ExamCoordinatorAssignmentResponseDto> getDepartmentAssignments();
     List<ExamCoordinatorAssignmentResponseDto> getMyActiveAssignments();
     List<UserResponseDto> getEligibleFaculty();
-    ExamCapabilitiesDto getMyCapabilities();
+    ExamCapabilitiesDto getMyCapabilities(String activeRole);
 }

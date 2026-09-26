@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ExaminationService {
-    ExaminationResponseDto create(ExaminationRequestDto requestDto);
+    ExaminationResponseDto create(ExaminationRequestDto requestDto, String activeRole);
     ExaminationResponseDto getById(UUID id);
     List<ExaminationResponseDto> getAll();
     ExaminationResponseDto update(UUID id, ExaminationRequestDto requestDto);
