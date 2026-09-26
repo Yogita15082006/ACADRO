@@ -31,7 +31,7 @@ public class DashboardController {
     }
 
     @GetMapping("/faculty")
-    @PreAuthorize("hasAnyRole('FACULTY', 'COORDINATOR')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'COORDINATOR', 'HOD')")
     public ResponseEntity<ApiResponse<FacultyDashboardResponse>> getFacultyDashboard(
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         FacultyDashboardResponse dashboard = dashboardService.getFacultyDashboard(userDetails.getId());

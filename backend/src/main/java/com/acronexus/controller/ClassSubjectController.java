@@ -76,17 +76,18 @@ public class ClassSubjectController {
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'STUDENT', 'COORDINATOR')")
     @Operation(summary = "Get My Subject Cards", description = "Returns role-based subject assignments for cards.")
     public ResponseEntity<ApiResponse<List<ClassSubjectResponseDto>>> getMySubjects(
-            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            @RequestParam(required = false) String activeRole) {
         
         List<ClassSubject> subjects = new ArrayList<>();
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
         
-        if (role.equals("ROLE_ADMIN") || role.equals("ROLE_HOD")) {
+        if (role.equals("ROLE_ADMIN") || (role.equals("ROLE_HOD") && !"faculty".equalsIgnoreCase(activeRole))) {
             // HOD sees all active subjects
             subjects = classSubjectRepository.findAll().stream()
                 .filter(cs -> Boolean.TRUE.equals(cs.getIsActive()))
                 .collect(Collectors.toList());
-        } else if (role.equals("ROLE_FACULTY")) {
+        } else if (role.equals("ROLE_FACULTY") || (role.equals("ROLE_HOD") && "faculty".equalsIgnoreCase(activeRole))) {
             // Faculty sees their assigned subjects
             subjects = classSubjectRepository.findByFacultyIdAndIsActiveTrue(userDetails.getId());
         } else if (role.equals("ROLE_STUDENT")) {
