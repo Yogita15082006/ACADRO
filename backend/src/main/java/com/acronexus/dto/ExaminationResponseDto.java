@@ -30,6 +30,10 @@ public class ExaminationResponseDto {
     private java.util.List<ExaminationTimetableDto> timetables = new java.util.ArrayList<>();
     
     private UUID coordinatorAssignmentId;
+    private String examCoordinatorName;
+    private String examCoordinatorEmail;
+    private String examCoordinatorContact;
+    private String examCoordinatorDepartment;
     
     private Instant createdAt;
     private UUID createdBy;

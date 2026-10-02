@@ -2653,7 +2653,45 @@ export const ExaminationModule = () => {
   // --- RENDER: EXAM INFORMATION (NOTICES) (ADMIN & STUDENT) ---
   const renderExamInformation = () => (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {selectedExam?.examCoordinatorName ? (
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center">
+          <div className="bg-primary/10 p-4 rounded-full text-primary flex-shrink-0">
+            <User size={32} />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-xl font-bold text-foreground mb-1">{selectedExam.examCoordinatorName}</h4>
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Examination / Test Coordinator</p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              {selectedExam.examCoordinatorDepartment && (
+                <p><span className="font-semibold text-foreground">Department:</span> {selectedExam.examCoordinatorDepartment}</p>
+              )}
+              <p><span className="font-semibold text-foreground">Email:</span> {selectedExam.examCoordinatorEmail}</p>
+              {selectedExam.examCoordinatorContact && (
+                <p><span className="font-semibold text-foreground">Contact:</span> {selectedExam.examCoordinatorContact}</p>
+              )}
+            </div>
+          </div>
+          <div className="bg-accent/30 p-4 rounded-lg border border-border/50 text-sm flex-1">
+            <p className="font-bold text-foreground mb-2">For examination-related queries:</p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-1">
+              <li>Examination schedule</li>
+              <li>Exam-related instructions</li>
+              <li>Seating / examination arrangements</li>
+              <li>Examination attendance</li>
+              <li>Other examination-related queries</li>
+            </ul>
+            <p className="text-xs text-muted-foreground mt-3 italic">For examination-related queries, please contact the Examination/Test Coordinator.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-accent/20 border border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center text-center">
+          <User size={32} className="text-muted-foreground mb-3 opacity-50" />
+          <h4 className="font-bold text-lg text-foreground mb-1">Examination Coordinator not assigned yet.</h4>
+          <p className="text-sm text-muted-foreground max-w-md">The HOD has not officially assigned an Examination/Test Coordinator for this examination.</p>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mt-8">
         <div>
           <h3 className="text-lg font-bold">Examination Notices & Circulars</h3>
           <p className="text-sm text-muted-foreground">Important guidelines and instructions</p>
@@ -4915,7 +4953,7 @@ className="bg-primary text-primary-foreground shadow-sm hover:shadow-md transiti
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Valid Until *</label>
-                <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} />
+                <input type="date" className="w-full p-2 border border-border rounded-lg bg-background" value={assignValidUntil} onChange={e => setAssignValidUntil(e.target.value)} onClick={e => { try { e.currentTarget.showPicker(); } catch (err) {} }} />
               </div>
             </div>
             

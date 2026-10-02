@@ -44,6 +44,15 @@ public class ExaminationMapper {
 
         if (entity.getCoordinatorAssignment() != null) {
             dto.setCoordinatorAssignmentId(entity.getCoordinatorAssignment().getId());
+            if (entity.getCoordinatorAssignment().getAssignedUser() != null) {
+                com.acronexus.entity.User assignedUser = entity.getCoordinatorAssignment().getAssignedUser();
+                dto.setExamCoordinatorName(assignedUser.getFirstName() + " " + (assignedUser.getLastName() != null ? assignedUser.getLastName() : ""));
+                dto.setExamCoordinatorEmail(assignedUser.getEmail());
+                dto.setExamCoordinatorContact(assignedUser.getPhone());
+                if (assignedUser.getDepartment() != null) {
+                    dto.setExamCoordinatorDepartment(assignedUser.getDepartment().getName());
+                }
+            }
         }
 
         if (entity.getCreatedBy() != null) {
