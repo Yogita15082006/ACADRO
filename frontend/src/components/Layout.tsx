@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getAssetUrl } from '@/lib/utils';
 import {
   LayoutDashboard, Users,
-  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen, History
+  Calendar, Bell, LogOut, Moon, Sun, UserCircle, Menu, GraduationCap, CheckSquare, ClipboardList, Library, FolderOpen, History, ArrowLeft
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -48,6 +48,15 @@ export const Layout = () => {
     } catch(e) {}
     logout();
     navigate('/login');
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      const isStaff = ['admin', 'hod', 'coordinator', 'faculty', 'both'].includes(role);
+      navigate(isStaff ? '/admin' : '/student');
+    }
   };
 
   const adminLinks = [
@@ -207,6 +216,17 @@ export const Layout = () => {
         {/* Sticky Top Header */}
         <header className="h-14 flex-shrink-0 bg-navbar/95 backdrop-blur border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 transition-colors duration-300 print:hidden">
           <div className="flex items-center gap-4">
+            {location.pathname !== '/admin' && location.pathname !== '/student' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent/20 rounded-md transition-colors shrink-0 -ml-2"
+                title="Go Back"
+              >
+                <ArrowLeft size={18} />
+              </Button>
+            )}
             <h1 className="text-lg font-semibold text-foreground tracking-tight">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
