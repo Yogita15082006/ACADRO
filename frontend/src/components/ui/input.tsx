@@ -6,7 +6,6 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +35,7 @@ function formatZero(num: number): string {
 
 function parseDateString(valStr?: string): { date: Date | null; timeStr: string } {
   if (!valStr) return { date: null, timeStr: "12:00" };
-  
+
   if (valStr.includes("T")) {
     const [dPart, tPart] = valStr.split("T");
     const parts = dPart.split("-").map(Number);
@@ -141,8 +140,9 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
 
     const [isOpen, setIsOpen] = useState(false);
     const [isTimePanelOpen, setIsTimePanelOpen] = useState(false);
-    
-    const { date: selectedDateObj, timeStr: selectedTimeStr } = parseDateString(currentValue);
+
+    const [pendingValue, setPendingValue] = useState<string>(currentValue);
+    const { date: selectedDateObj, timeStr: selectedTimeStr } = parseDateString(pendingValue);
     const [timeVal, setTimeVal] = useState<string>(selectedTimeStr || "12:00");
 
     const today = new Date();
@@ -152,16 +152,6 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
     const [viewMonth, setViewMonth] = useState<number>(
       selectedDateObj ? selectedDateObj.getMonth() : today.getMonth()
     );
-
-    const [menuCoords, setMenuCoords] = useState<{
-      top: number;
-      left: number;
-      width: number;
-    }>({
-      top: 0,
-      left: 0,
-      width: 280,
-    });
 
     useEffect(() => {
       if (value !== undefined) {
@@ -176,61 +166,45 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
       }
     }, [value]);
 
-    const updatePosition = () => {
-      if (!triggerRef.current) return;
-      const rect = triggerRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const menuHeight = isDateTime ? 360 : 310;
-      const menuWidth = Math.max(rect.width, 280);
-
-      const spaceBelow = viewportHeight - rect.bottom;
-      const shouldFlip = spaceBelow < menuHeight && rect.top > menuHeight;
-
-      if (shouldFlip) {
-        setMenuCoords({
-          top: rect.top + window.scrollY - menuHeight - 4,
-          left: Math.min(rect.left + window.scrollX, window.innerWidth - menuWidth - 10),
-          width: menuWidth,
-        });
-      } else {
-        setMenuCoords({
-          top: rect.bottom + window.scrollY + 4,
-          left: Math.min(rect.left + window.scrollX, window.innerWidth - menuWidth - 10),
-          width: menuWidth,
-        });
-      }
-    };
-
     useEffect(() => {
+      if (isOpen) {
+        setPendingValue(currentValue);
+        const { date, timeStr } = parseDateString(currentValue);
+        if (date) {
+          setViewYear(date.getFullYear());
+          setViewMonth(date.getMonth());
+          setTimeVal(timeStr);
+        } else {
+          const now = new Date();
+          setViewYear(now.getFullYear());
+          setViewMonth(now.getMonth());
+          setTimeVal("12:00");
+        }
+      }
+
       if (!isOpen) return;
 
-      updatePosition();
-
       const handlePointerDownOutside = (e: MouseEvent | TouchEvent) => {
-        const target = e.target as Node;
-        if (
+        const target = e.target as HTMLElement;
+        
+        const isInside = 
           triggerRef.current?.contains(target) ||
-          menuRef.current?.contains(target)
-        ) {
+          menuRef.current?.contains(target) ||
+          (target?.closest && target.closest('.custom-date-picker-portal') !== null);
+
+        if (isInside) {
           return;
         }
+        
         setIsOpen(false);
-      };
-
-      const handleScrollOrResize = () => {
-        updatePosition();
       };
 
       document.addEventListener("mousedown", handlePointerDownOutside, true);
       document.addEventListener("touchstart", handlePointerDownOutside, true);
-      window.addEventListener("scroll", handleScrollOrResize, true);
-      window.addEventListener("resize", handleScrollOrResize);
 
       return () => {
         document.removeEventListener("mousedown", handlePointerDownOutside, true);
         document.removeEventListener("touchstart", handlePointerDownOutside, true);
-        window.removeEventListener("scroll", handleScrollOrResize, true);
-        window.removeEventListener("resize", handleScrollOrResize);
       };
     }, [isOpen]);
 
@@ -259,8 +233,8 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
             value: newValueStr,
             id: inputId,
           },
-          preventDefault: () => {},
-          stopPropagation: () => {},
+          preventDefault: () => { },
+          stopPropagation: () => { },
         } as unknown as React.ChangeEvent<HTMLInputElement>;
         onChange(syntheticEvent);
       }
@@ -273,19 +247,15 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
     const handleSelectDay = (day: number) => {
       const selected = new Date(viewYear, viewMonth, day);
       const valStr = formatDateString(selected, isDateTime, timeVal);
-      applyValue(valStr);
-      if (!isDateTime) {
-        setIsOpen(false);
-        triggerRef.current?.focus();
-      }
+      setPendingValue(valStr);
     };
 
     const handleTimeChange = (newTime: string) => {
       setTimeVal(newTime);
-      const { date } = parseDateString(currentValue);
+      const { date } = parseDateString(pendingValue);
       if (date) {
         const valStr = formatDateString(date, true, newTime);
-        applyValue(valStr);
+        setPendingValue(valStr);
       }
     };
 
@@ -302,8 +272,13 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
       const timeStr = `${formatZero(now.getHours())}:${formatZero(now.getMinutes())}`;
       setTimeVal(timeStr);
       const valStr = formatDateString(now, isDateTime, timeStr);
-      applyValue(valStr);
+      setPendingValue(valStr);
+    };
+
+    const handleOk = () => {
+      applyValue(pendingValue);
       setIsOpen(false);
+      triggerRef.current?.focus();
     };
 
     const handlePrevMonth = () => {
@@ -368,8 +343,8 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
 
     const cleanClassName = className
       ? className
-          .replace(/\b(rounded-[a-z0-9]+|border-[a-z0-9\/-]+|bg-(transparent|background|white|slate-[0-9]+|gray-[0-9]+|zinc-[0-9]+)|text-(foreground|slate-[0-9]+|white|black)|ring-offset-background)\b/g, "")
-          .trim()
+        .replace(/\b(rounded-[a-z0-9]+|border-[a-z0-9\/-]+|bg-(transparent|background|white|slate-[0-9]+|gray-[0-9]+|zinc-[0-9]+)|text-(foreground|slate-[0-9]+|white|black)|ring-offset-background)\b/g, "")
+        .trim()
       : "";
 
     return (
@@ -420,17 +395,6 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
             {displayVal || placeholder || (isDateTime ? "Select date & time..." : "Select date...")}
           </span>
           <div className="ml-2 flex items-center gap-1.5 shrink-0">
-            {currentValue && !required && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={handleClear}
-                className="p-0.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                title="Clear date"
-              >
-                <X className="h-3.5 w-3.5" />
-              </span>
-            )}
             <CalendarIcon
               className={cn(
                 "h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors",
@@ -441,18 +405,12 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
           </div>
         </button>
 
-        {/* Floating Portal Calendar */}
-        {isOpen &&
-          createPortal(
+        {/* Inline Local Calendar Dropdown */}
+        {isOpen && (
             <div
               ref={menuRef}
-              style={{
-                position: "absolute",
-                top: `${menuCoords.top}px`,
-                left: `${menuCoords.left}px`,
-                width: `${menuCoords.width}px`,
-              }}
-              className="z-[9999] rounded-xl border border-border bg-popover text-popover-foreground p-3.5 shadow-xl shadow-black/10 outline-none select-none"
+              style={{ width: "280px" }}
+              className="absolute top-[calc(100%+4px)] left-0 custom-date-picker-portal z-[9999] rounded-xl border border-border bg-popover text-popover-foreground p-3.5 shadow-xl shadow-black/10 outline-none animate-in fade-in-0 zoom-in-95 duration-100 select-none max-h-[45vh] overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar"
             >
               {/* Header Navigation */}
               <div className="flex items-center justify-between mb-3 px-1">
@@ -516,7 +474,7 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
                       disabled={cell.disabled}
                       onClick={() => handleSelectDay(cell.day)}
                       className={cn(
-                        "h-8 w-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-colors",
+                        "h-8 w-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-all",
                         cell.disabled && "opacity-30 cursor-not-allowed hover:bg-transparent",
                         !cell.disabled && !isSelected && "text-popover-foreground hover:bg-accent hover:text-accent-foreground",
                         isSelected && "bg-accent text-accent-foreground font-bold shadow-xs",
@@ -638,24 +596,25 @@ export const CustomDatePicker = forwardRef<HTMLInputElement, CustomDatePickerPro
               })()}
 
               {/* Footer Actions */}
+
               <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between px-1 text-xs font-medium">
                 <button
                   type="button"
-                  onClick={handleSelectToday}
-                  className="text-accent hover:underline focus:outline-none"
+                  onClick={() => setIsOpen(false)}
+                  className="px-4 py-1.5 text-muted-foreground hover:text-foreground hover:bg-muted font-medium rounded-md transition-colors"
                 >
-                  Today
+                  Back
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="text-muted-foreground hover:text-foreground focus:outline-none"
+                  onClick={handleOk}
+                  className="px-4 py-1.5 bg-accent text-accent-foreground font-bold rounded-md hover:bg-accent/90 transition-colors shadow-sm"
                 >
-                  Close
+                  OK
                 </button>
               </div>
-            </div>,
-            document.body
+            </div>
           )}
       </div>
     );
