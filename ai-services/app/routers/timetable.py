@@ -144,6 +144,7 @@ def clean_ocr_text(text: str) -> str:
         line = re.sub(r'\bDecpak\b', 'Deepak', line, flags=re.IGNORECASE)
         line = re.sub(r'\bAnkuca\b', 'Ankita', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCupia\b', 'Gupta', line, flags=re.IGNORECASE)
+        line = re.sub(r'\bCP(\d{3})\b', r'CD\1', line, flags=re.IGNORECASE)
         
         # Clean double spaces
         line = re.sub(r'\s+', ' ', line).strip()
