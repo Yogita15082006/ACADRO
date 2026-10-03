@@ -356,7 +356,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(
                 left: `${menuCoords.left}px`,
                 width: `${menuCoords.width}px`,
               }}
-              className="z-[9999] max-h-60 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl shadow-black/10 custom-scrollbar outline-none"
+              className="z-[9999] pointer-events-auto max-h-60 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-xl shadow-black/10 custom-scrollbar outline-none"
             >
               {parsedOptions.length === 0 ? (
                 <div className="py-3 px-2 text-center text-xs text-muted-foreground">
