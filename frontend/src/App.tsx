@@ -14,6 +14,7 @@ import { EventsModule } from './pages/EventsModule';
 import { NoticeModule } from './pages/NoticeModule';
 import { ProfileModule } from './pages/ProfileModule';
 import { StudentsModule } from './pages/StudentsModule';
+import { StudentAcademicHistoryModule } from './pages/StudentAcademicHistoryModule';
 import { FacultyActivityModule } from './pages/FacultyActivityModule';
 import { FacultyRequestsModule } from './pages/FacultyRequestsModule';
 import { CoordinatorsModule } from './pages/CoordinatorsModule';
@@ -52,6 +53,7 @@ export function AppRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="classes" element={<ClassesModule />} />
         <Route path="students" element={<StudentsModule />} />
+        <Route path="student-academic-history" element={<StudentAcademicHistoryModule />} />
         <Route path="faculty-management" element={<FacultyManagementModule />} />
         <Route path="attendance" element={<AttendanceModule />} />
         <Route path="assignments" element={<AssignmentModule />} />

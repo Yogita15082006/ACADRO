@@ -15,7 +15,7 @@ import java.util.List;
 import com.acronexus.dto.ApiResponse;
 
 @RestController
-@RequestMapping("/api/academic-years")
+@RequestMapping({"/api/academic-years", "/api/v1/academic-years"})
 @RequiredArgsConstructor
 public class AcademicYearController {
 
@@ -25,7 +25,15 @@ public class AcademicYearController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'FACULTY', 'COORDINATOR')")
     public ResponseEntity<ApiResponse<List<AcademicYear>>> getAllAcademicYears(@RequestParam(required = false) String batch) {
-        List<AcademicYear> activeYears = studentEnrollmentRepository.findDistinctAcademicYears(batch);
+        List<AcademicYear> activeYears;
+        if (batch != null && !batch.trim().isEmpty()) {
+            activeYears = studentEnrollmentRepository.findDistinctAcademicYears(batch.trim());
+        } else {
+            activeYears = academicYearRepository.findAll();
+            if (activeYears == null || activeYears.isEmpty()) {
+                activeYears = studentEnrollmentRepository.findDistinctAcademicYears(null);
+            }
+        }
         return ResponseEntity.ok(ApiResponse.success("Academic years retrieved successfully", activeYears));
     }
 }

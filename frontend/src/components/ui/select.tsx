@@ -292,9 +292,11 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(
           name={name}
           value={currentValue}
           onChange={(e) => {
-            setCurrentValue(e.target.value);
-            onChange?.(e);
-            onValueChange?.(e.target.value);
+            if (e.target.value !== currentValue) {
+              setCurrentValue(e.target.value);
+              onChange?.(e);
+              onValueChange?.(e.target.value);
+            }
           }}
           disabled={disabled}
           required={required}
@@ -303,7 +305,12 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(
           aria-hidden="true"
           {...restProps}
         >
-          {children}
+          {children ||
+            parsedOptions.map((opt, i) => (
+              <option key={`${opt.value}-${i}`} value={opt.value} disabled={opt.disabled}>
+                {typeof opt.label === "string" ? opt.label : opt.value}
+              </option>
+            ))}
         </select>
 
         {/* Custom trigger button — uses semantic theme tokens */}

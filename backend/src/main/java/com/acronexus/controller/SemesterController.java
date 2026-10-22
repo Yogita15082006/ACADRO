@@ -16,7 +16,7 @@ import com.acronexus.dto.ApiResponse;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/semesters")
+@RequestMapping({"/api/semesters", "/api/v1/semesters"})
 @RequiredArgsConstructor
 public class SemesterController {
 

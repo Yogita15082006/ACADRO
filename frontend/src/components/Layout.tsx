@@ -64,6 +64,7 @@ export const Layout = () => {
     ...(role === 'hod' || role === 'coordinator' || role === 'faculty' || role === 'both' ? [{ to: '/admin/classes', icon: <Library size={18} />, label: 'Classes', roles: ['hod', 'coordinator', 'faculty', 'both'] }] : []),
     { to: '/admin/academic-resources', icon: <FolderOpen size={18} />, label: 'Academic Resources', roles: ['hod', 'coordinator', 'faculty', 'both'] },
     ...(role === 'hod' ? [{ to: '/admin/students', icon: <GraduationCap size={18} />, label: 'Students', roles: ['hod'] }] : []),
+    ...(role === 'hod' ? [{ to: '/admin/student-academic-history', icon: <History size={18} />, label: 'Academic History', roles: ['hod'] }] : []),
     ...(role === 'hod' ? [{ to: '/admin/faculty-management', icon: <Users size={18} />, label: 'Faculty Management', roles: ['hod'] }] : []),
     ...(role === 'coordinator' || role === 'faculty' || role === 'both' ? [{ to: '/admin/students', icon: <GraduationCap size={18} />, label: 'Students', roles: ['coordinator', 'faculty', 'both'] }] : []),
     ...(role !== 'hod' ? [{ to: '/admin/attendance', icon: <CheckSquare size={18} />, label: 'Attendance', roles: ['coordinator', 'faculty', 'both'] }] : []),

@@ -16,7 +16,7 @@ import java.util.List;
 import com.acronexus.dto.ApiResponse;
 
 @RestController
-@RequestMapping("/api/v1/classes")
+@RequestMapping({"/api/v1/classes", "/api/classes"})
 @RequiredArgsConstructor
 public class AcroClassController {
 
