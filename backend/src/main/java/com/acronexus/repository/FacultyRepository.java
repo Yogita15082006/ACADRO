@@ -16,4 +16,11 @@ public interface FacultyRepository extends JpaRepository<Faculty, java.util.UUID
             "AND f.user.isDeleted = false " +
             "AND f.user.isActive = true")
     java.util.List<Faculty> findActiveFacultyByDepartmentIds(@org.springframework.data.repository.query.Param("departmentIds") java.util.List<java.util.UUID> departmentIds);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT f FROM Faculty f " +
+            "LEFT JOIN f.departments d " +
+            "WHERE (d.id IN :departmentIds OR f.user.department.id IN :departmentIds) " +
+            "AND (f.user.isDeleted = false OR f.user.isDeleted IS NULL) " +
+            "ORDER BY f.employeeId ASC")
+    java.util.List<Faculty> findDepartmentFaculties(@org.springframework.data.repository.query.Param("departmentIds") java.util.List<java.util.UUID> departmentIds);
 }
