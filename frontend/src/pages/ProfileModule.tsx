@@ -21,12 +21,25 @@ import { FamilyDetails } from '../components/profile/FamilyDetails';
 import { Internships } from '../components/profile/Internships';
 import { Projects } from '../components/profile/Projects';
 import { ConsentDeclaration } from '../components/profile/ConsentDeclaration';
+import { FacultyProfileWorkspace } from '../components/faculty-profile/FacultyProfileWorkspace';
 
 export const ProfileModule = ({ viewingStudent, studentId, onBack }: { viewingStudent?: any, studentId?: string, onBack?: () => void }) => {
   const { user, role, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [searchParams] = useSearchParams();
   const studentIdParam = studentId || searchParams.get('studentId');
+  const facultyIdParam = searchParams.get('facultyId');
+
+  const isStudentProfile = !!viewingStudent || !!studentIdParam || role === 'student';
+
+  if (!isStudentProfile || facultyIdParam) {
+    return (
+      <FacultyProfileWorkspace
+        facultyId={facultyIdParam || undefined}
+        onBack={facultyIdParam ? () => window.history.back() : onBack}
+      />
+    );
+  }
 
   const getSafeString = (val: any) => typeof val === 'object' && val !== null ? (val.name || val.id || JSON.stringify(val)) : val;
 

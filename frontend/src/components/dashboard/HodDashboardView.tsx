@@ -119,6 +119,28 @@ export const HodDashboardView = ({ user }: { user: any }) => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Faculty Profiles & Academic Management Card */}
+          <Card className="border border-border/50 shadow-sm">
+            <CardContent className="p-5 flex flex-col gap-3">
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Users className="w-4 h-4 text-primary" /> Faculty & Academic Profiles
+                </h3>
+                <a href="/admin/profile" className="text-xs text-primary hover:underline font-medium">My Profile</a>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <a href="/admin/faculty-management" className="bg-muted/30 p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors block cursor-pointer">
+                  <span className="block text-lg font-bold text-foreground">{data.departmentFacultyCount || 0}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Faculty Roster</span>
+                </a>
+                <a href="/admin/profile" className="bg-muted/30 p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors block cursor-pointer">
+                  <span className="block text-lg font-bold text-foreground">9 Tabs</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Profile System</span>
+                </a>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

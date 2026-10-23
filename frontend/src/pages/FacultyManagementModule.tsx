@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 import { toast } from 'sonner';
 
-import { Users, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search, Brain, Shield, Sparkles, Plus, FileUp, Loader2, Edit2, UserPlus, GraduationCap, Eye, AlertTriangle, RefreshCcw, Trash2, Download, File, Star } from 'lucide-react';
+import { Users, User, BookOpen, FileText, Clock, Upload, CheckCircle, XCircle, Search, Brain, Shield, Sparkles, Plus, FileUp, Loader2, Edit2, UserPlus, GraduationCap, Eye, AlertTriangle, RefreshCcw, Trash2, Download, File, Star } from 'lucide-react';
 
 import { Label } from '../components/ui/label';
 
@@ -2896,6 +2896,12 @@ export const FacultyManagementModule = () => {
                         <td className="px-4 py-3 text-right">
 
                           <div className="flex justify-end gap-2">
+
+                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5" onClick={() => navigate(`/admin/profile?facultyId=${f.id}`)}>
+
+                              <User size={13} /> View Profile
+
+                            </Button>
 
                             {(f.role === 'FACULTY') && (
 
