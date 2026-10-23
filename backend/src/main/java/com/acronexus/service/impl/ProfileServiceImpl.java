@@ -35,6 +35,8 @@ public class ProfileServiceImpl implements ProfileService {
     
     @Lazy
     private final AttendanceDashboardService attendanceDashboardService;
+    @Lazy
+    private final com.acronexus.service.FacultyProfileService facultyProfileService;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,6 +86,10 @@ public class ProfileServiceImpl implements ProfileService {
                     builder.departments(depts);
                 }
             });
+            try {
+                com.acronexus.security.UserDetailsImpl pseudoActor = com.acronexus.security.UserDetailsImpl.build(user);
+                builder.facultyDetails(facultyProfileService.getFacultyProfile(userId, pseudoActor));
+            } catch (Exception ignored) {}
         }
         
         if ("COORDINATOR".equals(user.getRole().name()) || "ROLE_COORDINATOR".equals(user.getRole().name())) {
@@ -360,6 +366,14 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         userRepository.save(user);
+
+        // Faculty Specific
+        if (profileDto.getFacultyDetails() != null) {
+            try {
+                com.acronexus.security.UserDetailsImpl pseudoActor = com.acronexus.security.UserDetailsImpl.build(user);
+                facultyProfileService.updateFacultyProfile(userId, profileDto.getFacultyDetails(), pseudoActor);
+            } catch (Exception ignored) {}
+        }
 
         // Family Details
         if (profileDto.getFamilyDetails() != null) {

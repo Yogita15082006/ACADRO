@@ -44,6 +44,7 @@ public class ProfileDto {
     private String semesterName;
     private String academicYearString;
     private List<CoordinatorAssignmentDto> coordinatorAssignments;
+    private com.acronexus.dto.faculty.FacultyProfileDto facultyDetails;
 
     // Base Student Details
     private String enrollmentNo;
