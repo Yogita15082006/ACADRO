@@ -27,7 +27,9 @@ import java.util.stream.Collectors;
 import com.acronexus.entity.Examination;
 import com.acronexus.entity.ClassSubject;
 import com.acronexus.entity.Student;
+import com.acronexus.entity.StudentEnrollment;
 import com.acronexus.entity.ExamAiFeedback;
+
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +48,9 @@ public class ExamResultServiceImpl implements ExamResultService {
     private final com.acronexus.repository.StudentEnrollmentRepository studentEnrollmentRepository;
     private final com.acronexus.repository.ClassSubjectRepository classSubjectRepository;
     private final com.acronexus.repository.StudentRepository studentRepository;
+    private final com.acronexus.repository.ExaminationEligibilityListRepository eligibilityListRepository;
+    private final @org.springframework.context.annotation.Lazy com.acronexus.service.ExaminationService examinationService;
+
 
     @Override
     @Transactional
@@ -432,31 +437,69 @@ public class ExamResultServiceImpl implements ExamResultService {
         List<com.acronexus.entity.StudentEnrollment> enrollments = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classSubject.getAcroClass().getId());
         
         List<com.acronexus.entity.ExaminationAttendance> attendances = 
-            examinationAttendanceRepository.findPresentStudentsByContextOrdered(examinationId, examDate, classSubjectId);
-        java.util.Set<UUID> presentStudentIds = attendances.stream().map(a -> a.getStudent().getId()).collect(Collectors.toSet());
+            examinationAttendanceRepository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
+        java.util.Map<UUID, com.acronexus.entity.ExaminationAttendance> attendanceMap = attendances.stream()
+            .filter(a -> a.getStudent() != null)
+            .collect(Collectors.toMap(a -> a.getStudent().getId(), a -> a, (e1, e2) -> e1));
             
         List<ExamResult> savedResults = repository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
         log.info("TRACE [getResultContext]: Found {} saved ExamResult records", savedResults.size());
         
-        java.util.Map<UUID, ExamResult> resultMap = savedResults.stream().collect(Collectors.toMap(r -> r.getStudent().getId(), r -> r));
+        java.util.Map<UUID, ExamResult> resultMap = savedResults.stream()
+            .filter(r -> r.getStudent() != null)
+            .collect(Collectors.toMap(r -> r.getStudent().getId(), r -> r, (e1, e2) -> e1));
+
+        java.util.Map<UUID, StudentEligibilityData> elgMap = getStudentEligibilityMap(examinationId);
         
         return enrollments.stream().map(enr -> {
             com.acronexus.entity.Student s = enr.getStudent();
             String sectionDisplay = (enr.getAcroClass() != null) ? 
                 (enr.getAcroClass().getSection() != null && !enr.getAcroClass().getSection().isEmpty() ? enr.getAcroClass().getSection() : enr.getAcroClass().getName()) : "";
                 
-            boolean isPresent = presentStudentIds.contains(s.getId());
+            StudentEligibilityData elg = elgMap.get(s.getId());
+            boolean isEligible = elg == null || elg.isEligible;
+            String elgReason = elg != null ? elg.reason : "";
+            Double attendancePct = elg != null ? elg.overallAttendance : null;
+
+            com.acronexus.entity.ExaminationAttendance att = attendanceMap.get(s.getId());
+            boolean isPresent = att != null && Boolean.TRUE.equals(att.getIsPresent());
+            boolean isMarkedAbsent = att != null && Boolean.FALSE.equals(att.getIsPresent());
+
             ExamResult res = resultMap.get(s.getId());
-            
-            String status = "ABSENT";
+            boolean hasResult = res != null && res.getMarksObtained() != null;
+
+            String category;
+            String appearanceStatus;
+            String appearanceDetail;
+
             if (isPresent) {
-                if (res != null) {
-                    status = res.getIsPublished() ? "Published" : "Saved";
-                } else {
-                    status = "Pending";
-                }
+                appearanceStatus = "PRESENT";
+                appearanceDetail = "Confirmed Present";
+            } else if (isMarkedAbsent) {
+                appearanceStatus = "ABSENT";
+                appearanceDetail = "Marked Absent in Attendance";
+            } else {
+                appearanceStatus = "NO_RECORD";
+                appearanceDetail = "No Exam Attendance Record";
+            }
+
+            if (!isEligible) {
+                category = "NOT_ELIGIBLE";
+            } else if (isPresent || hasResult) {
+                category = "APPEARED";
+            } else {
+                category = "ELIGIBLE_NOT_APPEARED";
+            }
+
+            String status;
+            if ("NOT_ELIGIBLE".equals(category)) {
+                status = "Not Eligible";
+            } else if ("ELIGIBLE_NOT_APPEARED".equals(category)) {
+                status = isMarkedAbsent ? "ABSENT" : "Not Appeared";
             } else if (res != null) {
-                status = res.getIsPublished() ? "Published" : "Saved";
+                status = Boolean.TRUE.equals(res.getIsPublished()) ? "Published" : "Saved";
+            } else {
+                status = "Pending";
             }
             
             if (res != null) {
@@ -473,9 +516,14 @@ public class ExamResultServiceImpl implements ExamResultService {
                 .maxMarks(res != null ? res.getMaxMarks() : null)
                 .grade(res != null ? res.getGrade() : null)
                 .remarks(res != null ? res.getRemarks() : null)
-                .attendanceStatus(isPresent ? "PRESENT" : "ABSENT")
+                .attendanceStatus(appearanceStatus)
+                .appearanceDetail(appearanceDetail)
                 .isPublished(res != null ? res.getIsPublished() : false)
                 .resultStatus(status)
+                .isEligible(isEligible)
+                .eligibilityReason(elgReason)
+                .category(category)
+                .attendancePercentage(attendancePct)
                 .build();
         })
         .sorted((a, b) -> {
@@ -571,4 +619,272 @@ public class ExamResultServiceImpl implements ExamResultService {
         }
         return dtos;
     }
+
+    private static class StudentEligibilityData {
+        boolean isEligible;
+        String reason;
+        Double overallAttendance;
+        StudentEligibilityData(boolean isEligible, String reason, Double overallAttendance) {
+            this.isEligible = isEligible;
+            this.reason = reason;
+            this.overallAttendance = overallAttendance;
+        }
+    }
+
+    private java.util.Map<UUID, StudentEligibilityData> getStudentEligibilityMap(UUID examinationId) {
+        java.util.Map<UUID, StudentEligibilityData> map = new java.util.HashMap<>();
+        try {
+            java.util.List<com.acronexus.entity.ExaminationEligibilityList> lists = 
+                eligibilityListRepository.findByExaminationIdOrderByCreatedAtDesc(examinationId);
+            if (lists != null && !lists.isEmpty() && lists.get(0).getStudents() != null && !lists.get(0).getStudents().isEmpty()) {
+                for (com.acronexus.entity.ExaminationEligibilityStudent ees : lists.get(0).getStudents()) {
+                    if (ees.getStudent() != null) {
+                        map.put(ees.getStudent().getId(), new StudentEligibilityData(
+                            Boolean.TRUE.equals(ees.getIsEligible()),
+                            ees.getReason() != null ? ees.getReason() : "",
+                            ees.getOverallAttendance()
+                        ));
+                    }
+                }
+            } else {
+                java.util.List<com.acronexus.dto.ExaminationEligibilityStudentDto> generated = 
+                    examinationService.generateEligibilityList(examinationId, null);
+                if (generated != null) {
+                    for (com.acronexus.dto.ExaminationEligibilityStudentDto s : generated) {
+                        if (s.getStudentId() != null) {
+                            map.put(s.getStudentId(), new StudentEligibilityData(
+                                Boolean.TRUE.equals(s.getIsEligible()),
+                                s.getReason() != null ? s.getReason() : "",
+                                s.getOverallAttendance()
+                            ));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch or generate eligibility list for exam {}: {}", examinationId, e.getMessage());
+        }
+        return map;
+    }
+
+    @Override
+    public com.acronexus.dto.ExamStudentCategorySummaryDto getStudentCategorySummary(
+            UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, UUID classId) {
+        Examination examination = examinationRepository.findById(examinationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Examination not found"));
+
+        java.util.Map<UUID, StudentEnrollment> uniqueEnrollments = new java.util.LinkedHashMap<>();
+        if (classSubjectId != null) {
+            ClassSubject cs = classSubjectRepository.findById(classSubjectId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ClassSubject not found"));
+            List<StudentEnrollment> list = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(cs.getAcroClass().getId());
+            for (StudentEnrollment enr : list) {
+                if (enr.getStudent() != null) uniqueEnrollments.putIfAbsent(enr.getStudent().getId(), enr);
+            }
+        } else if (classId != null) {
+            List<StudentEnrollment> list = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(classId);
+            for (StudentEnrollment enr : list) {
+                if (enr.getStudent() != null) uniqueEnrollments.putIfAbsent(enr.getStudent().getId(), enr);
+            }
+        } else {
+            for (com.acronexus.entity.AcroClass ac : examination.getClasses()) {
+                List<StudentEnrollment> list = studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(ac.getId());
+                for (StudentEnrollment enr : list) {
+                    if (enr.getStudent() != null) uniqueEnrollments.putIfAbsent(enr.getStudent().getId(), enr);
+                }
+            }
+        }
+
+        // Attendance records
+        List<com.acronexus.entity.ExaminationAttendance> attendances;
+        if (classSubjectId != null && examDate != null) {
+            attendances = examinationAttendanceRepository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
+        } else {
+            attendances = examinationAttendanceRepository.findByExaminationId(examinationId);
+            if (examDate != null) {
+                attendances = attendances.stream().filter(a -> examDate.equals(a.getExamDate())).collect(Collectors.toList());
+            }
+            if (classSubjectId != null) {
+                attendances = attendances.stream().filter(a -> a.getClassSubject() != null && classSubjectId.equals(a.getClassSubject().getId())).collect(Collectors.toList());
+            }
+        }
+        java.util.Map<UUID, com.acronexus.entity.ExaminationAttendance> attendanceMap = attendances.stream()
+                .filter(a -> a.getStudent() != null)
+                .collect(Collectors.toMap(a -> a.getStudent().getId(), a -> a, (e1, e2) -> e1));
+
+        // Result records
+        List<ExamResult> results;
+        if (classSubjectId != null && examDate != null) {
+            results = repository.findByExaminationIdAndExamDateAndClassSubjectId(examinationId, examDate, classSubjectId);
+        } else {
+            results = repository.findByExaminationId(examinationId);
+            if (examDate != null) {
+                results = results.stream().filter(r -> examDate.equals(r.getExamDate())).collect(Collectors.toList());
+            }
+            if (classSubjectId != null) {
+                results = results.stream().filter(r -> r.getClassSubject() != null && classSubjectId.equals(r.getClassSubject().getId())).collect(Collectors.toList());
+            }
+        }
+        java.util.Map<UUID, ExamResult> resultMap = results.stream()
+                .filter(r -> r.getStudent() != null)
+                .collect(Collectors.toMap(r -> r.getStudent().getId(), r -> r, (e1, e2) -> e1));
+
+        // Eligibility map
+        java.util.Map<UUID, StudentEligibilityData> elgMap = getStudentEligibilityMap(examinationId);
+
+        List<com.acronexus.dto.PresentStudentDto> allStudents = new java.util.ArrayList<>();
+        List<com.acronexus.dto.PresentStudentDto> appearedStudents = new java.util.ArrayList<>();
+        List<com.acronexus.dto.PresentStudentDto> eligibleNotAppearedStudents = new java.util.ArrayList<>();
+        List<com.acronexus.dto.PresentStudentDto> notEligibleStudents = new java.util.ArrayList<>();
+
+        for (StudentEnrollment enr : uniqueEnrollments.values()) {
+            Student s = enr.getStudent();
+            String sectionDisplay = (enr.getAcroClass() != null) ? 
+                (enr.getAcroClass().getSection() != null && !enr.getAcroClass().getSection().isEmpty() ? enr.getAcroClass().getSection() : enr.getAcroClass().getName()) : "";
+
+            StudentEligibilityData elg = elgMap.get(s.getId());
+            boolean isEligible = elg == null || elg.isEligible;
+            String elgReason = elg != null ? elg.reason : "";
+            Double attendancePct = elg != null ? elg.overallAttendance : null;
+
+            com.acronexus.entity.ExaminationAttendance att = attendanceMap.get(s.getId());
+            boolean isPresent = att != null && Boolean.TRUE.equals(att.getIsPresent());
+            boolean isMarkedAbsent = att != null && Boolean.FALSE.equals(att.getIsPresent());
+
+            ExamResult res = resultMap.get(s.getId());
+            boolean hasResult = res != null && res.getMarksObtained() != null;
+
+            String category;
+            String appearanceStatus;
+            String appearanceDetail;
+
+            if (isPresent) {
+                appearanceStatus = "PRESENT";
+                appearanceDetail = "Confirmed Present";
+            } else if (isMarkedAbsent) {
+                appearanceStatus = "ABSENT";
+                appearanceDetail = "Marked Absent in Attendance";
+            } else {
+                appearanceStatus = "NO_RECORD";
+                appearanceDetail = "No Exam Attendance Record";
+            }
+
+            if (!isEligible) {
+                category = "NOT_ELIGIBLE";
+            } else if (isPresent || hasResult) {
+                category = "APPEARED";
+            } else {
+                category = "ELIGIBLE_NOT_APPEARED";
+            }
+
+            com.acronexus.dto.PresentStudentDto dto = com.acronexus.dto.PresentStudentDto.builder()
+                .studentId(s.getId())
+                .enrollmentNo(s.getEnrollmentNo())
+                .studentName(s.getUser() != null ? (s.getUser().getFirstName() + " " + (s.getUser().getLastName() != null ? s.getUser().getLastName() : "")).trim() : "Unknown")
+                .section(sectionDisplay)
+                .category(category)
+                .isEligible(isEligible)
+                .eligibilityReason(elgReason)
+                .appearanceStatus(appearanceStatus)
+                .appearanceDetail(appearanceDetail)
+                .attendancePercentage(attendancePct)
+                .marksObtained(res != null ? res.getMarksObtained() : null)
+                .grade(res != null ? res.getGrade() : null)
+                .isPublished(res != null ? res.getIsPublished() : false)
+                .build();
+
+            allStudents.add(dto);
+            if ("NOT_ELIGIBLE".equals(category)) {
+                notEligibleStudents.add(dto);
+            } else if ("APPEARED".equals(category)) {
+                appearedStudents.add(dto);
+            } else {
+                eligibleNotAppearedStudents.add(dto);
+            }
+        }
+
+        java.util.Comparator<com.acronexus.dto.PresentStudentDto> comparator = 
+            java.util.Comparator.comparing(com.acronexus.dto.PresentStudentDto::getSection, java.util.Comparator.nullsLast(String::compareTo))
+                .thenComparing(com.acronexus.dto.PresentStudentDto::getStudentName, java.util.Comparator.nullsLast(String::compareTo));
+        allStudents.sort(comparator);
+        appearedStudents.sort(comparator);
+        eligibleNotAppearedStudents.sort(comparator);
+        notEligibleStudents.sort(comparator);
+
+        return com.acronexus.dto.ExamStudentCategorySummaryDto.builder()
+            .totalStudents(allStudents.size())
+            .appearedCount(appearedStudents.size())
+            .eligibleNotAppearedCount(eligibleNotAppearedStudents.size())
+            .notEligibleCount(notEligibleStudents.size())
+            .allStudents(allStudents)
+            .appearedStudents(appearedStudents)
+            .eligibleNotAppearedStudents(eligibleNotAppearedStudents)
+            .notEligibleStudents(notEligibleStudents)
+            .build();
+    }
+
+    @Override
+    public byte[] exportCategorizedStudentsExcel(
+            UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, UUID classId, String category) {
+        com.acronexus.dto.ExamStudentCategorySummaryDto summary = getStudentCategorySummary(examinationId, examDate, classSubjectId, classId);
+        List<com.acronexus.dto.PresentStudentDto> targetList;
+        String sheetTitle;
+        if ("APPEARED".equalsIgnoreCase(category)) {
+            targetList = summary.getAppearedStudents();
+            sheetTitle = "Appeared Students";
+        } else if ("NOT_ELIGIBLE".equalsIgnoreCase(category)) {
+            targetList = summary.getNotEligibleStudents();
+            sheetTitle = "Not Eligible Students";
+        } else if ("ALL".equalsIgnoreCase(category)) {
+            targetList = summary.getAllStudents();
+            sheetTitle = "All Students";
+        } else {
+            targetList = summary.getEligibleNotAppearedStudents();
+            sheetTitle = "Eligible Not Appeared";
+        }
+
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet(sheetTitle);
+
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            String[] headers = new String[] {
+                "S.No.", "Enrollment No", "Student Name", "Section", "Category", "Eligibility", "Exam Appearance", "Details / Reason"
+            };
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            int rowIdx = 1;
+            for (com.acronexus.dto.PresentStudentDto s : targetList) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(rowIdx - 1);
+                row.createCell(1).setCellValue(s.getEnrollmentNo() != null ? s.getEnrollmentNo() : "");
+                row.createCell(2).setCellValue(s.getStudentName() != null ? s.getStudentName() : "");
+                row.createCell(3).setCellValue(s.getSection() != null ? s.getSection() : "");
+                row.createCell(4).setCellValue(
+                    "APPEARED".equals(s.getCategory()) ? "Appeared / Result Available" :
+                    ("NOT_ELIGIBLE".equals(s.getCategory()) ? "Not Eligible" : "Eligible but Not Appeared")
+                );
+                row.createCell(5).setCellValue(Boolean.TRUE.equals(s.getIsEligible()) ? "Eligible" : "Not Eligible");
+                row.createCell(6).setCellValue(s.getAppearanceDetail() != null ? s.getAppearanceDetail() : "");
+                row.createCell(7).setCellValue(
+                    s.getEligibilityReason() != null && !s.getEligibilityReason().isEmpty() ? 
+                    s.getEligibilityReason() : 
+                    ("ELIGIBLE_NOT_APPEARED".equals(s.getCategory()) ? "Eligible but did not appear for examination" : "")
+                );
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to generate Excel file", e);
+        }
+    }
 }
+

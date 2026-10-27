@@ -41,6 +41,27 @@ public class ExamResultServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
+    private ExaminationRepository examinationRepository;
+
+    @Mock
+    private ExaminationAttendanceRepository examinationAttendanceRepository;
+
+    @Mock
+    private StudentEnrollmentRepository studentEnrollmentRepository;
+
+    @Mock
+    private ClassSubjectRepository classSubjectRepository;
+
+    @Mock
+    private StudentRepository studentRepository;
+
+    @Mock
+    private ExaminationEligibilityListRepository eligibilityListRepository;
+
+    @Mock
+    private com.acronexus.service.ExaminationService examinationService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -48,6 +69,7 @@ public class ExamResultServiceImplTest {
 
     @InjectMocks
     private ExamResultServiceImpl examResultService;
+
 
     private User facultyUser;
     private ExamResult examResult;
@@ -104,4 +126,180 @@ public class ExamResultServiceImplTest {
 
         assertEquals(BigDecimal.valueOf(75), response.getMarksObtained());
     }
+
+    @Test
+    void getStudentCategorySummary_AccuratelyClassifiesStudents() {
+        UUID examId = UUID.randomUUID();
+        UUID classSubjectId = UUID.randomUUID();
+        java.time.LocalDate examDate = java.time.LocalDate.of(2026, 11, 10);
+
+        Examination examination = new Examination();
+        examination.setId(examId);
+        examination.setName("Mid Term Exam");
+        when(examinationRepository.findById(examId)).thenReturn(Optional.of(examination));
+
+        AcroClass acroClass = new AcroClass();
+        acroClass.setId(UUID.randomUUID());
+        acroClass.setName("CS-3A");
+        acroClass.setSection("A");
+
+        ClassSubject classSubject = new ClassSubject();
+        classSubject.setId(classSubjectId);
+        classSubject.setAcroClass(acroClass);
+        when(classSubjectRepository.findById(classSubjectId)).thenReturn(Optional.of(classSubject));
+
+        // 3 Students:
+        // Student 1: Eligible and Appeared
+        Student s1 = createMockStudent("0827CS211001", "Alice", "Sharma");
+        StudentEnrollment enr1 = new StudentEnrollment();
+        enr1.setStudent(s1);
+        enr1.setAcroClass(acroClass);
+
+        // Student 2: Eligible but Not Appeared
+        Student s2 = createMockStudent("0827CS211002", "Bob", "Verma");
+        StudentEnrollment enr2 = new StudentEnrollment();
+        enr2.setStudent(s2);
+        enr2.setAcroClass(acroClass);
+
+        // Student 3: Not Eligible
+        Student s3 = createMockStudent("0827CS211003", "Charlie", "Gupta");
+        StudentEnrollment enr3 = new StudentEnrollment();
+        enr3.setStudent(s3);
+        enr3.setAcroClass(acroClass);
+
+        when(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId()))
+                .thenReturn(java.util.List.of(enr1, enr2, enr3));
+
+        // Mock saved eligibility list
+        ExaminationEligibilityList elgList = new ExaminationEligibilityList();
+        ExaminationEligibilityStudent ees1 = new ExaminationEligibilityStudent();
+        ees1.setStudent(s1);
+        ees1.setIsEligible(true);
+        ees1.setOverallAttendance(85.0);
+
+        ExaminationEligibilityStudent ees2 = new ExaminationEligibilityStudent();
+        ees2.setStudent(s2);
+        ees2.setIsEligible(true);
+        ees2.setOverallAttendance(80.0);
+
+        ExaminationEligibilityStudent ees3 = new ExaminationEligibilityStudent();
+        ees3.setStudent(s3);
+        ees3.setIsEligible(false);
+        ees3.setReason("Attendance Shortage (52%)");
+        ees3.setOverallAttendance(52.0);
+
+        elgList.setStudents(java.util.List.of(ees1, ees2, ees3));
+        when(eligibilityListRepository.findByExaminationIdOrderByCreatedAtDesc(examId))
+                .thenReturn(java.util.List.of(elgList));
+
+        // Mock attendance: s1 is present, s2 is absent in attendance sheet
+        ExaminationAttendance att1 = new ExaminationAttendance();
+        att1.setStudent(s1);
+        att1.setIsPresent(true);
+
+        ExaminationAttendance att2 = new ExaminationAttendance();
+        att2.setStudent(s2);
+        att2.setIsPresent(false);
+
+        when(examinationAttendanceRepository.findByExaminationIdAndExamDateAndClassSubjectId(examId, examDate, classSubjectId))
+                .thenReturn(java.util.List.of(att1, att2));
+
+        // Mock results: s1 has a result, s2 has none
+        ExamResult res1 = new ExamResult();
+        res1.setStudent(s1);
+        res1.setMarksObtained(BigDecimal.valueOf(88));
+        when(repository.findByExaminationIdAndExamDateAndClassSubjectId(examId, examDate, classSubjectId))
+                .thenReturn(java.util.List.of(res1));
+
+        com.acronexus.dto.ExamStudentCategorySummaryDto summary = 
+                examResultService.getStudentCategorySummary(examId, examDate, classSubjectId, null);
+
+        assertNotNull(summary);
+        assertEquals(3, summary.getTotalStudents());
+        assertEquals(1, summary.getAppearedCount());
+        assertEquals(1, summary.getEligibleNotAppearedCount());
+        assertEquals(1, summary.getNotEligibleCount());
+
+        assertEquals(1, summary.getAppearedStudents().size());
+        assertEquals("0827CS211001", summary.getAppearedStudents().get(0).getEnrollmentNo());
+        assertEquals("APPEARED", summary.getAppearedStudents().get(0).getCategory());
+        assertEquals("PRESENT", summary.getAppearedStudents().get(0).getAppearanceStatus());
+        assertTrue(summary.getAppearedStudents().get(0).getIsEligible());
+
+        assertEquals(1, summary.getEligibleNotAppearedStudents().size());
+        assertEquals("0827CS211002", summary.getEligibleNotAppearedStudents().get(0).getEnrollmentNo());
+        assertEquals("ELIGIBLE_NOT_APPEARED", summary.getEligibleNotAppearedStudents().get(0).getCategory());
+        assertEquals("ABSENT", summary.getEligibleNotAppearedStudents().get(0).getAppearanceStatus());
+        assertTrue(summary.getEligibleNotAppearedStudents().get(0).getIsEligible());
+
+        assertEquals(1, summary.getNotEligibleStudents().size());
+        assertEquals("0827CS211003", summary.getNotEligibleStudents().get(0).getEnrollmentNo());
+        assertEquals("NOT_ELIGIBLE", summary.getNotEligibleStudents().get(0).getCategory());
+        assertFalse(summary.getNotEligibleStudents().get(0).getIsEligible());
+        assertEquals("Attendance Shortage (52%)", summary.getNotEligibleStudents().get(0).getEligibilityReason());
+    }
+
+    @Test
+    void exportCategorizedStudentsExcel_GeneratesValidExcelBytes() {
+        UUID examId = UUID.randomUUID();
+        UUID classSubjectId = UUID.randomUUID();
+        java.time.LocalDate examDate = java.time.LocalDate.of(2026, 11, 10);
+
+        Examination examination = new Examination();
+        examination.setId(examId);
+        when(examinationRepository.findById(examId)).thenReturn(Optional.of(examination));
+
+        AcroClass acroClass = new AcroClass();
+        acroClass.setId(UUID.randomUUID());
+        acroClass.setName("CS-3A");
+
+        ClassSubject classSubject = new ClassSubject();
+        classSubject.setId(classSubjectId);
+        classSubject.setAcroClass(acroClass);
+        when(classSubjectRepository.findById(classSubjectId)).thenReturn(Optional.of(classSubject));
+
+        Student s2 = createMockStudent("0827CS211002", "Bob", "Verma");
+        StudentEnrollment enr2 = new StudentEnrollment();
+        enr2.setStudent(s2);
+        enr2.setAcroClass(acroClass);
+        when(studentEnrollmentRepository.findByAcroClassIdAndIsActiveTrue(acroClass.getId()))
+                .thenReturn(java.util.List.of(enr2));
+
+        when(eligibilityListRepository.findByExaminationIdOrderByCreatedAtDesc(examId))
+                .thenReturn(java.util.Collections.emptyList());
+        com.acronexus.dto.ExaminationEligibilityStudentDto elgDto = com.acronexus.dto.ExaminationEligibilityStudentDto.builder()
+                .id(UUID.randomUUID())
+                .studentId(s2.getId())
+                .name("Bob Verma")
+                .enrollmentNumber("0827CS211002")
+                .className("CS-3A")
+                .overallAttendance(80.0)
+                .isEligible(true)
+                .build();
+        when(examinationService.generateEligibilityList(eq(examId), any()))
+                .thenReturn(java.util.List.of(elgDto));
+
+        when(examinationAttendanceRepository.findByExaminationIdAndExamDateAndClassSubjectId(examId, examDate, classSubjectId))
+                .thenReturn(java.util.Collections.emptyList());
+        when(repository.findByExaminationIdAndExamDateAndClassSubjectId(examId, examDate, classSubjectId))
+                .thenReturn(java.util.Collections.emptyList());
+
+        byte[] excelBytes = examResultService.exportCategorizedStudentsExcel(examId, examDate, classSubjectId, null, "ELIGIBLE_NOT_APPEARED");
+
+        assertNotNull(excelBytes);
+        assertTrue(excelBytes.length > 0);
+    }
+
+    private Student createMockStudent(String enrollmentNo, String firstName, String lastName) {
+        Student s = new Student();
+        s.setId(UUID.randomUUID());
+        s.setEnrollmentNo(enrollmentNo);
+        User u = new User();
+        u.setId(UUID.randomUUID());
+        u.setFirstName(firstName);
+        u.setLastName(lastName);
+        s.setUser(u);
+        return s;
+    }
 }
+

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from "../services/api";
 import { examResultService } from '../services/examResultService';
+import type { CategorizedStudent, ExamStudentCategorySummary } from '../services/examResultService';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -10,7 +11,7 @@ import {
   Users, AlertTriangle, ChevronRight, CalendarDays, DownloadCloud, 
   FileSpreadsheet, Save, X, FileIcon,
   RefreshCw, FileText as FileTextIcon, Sparkles, BrainCircuit, Printer, Target, LayoutGrid, FolderOpen, User, Clock, List,
-  Loader2, CheckSquare, Check, Download
+  Loader2, CheckSquare, Check, Download, UserCheck, UserX, AlertCircle, Info, Filter
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -286,6 +287,9 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
   }, [resultTargetClassId, mode]);
 
   const [presentStudentsForSection, setPresentStudentsForSection] = useState<any[] | null>(null);
+  const [studentCategorySummary, setStudentCategorySummary] = useState<ExamStudentCategorySummary | null>(null);
+  const [activeStudentCategoryTab, setActiveStudentCategoryTab] = useState<'ALL' | 'APPEARED' | 'ELIGIBLE_NOT_APPEARED' | 'NOT_ELIGIBLE'>('ALL');
+  const [studentCategorySearch, setStudentCategorySearch] = useState<string>('');
   const [isPresentStudentsLoading, setIsPresentStudentsLoading] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [presentStudentsError, setPresentStudentsError] = useState<string | null>(null);
@@ -397,13 +401,25 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
     setIsPresentStudentsLoading(true);
     setPresentStudentsError(null);
     try {
-      let endpoint = `/exam-results/examinations/${targetExamId}/present-students?classId=${classId}`;
-      if (subjectId) endpoint += `&classSubjectId=${subjectId}`;
-      if (date) endpoint += `&examDate=${date}`;
-      const res = await api.get(endpoint);
-      setPresentStudentsForSection(res.data.data);
+      const summary = await examResultService.getStudentCategorySummary(
+        targetExamId,
+        date || undefined,
+        subjectId || undefined,
+        classId
+      );
+      setStudentCategorySummary(summary);
+      setPresentStudentsForSection(summary?.appearedStudents?.map((s: CategorizedStudent) => ({
+        enrollmentNo: s.enrollmentNo,
+        studentName: s.name,
+        section: s.className,
+        category: s.category,
+        isEligible: s.isEligible,
+        appearanceStatus: s.appearanceStatus,
+        appearanceDetail: s.appearanceDetail
+      })) || []);
     } catch (err: any) {
-      setPresentStudentsError(err.response?.data?.message || "Failed to load present students");
+      setPresentStudentsError(err.response?.data?.message || "Failed to load student attendance and eligibility breakdown");
+      setStudentCategorySummary(null);
       setPresentStudentsForSection(null);
     } finally {
       setIsPresentStudentsLoading(false);
@@ -418,6 +434,7 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
       const targetDate = mode === 'subject_card' ? presentStudentsDate : resultContextDate;
       fetchPresentStudents(effectivePresentTargetClassId, effectivePresentTargetSubjectId, targetDate);
     } else {
+      setStudentCategorySummary(null);
       setPresentStudentsForSection(null);
       setPresentStudentsError(null);
     }
@@ -436,17 +453,15 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
     if (!targetExamId || !effectivePresentTargetClassId) return;
     setIsExporting(true);
     try {
-        let endpoint = `/exam-results/examinations/${targetExamId}/present-students/export?classId=${effectivePresentTargetClassId}`;
-        if (effectivePresentTargetSubjectId) {
-            endpoint += `&classSubjectId=${effectivePresentTargetSubjectId}`;
-        }
         const targetDate = mode === 'subject_card' ? presentStudentsDate : resultContextDate;
-        if (targetDate) {
-            endpoint += `&examDate=${targetDate}`;
-        }
-        const response = await api.get(endpoint, {
-            responseType: 'blob'
-        });
+        const categoryParam = activeStudentCategoryTab === 'ALL' ? undefined : activeStudentCategoryTab;
+        const responseData = await examResultService.exportCategorizedStudents(
+            targetExamId,
+            targetDate || undefined,
+            effectivePresentTargetSubjectId || undefined,
+            effectivePresentTargetClassId || undefined,
+            categoryParam
+        );
         const sectionName = targetSectionsInternal.find((s: any) => s.id === effectivePresentTargetClassId)?.name || 'Section';
         
         let examNameForFile = effectiveExaminationName;
@@ -457,16 +472,23 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
         
         const safeExamName = (examNameForFile || 'Exam').replace(/[^a-zA-Z0-9-_\.]/g, '_');
         const safeSectionName = sectionName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+        const categoryLabel = activeStudentCategoryTab === 'ALL' 
+            ? 'All_Students' 
+            : activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED' 
+            ? 'Eligible_Not_Appeared' 
+            : activeStudentCategoryTab === 'NOT_ELIGIBLE'
+            ? 'Not_Eligible'
+            : 'Appeared_Students';
         
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const url = window.URL.createObjectURL(new Blob([responseData]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `${safeExamName}_${safeSectionName}_Present_Students.xlsx`);
+        link.setAttribute('download', `${safeExamName}_${safeSectionName}_${categoryLabel}.xlsx`);
         document.body.appendChild(link);
         link.click();
         link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
-        toast.success("Excel downloaded successfully");
+        toast.success(`Exported ${categoryLabel.replace(/_/g, ' ')} successfully`);
     } catch (err: any) {
         toast.error("Failed to download Excel");
     } finally {
@@ -1353,11 +1375,16 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
   const renderResultsTable = () => {
     // Augment data directly before filtering
     const augmentedData = fullResultList.map(student => {
-      const isPresent = student.attendanceStatus === 'PRESENT';
-      const displayAttendance = isPresent ? 'PRESENT' : 'ABSENT';
+      const isPresent = student.appearanceStatus === 'PRESENT' || student.attendanceStatus === 'PRESENT';
+      const isAbsent = student.appearanceStatus === 'ABSENT' || student.attendanceStatus === 'ABSENT';
+      const displayAttendance = isPresent ? 'PRESENT' : (isAbsent ? 'ABSENT' : 'NO RECORD');
       
       let effectiveStatus = 'Pending';
-      if (!isPresent) {
+      if (student.category === 'NOT_ELIGIBLE' || student.isEligible === false) {
+         effectiveStatus = 'Not Eligible';
+      } else if (student.category === 'ELIGIBLE_NOT_APPEARED') {
+         effectiveStatus = 'Eligible but Not Appeared';
+      } else if (!isPresent && student.marksObtained == null) {
          effectiveStatus = 'ABSENT';
       } else if (student.resultId) {
          if (student.isPublished) {
@@ -1397,8 +1424,16 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
       const sEnrollment = student.enrollmentNo || student.enrollmentNumber || 'Unknown';
       const matchesSearch = sName.toLowerCase().includes(resultSearch.toLowerCase()) || sEnrollment.toLowerCase().includes(resultSearch.toLowerCase());
       
-      const matchesStatus = resultStatusFilter === 'All' ? true : 
-                            student.effectiveStatus === resultStatusFilter;
+      let matchesStatus = true;
+      if (resultStatusFilter === 'All') {
+        matchesStatus = true;
+      } else if (resultStatusFilter === 'Eligible but Not Appeared') {
+        matchesStatus = student.effectiveStatus === 'Eligible but Not Appeared' || student.category === 'ELIGIBLE_NOT_APPEARED';
+      } else if (resultStatusFilter === 'Not Eligible') {
+        matchesStatus = student.effectiveStatus === 'Not Eligible' || student.category === 'NOT_ELIGIBLE';
+      } else {
+        matchesStatus = student.effectiveStatus === resultStatusFilter;
+      }
                             
       return matchesSearch && matchesStatus;
     });
@@ -1453,6 +1488,8 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
               <option value="Draft">Draft</option>
               <option value="Published">Published</option>
               <option value="ABSENT">Absent</option>
+              <option value="Eligible but Not Appeared">Eligible but Not Appeared</option>
+              <option value="Not Eligible">Not Eligible</option>
             </CustomSelect>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
@@ -1538,7 +1575,9 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                   <td className="px-4 py-3 text-center font-bold">
                     <span className={cn(
                       "px-2 py-1 rounded-md text-xs font-medium",
-                      student.displayAttendance === 'PRESENT' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                      student.displayAttendance === 'PRESENT' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" :
+                      student.displayAttendance === 'ABSENT' ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" :
+                      "bg-muted text-muted-foreground"
                     )}>
                       {student.displayAttendance}
                     </span>
@@ -1558,9 +1597,11 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      effectiveStatus === 'Published' ? 'bg-emerald-100 text-emerald-700' :
-                      effectiveStatus === 'Draft' ? 'bg-amber-100 text-amber-700' :
-                      effectiveStatus === 'ABSENT' ? 'bg-rose-100 text-rose-700' :
+                      effectiveStatus === 'Published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' :
+                      effectiveStatus === 'Draft' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                      effectiveStatus === 'Eligible but Not Appeared' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300' :
+                      effectiveStatus === 'Not Eligible' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300' :
+                      effectiveStatus === 'ABSENT' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' :
                       'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     )}>
                       {effectiveStatus}
@@ -1776,10 +1817,12 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
         </div>
 
         <div className="bg-card border border-border p-4 rounded-xl shadow-sm flex flex-col gap-4 mt-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
              <div>
-                <h4 className="font-bold">Present Students</h4>
-                <p className="text-sm text-muted-foreground">Download present students list for marks preparation.</p>
+                <h4 className="font-bold flex items-center gap-2">
+                  <Users size={18} className="text-primary"/> Student Status & Exam Appearance
+                </h4>
+                <p className="text-sm text-muted-foreground">Review candidate eligibility, exam appearance, and prepare results.</p>
              </div>
              <div className="flex gap-2 items-center flex-wrap">
                  {mode === 'examination' && (
@@ -1844,17 +1887,126 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
                         )}
                      </div>
                  )}
-                 <Button disabled={!effectivePresentTargetClassId || (mode === 'examination' && !presentTargetSubjectId) || isExporting} onClick={handleDownloadPresentStudentsExcel}>
+                 <div className="relative flex-grow sm:w-44">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                    <input 
+                      type="text" 
+                      placeholder="Search..." 
+                      className="w-full pl-8 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background"
+                      value={studentCategorySearch}
+                      onChange={e => setStudentCategorySearch(e.target.value)}
+                    />
+                 </div>
+                 <Button 
+                    disabled={!effectivePresentTargetClassId || (mode === 'examination' && !presentTargetSubjectId) || isExporting} 
+                    onClick={handleDownloadPresentStudentsExcel}
+                    variant="outline"
+                    className="whitespace-nowrap"
+                 >
                     {isExporting ? <Loader2 size={16} className="animate-spin mr-2" /> : <Download size={16} className="mr-2"/>}
-                    Download Excel
+                    {activeStudentCategoryTab === 'ALL' 
+                      ? 'Export All' 
+                      : activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED' 
+                      ? 'Export Not Appeared' 
+                      : activeStudentCategoryTab === 'NOT_ELIGIBLE'
+                      ? 'Export Not Eligible'
+                      : 'Export Appeared'}
                  </Button>
-             </div>
+              </div>
           </div>
+
+          {/* Category Tabs */}
+          <div className="flex gap-2 p-1.5 bg-muted/40 rounded-lg border border-border/60 overflow-x-auto hide-scrollbar">
+            <button
+              onClick={() => setActiveStudentCategoryTab('ALL')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all whitespace-nowrap",
+                activeStudentCategoryTab === 'ALL'
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>All Candidates</span>
+              <span className={cn(
+                "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                activeStudentCategoryTab === 'ALL' ? "bg-muted text-foreground" : "bg-muted/60 text-muted-foreground"
+              )}>
+                {studentCategorySummary?.totalStudents ?? 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveStudentCategoryTab('APPEARED')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all whitespace-nowrap",
+                activeStudentCategoryTab === 'APPEARED'
+                  ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-300 dark:border-emerald-700"
+                  : "text-muted-foreground hover:text-emerald-600"
+              )}
+            >
+              <UserCheck size={14} />
+              <span>Appeared / Result Available</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                {studentCategorySummary?.appearedCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveStudentCategoryTab('ELIGIBLE_NOT_APPEARED')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all whitespace-nowrap",
+                activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED'
+                  ? "bg-background text-amber-600 dark:text-amber-400 shadow-sm border border-amber-300 dark:border-amber-700"
+                  : "text-muted-foreground hover:text-amber-600"
+              )}
+            >
+              <UserX size={14} />
+              <span>Eligible but Not Appeared</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                {studentCategorySummary?.eligibleNotAppearedCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveStudentCategoryTab('NOT_ELIGIBLE')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all whitespace-nowrap",
+                activeStudentCategoryTab === 'NOT_ELIGIBLE'
+                  ? "bg-background text-rose-600 dark:text-rose-400 shadow-sm border border-rose-300 dark:border-rose-700"
+                  : "text-muted-foreground hover:text-rose-600"
+              )}
+            >
+              <AlertCircle size={14} />
+              <span>Not Eligible</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                {studentCategorySummary?.notEligibleCount ?? 0}
+              </span>
+            </button>
+          </div>
+
+          {/* Contextual Notice for Category Specifics */}
+          {activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED' && (
+             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                <Info size={16} className="mt-0.5 shrink-0" />
+                <div>
+                   <span className="font-semibold">Eligible but Not Appeared:</span> These students meet all examination eligibility criteria but have no recorded attendance presence or submitted results. The attendance status indicates whether they were explicitly marked absent during the session or if attendance was not recorded.
+                </div>
+             </div>
+          )}
+
+          {activeStudentCategoryTab === 'NOT_ELIGIBLE' && (
+             <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg flex items-start gap-2.5 text-xs text-rose-800 dark:text-rose-300">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <div>
+                   <span className="font-semibold">Not Eligible:</span> These students fail one or more eligibility criteria (e.g., minimum attendance or internal evaluations). Reasons are recorded directly from the examination eligibility policy.
+                </div>
+             </div>
+          )}
           
           {isPresentStudentsLoading && (
               <div className="py-8 text-center text-muted-foreground flex flex-col items-center gap-2">
                   <Loader2 size={32} className="animate-spin text-primary" />
-                  <p>Loading present students...</p>
+                  <p>Loading candidate breakdown & attendance...</p>
               </div>
           )}
           
@@ -1866,44 +2018,131 @@ export const ExamResultWorkspace = ({ mode, workspaceContext, examinationId, exa
 
           {!isPresentStudentsLoading && effectivePresentTargetClassId && mode === 'examination' && !presentTargetSubjectId && (
               <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20 mt-2">
-                  <p>Please select a subject to view the present students.</p>
+                  <p>Please select a subject to view student exam categories and attendance.</p>
               </div>
           )}
-          
-          {!isPresentStudentsLoading && effectivePresentTargetClassId && presentStudentsForSection && presentStudentsForSection.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
-                  <p>No present students found. Examination attendance may not have been recorded for this section yet.</p>
-              </div>
-          )}
-          
-          {!isPresentStudentsLoading && presentStudentsForSection && presentStudentsForSection.length > 0 && (
-             <div className="overflow-x-auto rounded-lg border border-border mt-2">
-                 <table className="w-full text-sm text-left">
-                     <thead className="text-xs uppercase bg-muted/50 border-b border-border">
-                         <tr>
-                             <th className="px-4 py-3 font-semibold">S.No.</th>
-                             <th className="px-4 py-3 font-semibold">Enrollment No</th>
-                             <th className="px-4 py-3 font-semibold">Student Name</th>
-                             <th className="px-4 py-3 font-semibold">Section</th>
-                         </tr>
-                     </thead>
-                     <tbody className="divide-y divide-border">
-                         {presentStudentsForSection.map((student: any, idx: number) => (
-                             <tr key={student.enrollmentNo} className="hover:bg-accent/20">
-                                 <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
-                                 <td className="px-4 py-3 font-medium">{student.enrollmentNo}</td>
-                                 <td className="px-4 py-3">{student.studentName}</td>
-                                 <td className="px-4 py-3">
-                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
-                                         {student.section}
-                                     </span>
-                                 </td>
+
+          {!isPresentStudentsLoading && effectivePresentTargetClassId && studentCategorySummary && (() => {
+              let categoryList: CategorizedStudent[] = [];
+              if (activeStudentCategoryTab === 'ALL') categoryList = studentCategorySummary.allStudents || [];
+              else if (activeStudentCategoryTab === 'APPEARED') categoryList = studentCategorySummary.appearedStudents || [];
+              else if (activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED') categoryList = studentCategorySummary.eligibleNotAppearedStudents || [];
+              else if (activeStudentCategoryTab === 'NOT_ELIGIBLE') categoryList = studentCategorySummary.notEligibleStudents || [];
+
+              const searchFiltered = categoryList.filter(s => {
+                 if (!studentCategorySearch.trim()) return true;
+                 const q = studentCategorySearch.toLowerCase();
+                 return (s.name && s.name.toLowerCase().includes(q)) ||
+                        (s.enrollmentNo && s.enrollmentNo.toLowerCase().includes(q)) ||
+                        (s.className && s.className.toLowerCase().includes(q));
+              });
+
+              if (searchFiltered.length === 0) {
+                 return (
+                    <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl bg-accent/20">
+                        {studentCategorySearch.trim() ? (
+                           <p>No students match &quot;{studentCategorySearch}&quot; in this category.</p>
+                        ) : activeStudentCategoryTab === 'ELIGIBLE_NOT_APPEARED' ? (
+                           <p className="text-emerald-600 dark:text-emerald-400 font-medium">No students in &quot;Eligible but Not Appeared&quot;. All eligible candidates either appeared or were graded!</p>
+                        ) : activeStudentCategoryTab === 'NOT_ELIGIBLE' ? (
+                           <p className="text-emerald-600 dark:text-emerald-400 font-medium">All students in this class/subject meet eligibility requirements.</p>
+                        ) : activeStudentCategoryTab === 'APPEARED' ? (
+                           <p>No appeared students recorded yet for this examination.</p>
+                        ) : (
+                           <p>No students found for this examination context.</p>
+                        )}
+                    </div>
+                 );
+              }
+
+              return (
+                 <div className="overflow-x-auto rounded-lg border border-border mt-2">
+                     <table className="w-full text-sm text-left">
+                         <thead className="text-xs uppercase bg-muted/50 border-b border-border">
+                             <tr>
+                                 <th className="px-4 py-3 font-semibold">S.No.</th>
+                                 <th className="px-4 py-3 font-semibold">Enrollment No</th>
+                                 <th className="px-4 py-3 font-semibold">Student Name</th>
+                                 <th className="px-4 py-3 font-semibold">Section</th>
+                                 <th className="px-4 py-3 font-semibold">Category</th>
+                                 <th className="px-4 py-3 font-semibold">Exam Attendance</th>
+                                 <th className="px-4 py-3 font-semibold">Eligibility</th>
+                                 <th className="px-4 py-3 font-semibold text-right">Result</th>
                              </tr>
-                         ))}
-                     </tbody>
-                 </table>
-             </div>
-          )}
+                         </thead>
+                         <tbody className="divide-y divide-border">
+                             {searchFiltered.map((student: CategorizedStudent, idx: number) => (
+                                 <tr key={student.enrollmentNo} className="hover:bg-accent/20">
+                                     <td className="px-4 py-3 text-muted-foreground text-xs">{idx + 1}</td>
+                                     <td className="px-4 py-3 font-medium">{student.enrollmentNo}</td>
+                                     <td className="px-4 py-3">{student.name}</td>
+                                     <td className="px-4 py-3">
+                                         <span className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs font-bold">
+                                             {student.className}
+                                         </span>
+                                     </td>
+                                     <td className="px-4 py-3">
+                                         {student.category === 'APPEARED' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                               <UserCheck size={12}/> Appeared
+                                            </span>
+                                         )}
+                                         {student.category === 'ELIGIBLE_NOT_APPEARED' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                               <UserX size={12}/> Eligible but Not Appeared
+                                            </span>
+                                         )}
+                                         {student.category === 'NOT_ELIGIBLE' && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                               <AlertCircle size={12}/> Not Eligible
+                                            </span>
+                                         )}
+                                     </td>
+                                     <td className="px-4 py-3">
+                                         {student.appearanceStatus === 'PRESENT' ? (
+                                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                               <Check size={12}/> Present
+                                            </span>
+                                         ) : student.appearanceStatus === 'ABSENT' ? (
+                                            <span className="text-xs font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1" title={student.appearanceDetail || 'Marked absent'}>
+                                               <X size={12}/> Absent (Recorded)
+                                            </span>
+                                         ) : (
+                                            <span className="text-xs text-muted-foreground flex items-center gap-1" title="Attendance was not recorded for this student">
+                                               <Clock size={12}/> No Record
+                                            </span>
+                                         )}
+                                     </td>
+                                     <td className="px-4 py-3">
+                                         {student.isEligible ? (
+                                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                               Eligible {student.attendancePercentage != null ? `(${student.attendancePercentage}%)` : ''}
+                                            </span>
+                                         ) : (
+                                            <div>
+                                               <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">Not Eligible</span>
+                                               {student.eligibilityReason && (
+                                                  <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{student.eligibilityReason}</p>
+                                               )}
+                                            </div>
+                                         )}
+                                     </td>
+                                     <td className="px-4 py-3 text-right">
+                                         {student.marksObtained != null ? (
+                                            <span className="font-semibold text-foreground">
+                                               {student.marksObtained} {student.grade ? `(${student.grade})` : ''}
+                                            </span>
+                                         ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                         )}
+                                     </td>
+                                 </tr>
+                             ))}
+                         </tbody>
+                     </table>
+                 </div>
+              );
+          })()}
         </div>
 
            {((mode === 'subject_card' && (createResultFlowState === 'UPLOAD_FILE' || createResultFlowState === 'RESULT_READY')) || (mode === 'examination' && isCreatingResult)) && (

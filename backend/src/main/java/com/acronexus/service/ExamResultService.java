@@ -32,4 +32,8 @@ public interface ExamResultService {
     
     int bulkSaveResults(UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, java.util.List<com.acronexus.dto.ExamResultContextRowDto> results);
     java.util.List<com.acronexus.dto.SavedResultContextDto> getSavedContexts(UUID examinationId);
+
+    com.acronexus.dto.ExamStudentCategorySummaryDto getStudentCategorySummary(UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, UUID classId);
+    byte[] exportCategorizedStudentsExcel(UUID examinationId, java.time.LocalDate examDate, UUID classSubjectId, UUID classId, String category);
 }
+

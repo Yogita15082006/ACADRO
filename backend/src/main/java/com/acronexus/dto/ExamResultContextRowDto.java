@@ -26,4 +26,10 @@ public class ExamResultContextRowDto {
     private Boolean isPublished;
     private String resultStatus; // "Saved", "Pending"
     private ExamAiFeedbackResponseDto aiFeedback;
+    private Boolean isEligible;
+    private String eligibilityReason;
+    private String category; // "APPEARED", "ELIGIBLE_NOT_APPEARED", "NOT_ELIGIBLE"
+    private String appearanceDetail;
+    private Double attendancePercentage;
 }
+

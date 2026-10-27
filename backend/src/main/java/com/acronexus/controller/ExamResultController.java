@@ -121,6 +121,39 @@ public class ExamResultController {
         
         return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
     }
+
+    @GetMapping("/examinations/{examinationId}/student-categories")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<ApiResponse<com.acronexus.dto.ExamStudentCategorySummaryDto>> getStudentCategories(
+            @PathVariable UUID examinationId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId,
+            @RequestParam(required = false) UUID classId) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Student examination category summary fetched successfully",
+            service.getStudentCategorySummary(examinationId, examDate, classSubjectId, classId)
+        ));
+    }
+
+    @GetMapping("/examinations/{examinationId}/student-categories/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOD', 'COORDINATOR', 'FACULTY')")
+    public ResponseEntity<byte[]> exportCategorizedStudentsExcel(
+            @PathVariable UUID examinationId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate examDate,
+            @RequestParam(required = false) UUID classSubjectId,
+            @RequestParam(required = false) UUID classId,
+            @RequestParam(defaultValue = "ELIGIBLE_NOT_APPEARED") String category) {
+        byte[] excelData = service.exportCategorizedStudentsExcel(examinationId, examDate, classSubjectId, classId, category);
+        
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        String fileName = "Students_" + category.toLowerCase().replace('_', '-') + ".xlsx";
+        headers.setContentDispositionFormData("attachment", fileName);
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+        
+        return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
+    }
+
     
     @PostMapping("/publish")
     @PreAuthorize("hasAnyRole('HOD', 'COORDINATOR', 'FACULTY', 'ADMIN')")

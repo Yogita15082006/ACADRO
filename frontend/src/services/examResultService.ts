@@ -17,6 +17,39 @@ export interface ExamResult {
   subjectName?: string;
 }
 
+export interface CategorizedStudent {
+  studentId?: string;
+  name: string;
+  enrollmentNo: string;
+  className: string;
+  category: 'APPEARED' | 'ELIGIBLE_NOT_APPEARED' | 'NOT_ELIGIBLE';
+  isEligible: boolean;
+  eligibilityReason?: string;
+  appearanceStatus: 'PRESENT' | 'ABSENT' | 'NO_RECORD';
+  appearanceDetail?: string;
+  attendancePercentage?: number;
+  marksObtained?: number;
+  grade?: string;
+  isPublished?: boolean;
+}
+
+export interface ExamStudentCategorySummary {
+  examinationId: string;
+  examDate?: string;
+  classSubjectId?: string;
+  classId?: string;
+  className?: string;
+  subjectName?: string;
+  totalStudents: number;
+  appearedCount: number;
+  eligibleNotAppearedCount: number;
+  notEligibleCount: number;
+  appearedStudents: CategorizedStudent[];
+  eligibleNotAppearedStudents: CategorizedStudent[];
+  notEligibleStudents: CategorizedStudent[];
+  allStudents: CategorizedStudent[];
+}
+
 export const examResultService = {
   getResultsByExam: async (examinationId: string) => {
     const response = await api.get(`/exam-results?examinationId=${examinationId}`);
@@ -135,6 +168,27 @@ export const examResultService = {
     const params = new URLSearchParams();
     params.append('classSubjectId', classSubjectId);
     const response = await api.get(`/examinations/${examinationId}/attendance/dates?${params.toString()}`);
+    return response.data;
+  },
+
+  getStudentCategorySummary: async (examinationId: string, examDate?: string, classSubjectId?: string, classId?: string): Promise<ExamStudentCategorySummary> => {
+    const params = new URLSearchParams();
+    if (examDate) params.append('examDate', examDate);
+    if (classSubjectId) params.append('classSubjectId', classSubjectId);
+    if (classId) params.append('classId', classId);
+    const response = await api.get(`/examinations/${examinationId}/student-categories?${params.toString()}`);
+    return response.data;
+  },
+
+  exportCategorizedStudents: async (examinationId: string, examDate?: string, classSubjectId?: string, classId?: string, category?: string): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (examDate) params.append('examDate', examDate);
+    if (classSubjectId) params.append('classSubjectId', classSubjectId);
+    if (classId) params.append('classId', classId);
+    if (category) params.append('category', category);
+    const response = await api.get(`/examinations/${examinationId}/student-categories/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
     return response.data;
   }
 };
